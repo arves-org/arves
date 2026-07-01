@@ -241,23 +241,26 @@ pub trait Kernel {
 
 
 // =============================================================================
-// I1.4 Walking Skeleton: concrete in-memory Kernel + deterministic replay.
+// I1.4/I1.5 reference Kernel: concrete commit gateway + deterministic replay.
 //
-// Single process / node / shard. NO Raft, networking, replication, scheduler,
-// engine graph, or API. Proves the first executable behaviour:
+// Single process / node. NO Raft, networking, replication, scheduler, engine
+// graph, or API. Proves the first executable behaviour:
 //   ProposedWrite -> commit() -> WAL.append() -> durable truth -> TruthRef
 //   -> replay() -> same truth.
-// The Kernel stays the SOLE commit gateway (ORCH-001/OWN-001); reads are not on
-// the trait. `truth_hash`/`committed_count` are introspection helpers for the
-// behaviour proofs, NOT the Query layer (milestone I3).
+// The concrete Kernel is generic over the durable substrate (`RefKernel<S>`), so
+// the SAME logic runs over the in-memory WAL (`MemKernel`, I1.4) and the
+// fsync-durable on-disk WAL (`FileKernel`, I1.5). The Kernel stays the SOLE
+// commit gateway (ORCH-001/OWN-001); reads are not on the trait.
+// `truth_hash`/`committed_count` are introspection helpers for the behaviour
+// proofs, NOT the Query layer (milestone I3).
 // =============================================================================
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 use arves_persistence::{
-    ContentId, MemWalStore, PendingRecord, RecordKind, ReplayCursor, ShardKey as PShardKey, Wal,
-    WalStore,
+    ContentId, FileWalStore, MemWalStore, PendingRecord, RecordKind, ReplayCursor,
+    ShardKey as PShardKey, Wal, WalStore,
 };
 
 fn to_pshard(s: &ShardKey) -> PShardKey {
@@ -291,16 +294,29 @@ struct KernelState {
 }
 
 /// The reference Kernel: the sole commit gateway. Owns truth in memory, backed
-/// by the append-only WAL it replays on recovery. Implements [`Kernel`].
-pub struct MemKernel {
-    store: MemWalStore,
+/// by an append-only [`WalStore`] it replays on recovery. Generic over the
+/// durable substrate so identical logic runs over the in-memory WAL
+/// ([`MemKernel`], I1.4) and the fsync-durable on-disk WAL ([`FileKernel`],
+/// I1.5). Implements [`Kernel`].
+pub struct RefKernel<S: WalStore> {
+    store: S,
     state: Mutex<KernelState>,
 }
 
-impl MemKernel {
+/// In-memory reference Kernel (I1.4): truth cached in memory over an in-memory
+/// WAL. Alias of [`RefKernel`] over [`MemWalStore`]. "Restart" = drop the Kernel
+/// while an `Arc`-shared log survives (durability is simulated, not on disk).
+pub type MemKernel = RefKernel<MemWalStore>;
+
+/// File-backed reference Kernel (I1.5): identical logic over a fsync-durable,
+/// crash-consistent on-disk WAL. Truth survives a real process exit and is
+/// recovered by a fresh process from the directory alone (ORCH-003 replay).
+pub type FileKernel = RefKernel<FileWalStore>;
+
+impl<S: WalStore> RefKernel<S> {
     /// Create an empty Kernel over a durable store (no replay).
-    pub fn new(store: MemWalStore) -> Self {
-        MemKernel {
+    pub fn new(store: S) -> Self {
+        RefKernel {
             store,
             state: Mutex::new(KernelState {
                 committed: Vec::new(),
@@ -311,8 +327,8 @@ impl MemKernel {
 
     /// Recover a Kernel by REPLAYING the durable WAL (ORCH-003: reconstruct from
     /// the recorded trace, never recompute). This is what a restart runs.
-    pub fn recover(store: MemWalStore) -> Self {
-        let k = MemKernel::new(store);
+    pub fn recover(store: S) -> Self {
+        let k = RefKernel::new(store);
         k.replay();
         k
     }
@@ -367,7 +383,7 @@ impl MemKernel {
     }
 }
 
-impl Kernel for MemKernel {
+impl<S: WalStore> Kernel for RefKernel<S> {
     fn commit(&self, proposed: ProposedWrite) -> Result<TruthRef, CommitError> {
         let mut state = self.state.lock().expect("state poisoned");
         let key = (
