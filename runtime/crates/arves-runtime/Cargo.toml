@@ -5,3 +5,5 @@ edition = "2021"
 publish = false
 
 [dependencies]
+arves-kernel = { path = "../arves-kernel" }
+arves-persistence = { path = "../arves-persistence" }

@@ -238,3 +238,170 @@ pub trait Kernel {
     /// proposal.
     fn commit(&self, proposed: ProposedWrite) -> Result<TruthRef, CommitError>;
 }
+
+
+// =============================================================================
+// I1.4 Walking Skeleton: concrete in-memory Kernel + deterministic replay.
+//
+// Single process / node / shard. NO Raft, networking, replication, scheduler,
+// engine graph, or API. Proves the first executable behaviour:
+//   ProposedWrite -> commit() -> WAL.append() -> durable truth -> TruthRef
+//   -> replay() -> same truth.
+// The Kernel stays the SOLE commit gateway (ORCH-001/OWN-001); reads are not on
+// the trait. `truth_hash`/`committed_count` are introspection helpers for the
+// behaviour proofs, NOT the Query layer (milestone I3).
+// =============================================================================
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use arves_persistence::{
+    ContentId, MemWalStore, PendingRecord, RecordKind, ReplayCursor, ShardKey as PShardKey, Wal,
+    WalStore,
+};
+
+fn to_pshard(s: &ShardKey) -> PShardKey {
+    PShardKey {
+        tenant: s.tenant.clone(),
+        workspace: s.workspace.clone(),
+    }
+}
+fn from_pshard(s: &PShardKey) -> ShardKey {
+    ShardKey {
+        tenant: s.tenant.clone(),
+        workspace: s.workspace.clone(),
+    }
+}
+
+/// Deterministic, dependency-free FNV-1a-64 fold. Proves the committed truth
+/// set is bit-identical before and after replay (ORCH-003) without relying on
+/// any hasher whose seed could vary across runs.
+fn fnv1a_64(seed: u64, bytes: &[u8]) -> u64 {
+    let mut h = seed;
+    for &b in bytes {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+struct KernelState {
+    committed: Vec<(TruthRef, Vec<u8>)>,
+    index: HashMap<(String, String, Vec<u8>), usize>,
+}
+
+/// The reference Kernel: the sole commit gateway. Owns truth in memory, backed
+/// by the append-only WAL it replays on recovery. Implements [`Kernel`].
+pub struct MemKernel {
+    store: MemWalStore,
+    state: Mutex<KernelState>,
+}
+
+impl MemKernel {
+    /// Create an empty Kernel over a durable store (no replay).
+    pub fn new(store: MemWalStore) -> Self {
+        MemKernel {
+            store,
+            state: Mutex::new(KernelState {
+                committed: Vec::new(),
+                index: HashMap::new(),
+            }),
+        }
+    }
+
+    /// Recover a Kernel by REPLAYING the durable WAL (ORCH-003: reconstruct from
+    /// the recorded trace, never recompute). This is what a restart runs.
+    pub fn recover(store: MemWalStore) -> Self {
+        let k = MemKernel::new(store);
+        k.replay();
+        k
+    }
+
+    /// Replay every shard WAL into the truth set, idempotently: a record whose
+    /// content is already present is skipped, so replay never creates new truth.
+    pub fn replay(&self) {
+        let shards = self.store.shards();
+        let mut state = self.state.lock().expect("state poisoned");
+        for sh in shards {
+            let wal = self.store.open(&sh).expect("open wal");
+            let mut cur = wal.replay_from(0).expect("replay");
+            while let Some(rec) = cur.next().expect("cursor") {
+                let key = (
+                    rec.shard.tenant.clone(),
+                    rec.shard.workspace.clone(),
+                    rec.content.0.clone(),
+                );
+                if state.index.contains_key(&key) {
+                    continue;
+                }
+                let tr = TruthRef {
+                    shard: from_pshard(&rec.shard),
+                    content: ContentHash(rec.content.0.clone()),
+                    index: CommitIndex(rec.offset),
+                };
+                let pos = state.committed.len();
+                state.committed.push((tr, rec.payload.clone()));
+                state.index.insert(key, pos);
+            }
+        }
+    }
+
+    /// Introspection (NOT the Query layer): number of committed truths.
+    pub fn committed_count(&self) -> usize {
+        self.state.lock().expect("state poisoned").committed.len()
+    }
+
+    /// Introspection (NOT the Query layer): deterministic hash of the committed
+    /// truth set in commit order. Equal before and after replay iff identical.
+    pub fn truth_hash(&self) -> u64 {
+        let state = self.state.lock().expect("state poisoned");
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for (tr, payload) in &state.committed {
+            h = fnv1a_64(h, tr.shard.tenant.as_bytes());
+            h = fnv1a_64(h, tr.shard.workspace.as_bytes());
+            h = fnv1a_64(h, &tr.content.0);
+            h = fnv1a_64(h, &tr.index.0.to_le_bytes());
+            h = fnv1a_64(h, payload);
+        }
+        h
+    }
+}
+
+impl Kernel for MemKernel {
+    fn commit(&self, proposed: ProposedWrite) -> Result<TruthRef, CommitError> {
+        let mut state = self.state.lock().expect("state poisoned");
+        let key = (
+            proposed.shard.tenant.clone(),
+            proposed.shard.workspace.clone(),
+            proposed.content.0.clone(),
+        );
+        // ORCH-004: an identical re-proposal resolves to existing truth, never a fork.
+        if let Some(&pos) = state.index.get(&key) {
+            return Err(CommitError::AlreadyCommitted(state.committed[pos].0.clone()));
+        }
+        let pshard = to_pshard(&proposed.shard);
+        let mut wal = self.store.open(&pshard).map_err(|e| CommitError::Rejected {
+            reason: format!("wal open: {e:?}"),
+        })?;
+        let offset = wal
+            .append(PendingRecord {
+                shard: pshard,
+                term: 0,
+                kind: RecordKind::Outcome,
+                content: ContentId(proposed.content.0.clone()),
+                payload: proposed.payload.clone(),
+            })
+            .map_err(|e| CommitError::Rejected {
+                reason: format!("wal append: {e:?}"),
+            })?;
+        let tr = TruthRef {
+            shard: proposed.shard.clone(),
+            content: proposed.content.clone(),
+            index: CommitIndex(offset),
+        };
+        let pos = state.committed.len();
+        state.committed.push((tr.clone(), proposed.payload));
+        state.index.insert(key, pos);
+        Ok(tr)
+    }
+}

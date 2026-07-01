@@ -275,3 +275,149 @@ pub trait WalStore {
     /// List the shards for which this store holds a durable WAL.
     fn shards(&self) -> Vec<ShardKey>;
 }
+
+
+// =============================================================================
+// I1.4 Walking Skeleton: in-memory durable substrate (concrete impls).
+//
+// Scope: single process / single node / single shard. This is the append-only
+// log the Kernel replays across a simulated restart (a dropped Kernel plus a
+// fresh recover over the same store). File-backed durability is I1.5; this
+// crate still owns NO truth (PERSIST-001) and never mutates a committed record
+// (append-only, IDR-005).
+// =============================================================================
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+type SharedLog = Arc<Mutex<Vec<WalRecord>>>;
+
+/// In-memory, append-only WAL for one shard. Cloning shares the same log.
+#[derive(Clone)]
+pub struct MemWal {
+    shard: ShardKey,
+    log: SharedLog,
+}
+
+/// Forward, gap-free replay cursor over a snapshot of a shard log.
+pub struct MemCursor {
+    records: Vec<WalRecord>,
+    pos: usize,
+    start: Offset,
+}
+
+impl ReplayCursor for MemCursor {
+    fn next(&mut self) -> Result<Option<WalRecord>, WalError> {
+        if self.pos < self.records.len() {
+            let r = self.records[self.pos].clone();
+            self.pos += 1;
+            Ok(Some(r))
+        } else {
+            Ok(None)
+        }
+    }
+    fn position(&self) -> Offset {
+        self.start + self.pos as Offset
+    }
+}
+
+impl Wal for MemWal {
+    type Cursor = MemCursor;
+
+    fn shard(&self) -> &ShardKey {
+        &self.shard
+    }
+
+    fn append(&mut self, record: PendingRecord) -> Result<Offset, WalError> {
+        // Single-node I1.4: this node is always the leader for its shard.
+        let mut log = self.log.lock().expect("wal poisoned");
+        let offset = log.len() as Offset;
+        log.push(WalRecord {
+            shard: record.shard,
+            offset,
+            term: record.term,
+            kind: record.kind,
+            content: record.content,
+            payload: record.payload,
+        });
+        Ok(offset)
+    }
+
+    fn snapshot(&mut self) -> Result<SnapshotMeta, WalError> {
+        // Minimal marker; real compaction is I1.6.
+        let log = self.log.lock().expect("wal poisoned");
+        let head = log.len() as Offset;
+        let term = log.last().map(|r| r.term).unwrap_or(0);
+        Ok(SnapshotMeta {
+            shard: self.shard.clone(),
+            up_to_offset: head.saturating_sub(1),
+            term,
+            content: ContentId(Vec::new()),
+        })
+    }
+
+    fn replay_from(&self, offset: Offset) -> Result<Self::Cursor, WalError> {
+        let log = self.log.lock().expect("wal poisoned");
+        let head = log.len() as Offset;
+        if offset > head {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head,
+            });
+        }
+        let records = log[offset as usize..].to_vec();
+        Ok(MemCursor {
+            records,
+            pos: 0,
+            start: offset,
+        })
+    }
+
+    fn head(&self) -> Offset {
+        self.log.lock().expect("wal poisoned").len() as Offset
+    }
+
+    fn earliest(&self) -> Offset {
+        0
+    }
+}
+
+/// In-memory [`WalStore`] - the durable substrate that survives a simulated
+/// restart. Cloning shares the same per-shard logs (Arc), so a fresh Kernel can
+/// recover the truth an earlier Kernel committed.
+#[derive(Clone, Default)]
+pub struct MemWalStore {
+    inner: Arc<Mutex<HashMap<ShardKey, SharedLog>>>,
+}
+
+impl MemWalStore {
+    /// Create an empty store.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl WalStore for MemWalStore {
+    type Wal = MemWal;
+
+    fn open(&self, shard: &ShardKey) -> Result<Self::Wal, WalError> {
+        let mut map = self.inner.lock().expect("store poisoned");
+        let log = map
+            .entry(shard.clone())
+            .or_insert_with(|| Arc::new(Mutex::new(Vec::new())))
+            .clone();
+        Ok(MemWal {
+            shard: shard.clone(),
+            log,
+        })
+    }
+
+    fn shards(&self) -> Vec<ShardKey> {
+        self.inner
+            .lock()
+            .expect("store poisoned")
+            .keys()
+            .cloned()
+            .collect()
+    }
+}
