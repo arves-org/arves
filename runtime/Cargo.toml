@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/arves-ontology",
+    "crates/arves-invariants",
+    "crates/arves-kernel",
+    "crates/arves-persistence",
+    "crates/arves-lcw",
+    "crates/arves-query",
+    "crates/arves-information-platform",
+    "crates/arves-capability-fabric",
+    "crates/arves-engine-fabric",
+    "crates/arves-control-plane",
+    "crates/arves-execution",
+    "crates/arves-consensus",
+    "crates/arves-conformance",
+    "crates/arves-runtime",
+]
