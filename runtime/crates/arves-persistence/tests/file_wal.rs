@@ -45,13 +45,20 @@ fn drain(wal: &FileWal) -> Vec<WalRecord> {
     out
 }
 
-fn wal_file(dir: &Path) -> PathBuf {
-    fs::read_dir(dir)
-        .expect("read dir")
-        .flatten()
-        .map(|e| e.path())
-        .find(|p| p.extension().map(|x| x == "wal").unwrap_or(false))
-        .expect("a .wal file exists")
+/// Find the single segment file for a single-shard, sub-rotation-limit test.
+/// The shard is a subdirectory of `root` holding `seg-*.wal` files.
+fn wal_file(root: &Path) -> PathBuf {
+    for e in fs::read_dir(root).expect("read root").flatten() {
+        if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            for f in fs::read_dir(e.path()).expect("read shard dir").flatten() {
+                let p = f.path();
+                if p.extension().map(|x| x == "wal").unwrap_or(false) {
+                    return p;
+                }
+            }
+        }
+    }
+    panic!("no seg .wal file under {root:?}");
 }
 
 /// A committed record is durable on disk before `append` returns: a SEPARATE

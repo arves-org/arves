@@ -3,11 +3,13 @@
 //! Walking-skeleton demo + I1.5 real-restart harness. Runnable via
 //! `cargo run -p arves-runtime`. Single node/shard; no distributed logic.
 //!
-//! Subcommands (I1.5, used by the cross-process restart proof):
-//!   arves-runtime write   <dir>   commit a fixed sequence to a file WAL, fsync,
-//!                                  print TRUTH_HASH + COUNT, exit. (== process A)
-//!   arves-runtime recover <dir>   open the SAME dir in a fresh process, replay
-//!                                  the on-disk WAL, print TRUTH_HASH + COUNT.
+//! Subcommands (I1.5/I1.6, used by the cross-process proofs):
+//!   arves-runtime write      <dir>   commit a fixed sequence to a file WAL,
+//!                                     fsync, print TRUTH_HASH + COUNT. (proc A)
+//!   arves-runtime recover    <dir>   open the SAME dir in a fresh process,
+//!                                     restore (snapshot + tail), print hash.
+//!   arves-runtime checkpoint <dir>   recover, take a durable checkpoint
+//!                                     (snapshot + compaction), print hash.
 //! With no subcommand it runs the I1.4 in-memory demo.
 
 use arves_kernel::{
@@ -59,10 +61,22 @@ fn run_write(dir: &str) {
 
 fn run_recover(dir: &str) {
     let store = FileWalStore::open_root(dir).expect("open file store");
-    // A genuinely fresh Kernel: no commits, only replay of the on-disk WAL.
+    // A genuinely fresh Kernel: no commits, only restore (snapshot + tail replay).
     let kernel = FileKernel::recover(store);
     println!("TRUTH_HASH={:#018x}", kernel.truth_hash());
     println!("COUNT={}", kernel.committed_count());
+}
+
+fn run_checkpoint(dir: &str) {
+    let store = FileWalStore::open_root(dir).expect("open file store");
+    let kernel = FileKernel::recover(store);
+    let before = kernel.truth_hash();
+    let shards = kernel.checkpoint().expect("checkpoint");
+    // A checkpoint is a durability operation; it must not change truth.
+    println!("CHECKPOINTED_SHARDS={shards}");
+    println!("TRUTH_HASH={:#018x}", kernel.truth_hash());
+    println!("COUNT={}", kernel.committed_count());
+    println!("TRUTH_UNCHANGED={}", kernel.truth_hash() == before);
 }
 
 fn run_demo() {
@@ -111,6 +125,13 @@ fn main() {
                 process::exit(64);
             });
             run_recover(dir);
+        }
+        Some("checkpoint") => {
+            let dir = args.get(2).unwrap_or_else(|| {
+                eprintln!("usage: arves-runtime checkpoint <dir>");
+                process::exit(64);
+            });
+            run_checkpoint(dir);
         }
         _ => run_demo(),
     }

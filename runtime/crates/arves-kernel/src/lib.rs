@@ -288,6 +288,61 @@ fn fnv1a_64(seed: u64, bytes: &[u8]) -> u64 {
     h
 }
 
+// -- checkpoint state blob codec (I1.6) ---------------------------------------
+//
+// The Kernel owns truth (ORCH-001), so the Kernel serializes a shard's
+// materialized truths into an opaque blob that Persistence stores verbatim. The
+// blob is deterministic (fixed-order little-endian) so a snapshot + tail replay
+// reproduces the same truth set as a from-zero replay.
+
+fn put_u32(buf: &mut Vec<u8>, v: u32) {
+    buf.extend_from_slice(&v.to_le_bytes());
+}
+fn put_u64(buf: &mut Vec<u8>, v: u64) {
+    buf.extend_from_slice(&v.to_le_bytes());
+}
+fn put_bytes(buf: &mut Vec<u8>, b: &[u8]) {
+    put_u32(buf, b.len() as u32);
+    buf.extend_from_slice(b);
+}
+
+/// Serialize a shard's truths `(offset, content, payload)` in offset order.
+fn encode_shard_blob(entries: &[(u64, Vec<u8>, Vec<u8>)]) -> Vec<u8> {
+    let mut b = Vec::new();
+    put_u32(&mut b, entries.len() as u32);
+    for (offset, content, payload) in entries {
+        put_u64(&mut b, *offset);
+        put_bytes(&mut b, content);
+        put_bytes(&mut b, payload);
+    }
+    b
+}
+
+/// Decode a shard state blob. `None` on any structural mismatch.
+fn decode_shard_blob(b: &[u8]) -> Option<Vec<(u64, Vec<u8>, Vec<u8>)>> {
+    let mut pos = 0usize;
+    fn take<'a>(b: &'a [u8], pos: &mut usize, n: usize) -> Option<&'a [u8]> {
+        let end = pos.checked_add(n)?;
+        let s = b.get(*pos..end)?;
+        *pos = end;
+        Some(s)
+    }
+    let count = u32::from_le_bytes(take(b, &mut pos, 4)?.try_into().ok()?) as usize;
+    let mut out = Vec::with_capacity(count);
+    for _ in 0..count {
+        let offset = u64::from_le_bytes(take(b, &mut pos, 8)?.try_into().ok()?);
+        let clen = u32::from_le_bytes(take(b, &mut pos, 4)?.try_into().ok()?) as usize;
+        let content = take(b, &mut pos, clen)?.to_vec();
+        let plen = u32::from_le_bytes(take(b, &mut pos, 4)?.try_into().ok()?) as usize;
+        let payload = take(b, &mut pos, plen)?.to_vec();
+        out.push((offset, content, payload));
+    }
+    if pos != b.len() {
+        return None; // trailing garbage
+    }
+    Some(out)
+}
+
 struct KernelState {
     committed: Vec<(TruthRef, Vec<u8>)>,
     index: HashMap<(String, String, Vec<u8>), usize>,
@@ -333,14 +388,26 @@ impl<S: WalStore> RefKernel<S> {
         k
     }
 
-    /// Replay every shard WAL into the truth set, idempotently: a record whose
-    /// content is already present is skipped, so replay never creates new truth.
+    /// Recover the truth set for every shard, idempotently, via
+    /// **checkpoint + tail replay** (I1.6): if a durable snapshot exists, install
+    /// its materialized state and replay only records after it; otherwise replay
+    /// from the earliest retained offset. A record whose content is already
+    /// present is skipped, so replay never creates new truth (ORCH-003).
     pub fn replay(&self) {
         let shards = self.store.shards();
-        let mut state = self.state.lock().expect("state poisoned");
         for sh in shards {
             let wal = self.store.open(&sh).expect("open wal");
-            let mut cur = wal.replay_from(0).expect("replay");
+            let kernel_shard = from_pshard(&sh);
+            // load_snapshot() -> install_state() -> replay(tail).
+            let base = match wal.load_snapshot().expect("load snapshot") {
+                Some((meta, blob)) => {
+                    self.install_state(&kernel_shard, &blob);
+                    meta.up_to_offset + 1
+                }
+                None => wal.earliest(),
+            };
+            let mut cur = wal.replay_from(base).expect("replay");
+            let mut state = self.state.lock().expect("state poisoned");
             while let Some(rec) = cur.next().expect("cursor") {
                 let key = (
                     rec.shard.tenant.clone(),
@@ -360,6 +427,64 @@ impl<S: WalStore> RefKernel<S> {
                 state.index.insert(key, pos);
             }
         }
+    }
+
+    /// Serialize a shard's materialized truths into an opaque state blob, in
+    /// offset order. The Kernel owns truth (ORCH-001), so snapshot production is
+    /// exclusively the Kernel's job; Persistence stores the bytes verbatim.
+    pub fn snapshot_shard(&self, shard: &ShardKey) -> Vec<u8> {
+        let state = self.state.lock().expect("state poisoned");
+        let mut entries: Vec<(u64, Vec<u8>, Vec<u8>)> = state
+            .committed
+            .iter()
+            .filter(|(tr, _)| tr.shard == *shard)
+            .map(|(tr, payload)| (tr.index.0, tr.content.0.clone(), payload.clone()))
+            .collect();
+        entries.sort_by_key(|(offset, _, _)| *offset);
+        encode_shard_blob(&entries)
+    }
+
+    /// Install a shard state blob into the truth set (restore path). Idempotent:
+    /// a truth whose content is already present is skipped.
+    pub fn install_state(&self, shard: &ShardKey, blob: &[u8]) {
+        let entries = decode_shard_blob(blob).unwrap_or_default();
+        let mut state = self.state.lock().expect("state poisoned");
+        for (offset, content, payload) in entries {
+            let key = (shard.tenant.clone(), shard.workspace.clone(), content.clone());
+            if state.index.contains_key(&key) {
+                continue;
+            }
+            let tr = TruthRef {
+                shard: shard.clone(),
+                content: ContentHash(content),
+                index: CommitIndex(offset),
+            };
+            let pos = state.committed.len();
+            state.committed.push((tr, payload));
+            state.index.insert(key, pos);
+        }
+    }
+
+    /// Take a durable checkpoint for every shard: produce the state blob (Kernel
+    /// owns truth), `install_snapshot` it (Persistence stores opaque bytes), then
+    /// `compact` the WAL prefix it covers. Returns the number of shards
+    /// checkpointed. The snapshot is durable BEFORE compaction (no truth loss).
+    pub fn checkpoint(&self) -> Result<usize, String> {
+        let mut n = 0;
+        for psh in self.store.shards() {
+            let mut wal = self.store.open(&psh).map_err(|e| format!("open: {e:?}"))?;
+            let head = wal.head();
+            if head == 0 {
+                continue;
+            }
+            let kernel_shard = from_pshard(&psh);
+            let blob = self.snapshot_shard(&kernel_shard);
+            wal.install_snapshot(head - 1, 0, &blob)
+                .map_err(|e| format!("install_snapshot: {e:?}"))?;
+            wal.compact(head - 1).map_err(|e| format!("compact: {e:?}"))?;
+            n += 1;
+        }
+        Ok(n)
     }
 
     /// Introspection (NOT the Query layer): number of committed truths.

@@ -20,8 +20,8 @@ I4 Capability Scheduling -> I5 Multi-Agent Runtime -> I6 Reference Products`.
 | I1.3 | Implementation Baseline (commit + tag) | Completed | tag `I1-baseline` |
 | I1.4 | First Executable Behaviour (commit -> WAL -> replay) | Completed | tag `I1.4-first-behaviour` |
 | I1.5 | Persistent WAL (memory -> disk, fsync, real restart) | Completed | tag `I1.5-durable-wal` |
-| I1.6 | Checkpoint Semantics (snapshot + compaction + WAL rotation + recovery point + restore) | Next | - |
-| I1.7 | Recovery (restart from checkpoint + WAL tail) | Pending | - |
+| I1.6 | Checkpoint Semantics (snapshot + compaction + WAL rotation + recovery point + restore) | Implemented - tests PASS; awaiting commit+tag | `runtime/docs/I1.6_Checkpoint_Semantics_Design.md` |
+| I1.7 | Recovery (restart from checkpoint + WAL tail) | Next | - |
 
 > **I1.6 scope note (tracker-level refinement, not a spec change).** The frozen
 > Baseline Part 5 defines only the top-level `I1..I6` milestones; the `I1.x`
@@ -76,6 +76,54 @@ deterministic. Honest limitations recorded in the design doc (no parent-dir
 fsync; a mid-log bit-flip conservatively truncates the suffix - acceptable
 single-node, repaired by replication later). `cargo check --workspace
 --all-targets`: 0 warnings. 18/18 behaviour tests PASS (6 I1.4 + 12 I1.5).
+
+## I1.6 - Checkpoint Semantics (implemented; awaiting user commit+tag)
+
+The WAL no longer grows unbounded. Recovery is now **snapshot + tail replay**
+instead of replay-from-zero. Managed as **Reference Runtime Interface Evolution
+under RT-001** (see `RT-001_Reference_Runtime_Interface_Evolution.md`), NOT a
+specification change: the frozen UCS/UCI is untouched; the dormant `SnapshotMeta`
+/ `SnapshotMarker` / `earliest()` surface is activated into
+`install_snapshot`/`load_snapshot`/`compact`.
+
+Lifecycle now proven end to end:
+
+```
+commit() -> append() -> segment (rotate on threshold)
+         -> checkpoint(): Kernel snapshot_shard() [owns truth, ORCH-001]
+                          -> Wal.install_snapshot() [opaque bytes, fsync+rename]
+                          -> Wal.compact() [delete fully-covered sealed segments]
+         -> recover(): load_snapshot() -> install_state() -> replay(tail)
+```
+
+New behaviour proofs (all PASS):
+
+| Test | Proves |
+|------|--------|
+| persistence: segments_rotate_and_replay_contiguously | rotation splits the log; replay stays contiguous across segments |
+| persistence: checkpoint_then_compaction_deletes_covered_segments | compaction deletes only fully-covered SEALED segments; `earliest` advances; tail intact |
+| persistence: snapshot_survives_fresh_store | opaque checkpoint blob round-trips to a fresh process byte-identically |
+| persistence: corrupt_snapshot_is_ignored | a torn/CRC-bad checkpoint is never loaded |
+| persistence: compact_past_head_rejected | `compact` beyond head -> `OffsetOutOfRange` |
+| kernel B12: checkpoint_then_recover_equals_full_replay | checkpoint (covering all) + recover == full replay |
+| kernel B13: checkpoint_plus_tail_recovers_full_history | snapshot(0..2) + tail(3..4) == clean 5-commit history |
+| kernel B14: compaction_reclaims_segments | 3 segments -> 1 after checkpoint; recovery still exact |
+| kernel B15: idempotent_checkpoint_and_recovery | double checkpoint + repeated recovery are stable |
+
+**Live demo (three real processes):** `write` -> `seg-0.wal`; `checkpoint` ->
+`snap-...02.snap` appears with `TRUTH_UNCHANGED=true`; `recover` -> identical
+`TRUTH_HASH=0xac74e037364c15f7` via snapshot + tail replay.
+
+**Independent architecture review verdict (I1.6): PASS.** Kernel remains sole
+truth owner; Persistence stores opaque snapshot bytes only (ORCH-001/PERSIST-001);
+WAL stays append-only, compaction deletes whole covered segments only (IDR-005);
+`snapshot + tail == full replay` proven deterministic (binding requirement #6);
+recovery path is `load_snapshot -> install_state -> replay(tail)` (#7); no layer
+added, no ownership moved, no frozen doc touched (#8). Interface change admissible
+under RT-001 (dormant->active). Honest limits carried forward from I1.5 (no
+parent-dir fsync; corrupt sealed segment conservatively truncates suffix -
+repaired by replication at I2). `cargo check --workspace --all-targets`: 0
+warnings. **27/27 behaviour tests PASS** (6 I1.4 + 12 I1.5 + 9 I1.6).
 
 ## I1.4 - conformance status (honest)
 

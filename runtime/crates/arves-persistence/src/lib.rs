@@ -236,12 +236,36 @@ pub trait Wal {
     /// (append-only WAL, IDR-005).
     fn append(&mut self, record: PendingRecord) -> Result<Offset, WalError>;
 
-    /// Capture a snapshot of materialized shard state up to and including the
-    /// current committed head, returning its durable metadata.
+    /// Durably store a checkpoint of materialized shard state covering offsets
+    /// `0..=up_to_offset`, returning its metadata (I1.6).
     ///
-    /// Snapshots enable prefix compaction and faster replay; they are derived
-    /// state, not new truth -- the log stays authoritative (ORCH-003, IDR-005).
-    fn snapshot(&mut self) -> Result<SnapshotMeta, WalError>;
+    /// The `state` blob is produced by the **Kernel** (the sole truth owner,
+    /// ORCH-001) and is treated here as **opaque bytes**: this store never
+    /// interprets it (PERSIST-001). The checkpoint must be durable (fsync +
+    /// atomic rename) BEFORE any segment is compacted, so a crash never loses
+    /// truth. Snapshots are derived state; the log stays authoritative
+    /// (ORCH-003, IDR-005).
+    ///
+    /// Governing: RT-001 (this activates the previously-reserved
+    /// [`SnapshotMeta`] / [`RecordKind::SnapshotMarker`] surface; it is Reference
+    /// Runtime interface evolution, not a specification change).
+    fn install_snapshot(
+        &mut self,
+        up_to_offset: Offset,
+        term: Term,
+        state: &[u8],
+    ) -> Result<SnapshotMeta, WalError>;
+
+    /// Load the latest durable checkpoint (metadata + opaque blob), if any, for
+    /// restore. A torn/corrupt checkpoint is ignored (never restore corruption);
+    /// recovery then falls back to an older checkpoint or full replay.
+    fn load_snapshot(&self) -> Result<Option<(SnapshotMeta, Vec<u8>)>, WalError>;
+
+    /// Drop WAL segments fully captured by a durable checkpoint at/below
+    /// `up_to_offset`. Compaction ONLY deletes fully-covered segment files; it
+    /// never rewrites a surviving record (append-only, IDR-005). After this,
+    /// [`Wal::earliest`] advances to the first retained offset.
+    fn compact(&mut self, up_to_offset: Offset) -> Result<(), WalError>;
 
     /// Open a forward cursor that replays committed records starting at
     /// `offset` (inclusive) through the current committed head.
@@ -292,7 +316,16 @@ pub trait WalStore {
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-type SharedLog = Arc<Mutex<Vec<WalRecord>>>;
+/// Shared in-memory log for one shard: the records, a `base` offset that
+/// advances on compaction (so the log models a droppable prefix), and the latest
+/// in-memory checkpoint. Cloning [`MemWal`] shares this via `Arc`.
+#[derive(Default)]
+struct MemLog {
+    records: Vec<WalRecord>,
+    base: Offset,
+    snapshot: Option<(SnapshotMeta, Vec<u8>)>,
+}
+type SharedLog = Arc<Mutex<MemLog>>;
 
 /// In-memory, append-only WAL for one shard. Cloning shares the same log.
 #[derive(Clone)]
@@ -304,6 +337,7 @@ pub struct MemWal {
 /// Forward, gap-free replay cursor over a decoded slice of a shard log. Shared
 /// by both the in-memory (`MemWal`) and file-backed (`FileWal`) WALs: each hands
 /// the cursor an already-materialized, offset-ordered record slice to iterate.
+#[derive(Debug)]
 pub struct VecReplayCursor {
     records: Vec<WalRecord>,
     pos: usize,
@@ -333,10 +367,14 @@ impl Wal for MemWal {
     }
 
     fn append(&mut self, record: PendingRecord) -> Result<Offset, WalError> {
-        // Single-node I1.4: this node is always the leader for its shard.
+        // Single-node: this node is always the leader for its shard (SHARD-001:
+        // no cross-shard append).
+        if record.shard != self.shard {
+            return Err(WalError::UnknownShard(record.shard));
+        }
         let mut log = self.log.lock().expect("wal poisoned");
-        let offset = log.len() as Offset;
-        log.push(WalRecord {
+        let offset = log.base + log.records.len() as Offset;
+        log.records.push(WalRecord {
             shard: record.shard,
             offset,
             term: record.term,
@@ -347,29 +385,73 @@ impl Wal for MemWal {
         Ok(offset)
     }
 
-    fn snapshot(&mut self) -> Result<SnapshotMeta, WalError> {
-        // Minimal marker; real compaction is I1.6.
-        let log = self.log.lock().expect("wal poisoned");
-        let head = log.len() as Offset;
-        let term = log.last().map(|r| r.term).unwrap_or(0);
-        Ok(SnapshotMeta {
+    fn install_snapshot(
+        &mut self,
+        up_to_offset: Offset,
+        term: Term,
+        state: &[u8],
+    ) -> Result<SnapshotMeta, WalError> {
+        let mut log = self.log.lock().expect("wal poisoned");
+        let head = log.base + log.records.len() as Offset;
+        if head > 0 && up_to_offset > head - 1 {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head,
+            });
+        }
+        // Opaque blob (Kernel-produced); we only fingerprint it for the meta.
+        let meta = SnapshotMeta {
             shard: self.shard.clone(),
-            up_to_offset: head.saturating_sub(1),
+            up_to_offset,
             term,
-            content: ContentId(Vec::new()),
-        })
+            content: ContentId(crc32_ieee(state).to_le_bytes().to_vec()),
+        };
+        log.snapshot = Some((meta.clone(), state.to_vec()));
+        Ok(meta)
+    }
+
+    fn load_snapshot(&self) -> Result<Option<(SnapshotMeta, Vec<u8>)>, WalError> {
+        Ok(self.log.lock().expect("wal poisoned").snapshot.clone())
+    }
+
+    fn compact(&mut self, up_to_offset: Offset) -> Result<(), WalError> {
+        let mut log = self.log.lock().expect("wal poisoned");
+        let head = log.base + log.records.len() as Offset;
+        if head == 0 {
+            return Ok(());
+        }
+        if up_to_offset > head - 1 {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head,
+            });
+        }
+        if up_to_offset < log.base {
+            return Ok(()); // prefix already dropped
+        }
+        let drop_count = (up_to_offset + 1 - log.base) as usize;
+        log.records.drain(0..drop_count);
+        log.base = up_to_offset + 1;
+        Ok(())
     }
 
     fn replay_from(&self, offset: Offset) -> Result<Self::Cursor, WalError> {
         let log = self.log.lock().expect("wal poisoned");
-        let head = log.len() as Offset;
+        let head = log.base + log.records.len() as Offset;
+        if offset < log.base {
+            return Err(WalError::OffsetCompacted {
+                shard: self.shard.clone(),
+                earliest: log.base,
+            });
+        }
         if offset > head {
             return Err(WalError::OffsetOutOfRange {
                 shard: self.shard.clone(),
                 head,
             });
         }
-        let records = log[offset as usize..].to_vec();
+        let start_idx = (offset - log.base) as usize;
+        let records = log.records[start_idx..].to_vec();
         Ok(VecReplayCursor {
             records,
             pos: 0,
@@ -378,11 +460,12 @@ impl Wal for MemWal {
     }
 
     fn head(&self) -> Offset {
-        self.log.lock().expect("wal poisoned").len() as Offset
+        let log = self.log.lock().expect("wal poisoned");
+        log.base + log.records.len() as Offset
     }
 
     fn earliest(&self) -> Offset {
-        0
+        self.log.lock().expect("wal poisoned").base
     }
 }
 
@@ -408,7 +491,7 @@ impl WalStore for MemWalStore {
         let mut map = self.inner.lock().expect("store poisoned");
         let log = map
             .entry(shard.clone())
-            .or_insert_with(|| Arc::new(Mutex::new(Vec::new())))
+            .or_insert_with(|| Arc::new(Mutex::new(MemLog::default())))
             .clone();
         Ok(MemWal {
             shard: shard.clone(),
@@ -428,31 +511,36 @@ impl WalStore for MemWalStore {
 
 
 // =============================================================================
-// I1.5 Persistent WAL: file-backed, fsync-durable, crash-consistent (concrete).
+// I1.5/I1.6 Persistent WAL: file-backed, fsync-durable, crash-consistent, and
+// SEGMENTED with checkpointing (concrete).
 //
-// Scope: single process / single node; each shard is one append-only file under
-// a root directory. This is where persistence becomes REAL for the first time:
-// a committed record is fsync'd to disk BEFORE `append` returns, survives a full
-// process exit, and is recovered byte-identically by a fresh process that only
-// has the directory path (ORCH-003 replay from the recorded trace).
+// Scope: single process / single node. Each shard is a DIRECTORY under the root
+// containing append-only segment files (`seg-<start>.wal`) plus checkpoint files
+// (`snap-<up_to>.snap`). A committed record is fsync'd BEFORE `append` returns
+// (I1.5) and survives a real process exit; recovery is snapshot + tail replay
+// (I1.6), so the WAL no longer grows unbounded.
 //
 // Durability / crash-consistency contract honoured here:
 //   * append-only (IDR-005): frames are only ever added; committed frames are
-//     never mutated or reordered (prefix compaction is deferred to I1.6).
+//     never mutated or reordered. Compaction ONLY deletes fully-covered sealed
+//     segment files -- it never rewrites a survivor.
 //   * fsync-before-Ok: `File::sync_all` (FlushFileBuffers on Windows) completes
 //     before `append` returns Ok -- the durability obligation of `Wal::append`.
+//   * crash-safe checkpoints: written to `.tmp`, fsync'd, atomically renamed;
+//     durable BEFORE any segment is compacted (never lose truth on a crash).
 //   * torn-tail detection: each frame carries a CRC32 over its body; a crash
-//     mid-write leaves a partial/garbage frame at the tail, detected on open and
-//     truncated away. Truth committed before the tear is intact.
+//     mid-write leaves a partial/garbage frame in the current segment, detected
+//     on open and truncated away. Truth committed before the tear is intact.
 //   * self-describing frames: length-prefixed body + trailing CRC, fixed-order
 //     little-endian fields -> deterministic, dependency-free encoding.
-// Still owns NO truth (PERSIST-001); still no networking/replication (that is
-// arves-consensus, later). Snapshots stay minimal markers (I1.6).
+// Snapshot creation belongs to the KERNEL (ORCH-001); this store treats the
+// snapshot blob as opaque bytes (PERSIST-001). Still no networking/replication
+// (arves-consensus, later). Interface evolution recorded under RT-001.
 // =============================================================================
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// On-disk frame format version. Bumping this is a format migration, not a
 /// silent change; decoders reject any other version (treated as corruption).
@@ -637,10 +725,10 @@ fn decode_body(body: &[u8], shard: &ShardKey, expected_offset: Offset) -> Option
 /// frame (a crash mid-append). Returns the decoded records plus the byte length
 /// of the good prefix, so callers can `set_len` to truncate the torn tail
 /// (crash-consistency; append-only, IDR-005).
-fn decode_all(bytes: &[u8], shard: &ShardKey) -> (Vec<WalRecord>, usize) {
+fn decode_all(bytes: &[u8], shard: &ShardKey, expected_start: Offset) -> (Vec<WalRecord>, usize) {
     let mut recs = Vec::new();
     let mut pos = 0usize;
-    let mut expected: Offset = 0;
+    let mut expected: Offset = expected_start;
     loop {
         if pos == bytes.len() {
             break; // clean end of log
@@ -683,24 +771,128 @@ fn decode_all(bytes: &[u8], shard: &ShardKey) -> (Vec<WalRecord>, usize) {
     (recs, pos)
 }
 
-// -- file-backed WAL ----------------------------------------------------------
+// -- file-backed, segmented WAL + checkpoints (I1.6) --------------------------
 
-struct FileWalInner {
+/// A parsed segment file: its start offset and path.
+struct SegInfo {
+    start: Offset,
     path: PathBuf,
-    /// Append handle (opened `create(true).append(true)`).
-    file: File,
-    /// Offset one past the last durable record (the append point). The shard key
-    /// itself lives on the [`FileWal`] handle (used for framing + validation).
-    head: Offset,
 }
 
-/// File-backed, fsync-durable, append-only WAL for one shard. Cloning shares the
-/// same open handle + `head` (Arc), matching `MemWal`'s intra-process semantics.
-/// The durable substrate is the file itself, so truth outlives every handle.
+fn seg_name(start: Offset) -> String {
+    format!("seg-{start:020}.wal")
+}
+fn parse_seg(name: &str) -> Option<Offset> {
+    name.strip_prefix("seg-")?.strip_suffix(".wal")?.parse().ok()
+}
+fn snap_name(up_to: Offset) -> String {
+    format!("snap-{up_to:020}.snap")
+}
+fn parse_snap(name: &str) -> Option<Offset> {
+    name.strip_prefix("snap-")?.strip_suffix(".snap")?.parse().ok()
+}
+
+/// List a shard directory's segment files, sorted by start offset (ascending).
+fn list_segments(dir: &Path) -> Vec<SegInfo> {
+    let mut segs = Vec::new();
+    if let Ok(rd) = fs::read_dir(dir) {
+        for e in rd.flatten() {
+            if let Some(n) = e.file_name().to_str() {
+                if let Some(start) = parse_seg(n) {
+                    segs.push(SegInfo {
+                        start,
+                        path: e.path(),
+                    });
+                }
+            }
+        }
+    }
+    segs.sort_by_key(|s| s.start);
+    segs
+}
+
+/// Checkpoint file format version.
+const SNAP_VERSION: u8 = 1;
+
+/// Encode a checkpoint file: version | up_to | term | blob_len | blob | crc32.
+/// The blob is the Kernel's opaque materialized-state bytes (ORCH-001).
+fn encode_snapshot(up_to: Offset, term: Term, blob: &[u8]) -> Vec<u8> {
+    let mut b = Vec::with_capacity(blob.len() + 25);
+    b.push(SNAP_VERSION);
+    put_u64(&mut b, up_to);
+    put_u64(&mut b, term);
+    put_bytes(&mut b, blob);
+    let crc = crc32_ieee(&b);
+    put_u32(&mut b, crc);
+    b
+}
+
+/// Decode a checkpoint file. `None` if torn/corrupt (ignored on load, never
+/// restore corruption).
+fn decode_snapshot(bytes: &[u8]) -> Option<(Offset, Term, Vec<u8>)> {
+    if bytes.len() < 4 {
+        return None;
+    }
+    let body = &bytes[..bytes.len() - 4];
+    let stored_crc = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().ok()?);
+    if crc32_ieee(body) != stored_crc {
+        return None;
+    }
+    let mut r = BodyReader { b: body, pos: 0 };
+    if r.u8()? != SNAP_VERSION {
+        return None;
+    }
+    let up_to = r.u64()?;
+    let term = r.u64()?;
+    let blob = r.bytes()?;
+    if !r.done() {
+        return None;
+    }
+    Some((up_to, term, blob))
+}
+
+struct FileWalInner {
+    dir: PathBuf,
+    /// Append handle to the current (last) segment.
+    current: File,
+    /// Start offset of the current segment.
+    current_start: Offset,
+    /// Records already written to the current segment.
+    current_count: u64,
+    /// Offset one past the last durable record (the append point).
+    head: Offset,
+    /// First retained offset (advances as compaction deletes covered segments).
+    earliest: Offset,
+    /// Max records per segment before rotation.
+    rotate_every: u64,
+}
+
+/// File-backed, fsync-durable, append-only, SEGMENTED WAL for one shard (I1.6).
+/// A shard is a directory of `seg-<start>.wal` segments plus `snap-<up_to>.snap`
+/// checkpoints. Cloning shares the open handle + head (Arc). The durable
+/// substrate is the filesystem, so truth outlives every handle and process.
 #[derive(Clone)]
 pub struct FileWal {
     shard: ShardKey,
     inner: Arc<Mutex<FileWalInner>>,
+}
+
+impl FileWal {
+    /// Roll to a fresh segment starting at the current head. The previous segment
+    /// becomes a sealed, deletable-on-compaction file. Append-only is preserved:
+    /// a sealed segment is never rewritten.
+    fn rotate(inner: &mut FileWalInner) -> Result<(), WalError> {
+        let path = inner.dir.join(seg_name(inner.head));
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .map_err(|e| WalError::Durability(format!("rotate open: {e}")))?;
+        inner.current = file;
+        inner.current_start = inner.head;
+        inner.current_count = 0;
+        Ok(())
+    }
 }
 
 impl Wal for FileWal {
@@ -711,12 +903,15 @@ impl Wal for FileWal {
     }
 
     fn append(&mut self, record: PendingRecord) -> Result<Offset, WalError> {
-        // SHARD-001: a WAL only accepts records for its own shard; there is no
-        // cross-shard append.
+        // SHARD-001: a WAL only accepts records for its own shard.
         if record.shard != self.shard {
             return Err(WalError::UnknownShard(record.shard));
         }
         let mut inner = self.inner.lock().expect("filewal poisoned");
+        // WAL rotation: seal the current segment and start a new one at head.
+        if inner.current_count >= inner.rotate_every {
+            FileWal::rotate(&mut inner)?;
+        }
         let offset = inner.head;
         let body = encode_body(
             &self.shard,
@@ -731,44 +926,177 @@ impl Wal for FileWal {
         frame.extend_from_slice(&body);
         put_u32(&mut frame, crc32_ieee(&body));
         inner
-            .file
+            .current
             .write_all(&frame)
             .map_err(|e| WalError::Durability(format!("append write: {e}")))?;
-        // DURABILITY: the record must survive a crash BEFORE we return Ok
-        // (the Wal::append contract). sync_all == FlushFileBuffers on Windows.
+        // DURABILITY: fsync before Ok (Wal::append contract; FlushFileBuffers).
         inner
-            .file
+            .current
             .sync_all()
             .map_err(|e| WalError::Durability(format!("fsync: {e}")))?;
+        inner.current_count += 1;
         inner.head = offset + 1;
         Ok(offset)
     }
 
-    fn snapshot(&mut self) -> Result<SnapshotMeta, WalError> {
-        // Minimal marker; real compaction/checkpoint is I1.6.
+    fn install_snapshot(
+        &mut self,
+        up_to_offset: Offset,
+        term: Term,
+        state: &[u8],
+    ) -> Result<SnapshotMeta, WalError> {
         let inner = self.inner.lock().expect("filewal poisoned");
+        if inner.head > 0 && up_to_offset > inner.head - 1 {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head: inner.head,
+            });
+        }
+        // Crash-safe: write .tmp, fsync, atomic rename, best-effort dir fsync.
+        // The checkpoint is durable BEFORE any segment is ever compacted, so a
+        // crash between snapshot and compaction can never lose truth.
+        let final_path = inner.dir.join(snap_name(up_to_offset));
+        let tmp_path = inner.dir.join(format!("{}.tmp", snap_name(up_to_offset)));
+        let encoded = encode_snapshot(up_to_offset, term, state);
+        {
+            let mut f = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(&tmp_path)
+                .map_err(|e| WalError::Durability(format!("snap tmp open: {e}")))?;
+            f.write_all(&encoded)
+                .map_err(|e| WalError::Durability(format!("snap write: {e}")))?;
+            f.sync_all()
+                .map_err(|e| WalError::Durability(format!("snap fsync: {e}")))?;
+        }
+        fs::rename(&tmp_path, &final_path)
+            .map_err(|e| WalError::Durability(format!("snap rename: {e}")))?;
+        // Best-effort directory fsync (std has no portable dir-fsync; documented).
+        if let Ok(d) = File::open(&inner.dir) {
+            let _ = d.sync_all();
+        }
         Ok(SnapshotMeta {
             shard: self.shard.clone(),
-            up_to_offset: inner.head.saturating_sub(1),
-            term: 0,
-            content: ContentId(Vec::new()),
+            up_to_offset,
+            term,
+            content: ContentId(crc32_ieee(state).to_le_bytes().to_vec()),
         })
+    }
+
+    fn load_snapshot(&self) -> Result<Option<(SnapshotMeta, Vec<u8>)>, WalError> {
+        let inner = self.inner.lock().expect("filewal poisoned");
+        // Highest valid up_to wins; skip torn/corrupt checkpoints.
+        let mut snaps: Vec<Offset> = Vec::new();
+        if let Ok(rd) = fs::read_dir(&inner.dir) {
+            for e in rd.flatten() {
+                if let Some(n) = e.file_name().to_str() {
+                    if let Some(up_to) = parse_snap(n) {
+                        snaps.push(up_to);
+                    }
+                }
+            }
+        }
+        snaps.sort_unstable();
+        for up_to in snaps.into_iter().rev() {
+            let path = inner.dir.join(snap_name(up_to));
+            let bytes = match fs::read(&path) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            if let Some((decoded_up_to, term, blob)) = decode_snapshot(&bytes) {
+                if decoded_up_to != up_to {
+                    continue; // filename/content mismatch -> ignore
+                }
+                let meta = SnapshotMeta {
+                    shard: self.shard.clone(),
+                    up_to_offset: up_to,
+                    term,
+                    content: ContentId(crc32_ieee(&blob).to_le_bytes().to_vec()),
+                };
+                return Ok(Some((meta, blob)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn compact(&mut self, up_to_offset: Offset) -> Result<(), WalError> {
+        let mut inner = self.inner.lock().expect("filewal poisoned");
+        if inner.head == 0 {
+            return Ok(());
+        }
+        if up_to_offset > inner.head - 1 {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head: inner.head,
+            });
+        }
+        let segs = list_segments(&inner.dir);
+        // Delete only SEALED segments (never the current) fully at/below up_to.
+        // Sealed segment i spans [start_i, start_{i+1}-1]; deletable iff its end
+        // <= up_to. Append-only: whole covered files are unlinked, never rewritten.
+        for i in 0..segs.len() {
+            if segs[i].start == inner.current_start {
+                continue; // never delete the active append segment
+            }
+            let end = if i + 1 < segs.len() {
+                segs[i + 1].start.saturating_sub(1)
+            } else {
+                inner.head.saturating_sub(1)
+            };
+            if end <= up_to_offset {
+                fs::remove_file(&segs[i].path)
+                    .map_err(|e| WalError::Durability(format!("compact unlink: {e}")))?;
+            }
+        }
+        // Delete checkpoints strictly superseded by the one at up_to_offset.
+        if let Ok(rd) = fs::read_dir(&inner.dir) {
+            for e in rd.flatten() {
+                if let Some(n) = e.file_name().to_str() {
+                    if let Some(u) = parse_snap(n) {
+                        if u < up_to_offset {
+                            let _ = fs::remove_file(e.path());
+                        }
+                    }
+                }
+            }
+        }
+        // Recompute earliest from the retained segments.
+        let remaining = list_segments(&inner.dir);
+        inner.earliest = remaining
+            .first()
+            .map(|s| s.start)
+            .unwrap_or(inner.current_start);
+        Ok(())
     }
 
     fn replay_from(&self, offset: Offset) -> Result<Self::Cursor, WalError> {
         let inner = self.inner.lock().expect("filewal poisoned");
-        // Re-read the fsync'd bytes; reconstruct truth from the trace (ORCH-003).
-        let bytes = fs::read(&inner.path)
-            .map_err(|e| WalError::Durability(format!("replay read: {e}")))?;
-        let (recs, _good_len) = decode_all(&bytes, &self.shard);
-        let head = recs.len() as Offset;
-        if offset > head {
-            return Err(WalError::OffsetOutOfRange {
+        if offset < inner.earliest {
+            return Err(WalError::OffsetCompacted {
                 shard: self.shard.clone(),
-                head,
+                earliest: inner.earliest,
             });
         }
-        let records = recs[offset as usize..].to_vec();
+        if offset > inner.head {
+            return Err(WalError::OffsetOutOfRange {
+                shard: self.shard.clone(),
+                head: inner.head,
+            });
+        }
+        // Reconstruct truth from the recorded trace (ORCH-003): decode retained
+        // segments in offset order and keep records at/after `offset`.
+        let mut records = Vec::new();
+        for seg in list_segments(&inner.dir) {
+            let bytes = fs::read(&seg.path)
+                .map_err(|e| WalError::Durability(format!("replay read: {e}")))?;
+            let (recs, _good) = decode_all(&bytes, &self.shard, seg.start);
+            for r in recs {
+                if r.offset >= offset {
+                    records.push(r);
+                }
+            }
+        }
         Ok(VecReplayCursor {
             records,
             pos: 0,
@@ -781,36 +1109,51 @@ impl Wal for FileWal {
     }
 
     fn earliest(&self) -> Offset {
-        0
+        self.inner.lock().expect("filewal poisoned").earliest
     }
 }
 
-/// File-backed [`WalStore`]: one append-only file per shard beneath a root
-/// directory (`<hex tenant>__<hex workspace>.wal`). Cloning shares the open-WAL
-/// cache (Arc); the durable substrate is the filesystem, so a FRESH store over
-/// the same root recovers the truth a prior (even dead) process committed.
+/// Default segment-rotation threshold (records per segment).
+const DEFAULT_ROTATE_EVERY: u64 = 1024;
+
+/// File-backed [`WalStore`]: one directory per shard beneath a root
+/// (`<hex tenant>__<hex workspace>/`) holding segment + checkpoint files.
+/// Cloning shares the open-WAL cache (Arc); the durable substrate is the
+/// filesystem, so a FRESH store over the same root recovers the truth a prior
+/// (even dead) process committed.
 #[derive(Clone)]
 pub struct FileWalStore {
     root: PathBuf,
+    rotate_every: u64,
     open_wals: Arc<Mutex<HashMap<ShardKey, Arc<Mutex<FileWalInner>>>>>,
 }
 
 impl FileWalStore {
-    /// Open a file-backed store rooted at `root`, creating the directory if
-    /// absent. This is the durable entry point a process uses on startup.
+    /// Open a file-backed store rooted at `root`, creating it if absent. Uses the
+    /// default rotation threshold. This is the durable entry point on startup.
     pub fn open_root<P: Into<PathBuf>>(root: P) -> Result<Self, WalError> {
+        Self::open_root_with_rotation(root, DEFAULT_ROTATE_EVERY)
+    }
+
+    /// Open a store with an explicit segment-rotation threshold (records per
+    /// segment). Small values exercise rotation/compaction in tests.
+    pub fn open_root_with_rotation<P: Into<PathBuf>>(
+        root: P,
+        rotate_every: u64,
+    ) -> Result<Self, WalError> {
         let root = root.into();
         fs::create_dir_all(&root)
             .map_err(|e| WalError::Durability(format!("create root: {e}")))?;
         Ok(FileWalStore {
             root,
+            rotate_every: rotate_every.max(1),
             open_wals: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
-    fn path_for(&self, shard: &ShardKey) -> PathBuf {
+    fn dir_for(&self, shard: &ShardKey) -> PathBuf {
         let name = format!(
-            "{}__{}.wal",
+            "{}__{}",
             hex_encode(shard.tenant.as_bytes()),
             hex_encode(shard.workspace.as_bytes())
         );
@@ -829,35 +1172,51 @@ impl WalStore for FileWalStore {
                 inner: inner.clone(),
             });
         }
-        let path = self.path_for(shard);
-        // Recover `head` and repair any torn tail from whatever is on disk. This
-        // scan IS the recovery path for a fresh process (empty cache).
-        let head = if path.exists() {
-            let bytes = fs::read(&path)
+        let dir = self.dir_for(shard);
+        fs::create_dir_all(&dir)
+            .map_err(|e| WalError::Durability(format!("create shard dir: {e}")))?;
+
+        // Recover head/earliest by scanning the directory. Only the LAST (current)
+        // segment can have a torn tail (a crash mid-append); repair it there.
+        let segs = list_segments(&dir);
+        let (current_start, current_count, head, earliest) = if segs.is_empty() {
+            (0u64, 0u64, 0u64, 0u64)
+        } else {
+            let earliest = segs[0].start;
+            let last = segs.last().unwrap();
+            let bytes = fs::read(&last.path)
                 .map_err(|e| WalError::Durability(format!("open read: {e}")))?;
-            let (recs, good_len) = decode_all(&bytes, shard);
+            let (recs, good_len) = decode_all(&bytes, shard, last.start);
             if good_len != bytes.len() {
-                // Crash-consistency: drop the torn/garbage tail so future appends
-                // continue from the last durable record (append-only, IDR-005).
                 let f = OpenOptions::new()
                     .write(true)
-                    .open(&path)
+                    .open(&last.path)
                     .map_err(|e| WalError::Durability(format!("open for truncate: {e}")))?;
                 f.set_len(good_len as u64)
                     .map_err(|e| WalError::Durability(format!("truncate: {e}")))?;
                 f.sync_all()
                     .map_err(|e| WalError::Durability(format!("truncate fsync: {e}")))?;
             }
-            recs.len() as Offset
-        } else {
-            0
+            let count = recs.len() as u64;
+            (last.start, count, last.start + count, earliest)
         };
-        let file = OpenOptions::new()
+
+        let current_path = dir.join(seg_name(current_start));
+        let current = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&current_path)
             .map_err(|e| WalError::Durability(format!("open append: {e}")))?;
-        let inner = Arc::new(Mutex::new(FileWalInner { path, file, head }));
+
+        let inner = Arc::new(Mutex::new(FileWalInner {
+            dir,
+            current,
+            current_start,
+            current_count,
+            head,
+            earliest,
+            rotate_every: self.rotate_every,
+        }));
         cache.insert(shard.clone(), inner.clone());
         Ok(FileWal {
             shard: shard.clone(),
@@ -869,16 +1228,16 @@ impl WalStore for FileWalStore {
         let mut out = Vec::new();
         if let Ok(rd) = fs::read_dir(&self.root) {
             for entry in rd.flatten() {
+                // Shards are DIRECTORIES named <hex tenant>__<hex workspace>.
+                if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                    continue;
+                }
                 let name = entry.file_name();
                 let name = match name.to_str() {
                     Some(n) => n,
                     None => continue,
                 };
-                let stem = match name.strip_suffix(".wal") {
-                    Some(s) => s,
-                    None => continue,
-                };
-                let (a, b) = match stem.split_once("__") {
+                let (a, b) = match name.split_once("__") {
                     Some(p) => p,
                     None => continue,
                 };
@@ -887,9 +1246,7 @@ impl WalStore for FileWalStore {
                     _ => continue,
                 };
                 match (String::from_utf8(tb), String::from_utf8(wb)) {
-                    (Ok(tenant), Ok(workspace)) => {
-                        out.push(ShardKey { tenant, workspace })
-                    }
+                    (Ok(tenant), Ok(workspace)) => out.push(ShardKey { tenant, workspace }),
                     _ => continue,
                 }
             }
