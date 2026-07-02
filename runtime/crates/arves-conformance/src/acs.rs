@@ -95,6 +95,14 @@ fn fact_v1() -> Value {
     ])
 }
 
+/// An ACS-004 schema field descriptor `{card, type}`.
+fn field(card: &str, ty: &str) -> Value {
+    Map(vec![
+        (Text("card".into()), Text(card.into())),
+        (Text("type".into()), Text(ty.into())),
+    ])
+}
+
 /// Run the ACS conformance suite over all reconstructable golden vectors.
 pub fn run() -> AcsReport {
     let mut r = Vec::new();
@@ -154,6 +162,31 @@ pub fn run() -> AcsReport {
         (Text("evidence".into()), Array(vec![Text("urn:arves:uci.core:evidence@1.0:e-42".into())])),
     ]), "12206fce3fbcfce59860140942f7d1ca9e7b274fd936f2237011ff144552f091f07e"));
 
+    // ACS-004 schema document (content-addressed type identity, domain 0x07).
+    r.push(dcbor("ACS-004", "uci.fact schema", domain::TYPE_SCHEMA, &Map(vec![
+        (Text("urn".into()), Text("uci.fact".into())),
+        (Text("ver".into()), Map(vec![(Text("major".into()), Int(1)), (Text("minor".into()), Int(0))])),
+        (Text("root".into()), Text("Fact".into())),
+        (Text("fields".into()), Map(vec![
+            (Text("urn".into()), field("1", "urn")),
+            (Text("tenant".into()), field("1", "text")),
+            (Text("workspace".into()), field("1", "text")),
+            (Text("origin".into()), field("1", "text")),
+            (Text("source".into()), field("1", "text")),
+            (Text("invocation".into()), field("0..1", "urn")),
+            (Text("confidence".into()), field("1", "conf")),
+            (Text("valid_from".into()), field("1", "int")),
+            (Text("recorded_at".into()), field("1", "int")),
+            (Text("claim".into()), field("1", "text")),
+            (Text("observed_at".into()), field("1", "int")),
+            (Text("evidence".into()), field("0..*", "urn")),
+        ])),
+        (Text("aspects".into()), Array(vec![
+            Text("Identity".into()), Text("Provenance".into()), Text("Temporal".into()),
+            Text("Trust".into()), Text("TenantScope".into()),
+        ])),
+    ]), "12206b3f99c64d23029f49b986e4c89152955c649274e5cf60b1b3ad581b19fa4b87"));
+
     // ACS-005 Normative Language (raw bodies, tags 0x08/0x09).
     let term_ids: Vec<String> = (1..=14).map(|i| format!("GL-{i:03}")).collect();
     r.push(raw("ACS-005", "term-set", domain::GLOSSARY_TERM_SET, term_ids.join("\n").as_bytes(),
@@ -195,6 +228,6 @@ mod tests {
             assert!(r.pass, "{} [{}] got {} expected {}", r.standard, r.vector, r.content_id, r.expected);
         }
         assert!(report.all_pass());
-        assert_eq!(report.results.len(), 11);
+        assert_eq!(report.results.len(), 12);
     }
 }

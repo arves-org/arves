@@ -231,7 +231,14 @@ authority). It does not change any existing tag.
   glossary Term IDs `GL-001`…`GL-014`, sorted ascending, joined by a single `\n`
   (LF, U+000A), UTF-8, no trailing newline, under tag `0x08`.
 - A **Requirement Address** SHALL be the content address of the exact clause text
-  under tag `0x09`.
+  under tag `0x09`. The **canonical clause text** of a requirement is the byte
+  string pinned for it in §9.2 (e.g. `ORCH-001-R1`); the §6.1 restatement column is
+  a non-normative citational paraphrase and **MUST NOT** be used as the addressed
+  bytes. (Fixes SD-001: §6.1 and §9.2 wordings differ; §9.2 is authoritative for
+  addressing.)
+- The §9.1 term-name list **SHALL** be maintained in ascending sorted order, so the
+  §9.2 v3 "sorted" step is a stable no-op; reordering §9.1 without re-sorting would
+  change the address (SD-003, latent-coupling note).
 - Two implementations that publish the same glossary SHALL compute the same
   Term-Set Address (differential conformance). A change to the term set changes
   the address, giving a one-line integrity check that the corpus and a runtime
