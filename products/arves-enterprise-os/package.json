@@ -1,0 +1,15 @@
+{
+  "name": "@arves/enterprise-os",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Enterprise Cognitive OS (P5) — multi-agent shared truth, policy enforced as truth, compliance audit ledger, cross-department consistency. Built on the frozen ARVES Runtime v1.0 (second product, no runtime change).",
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (SDK + Bridge -> real Kernel) — FROZEN",
+    "modifiesRuntime": false,
+    "proves": ["multi-agent shared truth", "policy enforcement", "compliance audit", "cross-department consistency", "governance", "security"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/enterprise-day.mjs" }
+}

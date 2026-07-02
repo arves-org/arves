@@ -9,6 +9,7 @@ import { CognitiveMemory, replay } from './arves-cognitive-memory/src/memory.mjs
 import { allSources } from './arves-cognitive-memory/src/connectors.mjs';
 import { PersonalCognitiveOS } from './arves-personal-os/src/personal-os.mjs';
 import { personalReality } from './arves-personal-os/src/connectors.mjs';
+import { EnterpriseCognitiveOS } from './arves-enterprise-os/src/enterprise-os.mjs';
 
 let n = 0;
 const ok = (name, cond) => { assert.ok(cond, name); n++; console.log('  ✓', name); };
@@ -93,6 +94,22 @@ console.log('Personal Cognitive OS (P4):');
   ok('opposing action → contradiction', osF.checkContradiction({ subject: 'invest:acme-fund', action: 'approve' }).contradicts === true);
   ok('same action → no false contradiction', osF.checkContradiction({ subject: 'invest:acme-fund', action: 'decline' }).contradicts === false);
   ok('subject with no prior decision → no contradiction', osF.checkContradiction({ subject: 'invest:unknown', action: 'approve' }).contradicts === false);
+  bridge.close();
+}
+
+console.log('Enterprise Cognitive OS (P5):');
+{
+  const bridge = new KernelBridge();
+  const org = new EnterpriseCognitiveOS(bridge);
+  await org.setPolicy({ domain: 'spend', rule: 'spend>100k requires legal approval', thresholdUsd: 100000n });
+  const blocked = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n, approvals: [] });
+  ok('policy blocks a violating decision', blocked.committed === false);
+  const allowed = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n, approvals: ['legal'] });
+  ok('compliant decision (legal approval) is committed', allowed.committed === true);
+  const conflict = await org.proposeDecision({ agent: 'ops', subject: 'spend:x', action: 'cancel' });
+  ok('cross-department conflict is blocked', conflict.committed === false && conflict.reason === 'cross-department-conflict');
+  const small = await org.proposeDecision({ agent: 'finance', subject: 'spend:coffee', action: 'approve', amountUsd: 500n });
+  ok('compliant small spend is NOT falsely blocked', small.committed === true);
   bridge.close();
 }
 
