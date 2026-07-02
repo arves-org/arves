@@ -1,0 +1,15 @@
+{
+  "name": "@arves/agent-runtime",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Agent Runtime (P3) — a cognitive agent whose entire decision trace (reasoning, planning, capability selection, execution, truth update) is content-addressed truth in the REAL reference Kernel: deterministic, auditable, replayable.",
+  "platform": {
+    "consumes": "@arves/sdk (P0) + @arves/cognitive-memory (P1) + arves-bridge (P2) -> real Kernel",
+    "idr": "IDR-006 — product code; modifies no platform file.",
+    "proves": ["Reasoning", "Planning", "Capability", "Execution", "Memory", "TruthUpdate"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/agent-run.mjs" }
+}
