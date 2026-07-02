@@ -66,6 +66,8 @@ the constitution's own instrument for an engineering decision (not a silent edit
 | **P7** | **Marketplace** ✅ | distribute certified/signed capabilities — publish once, install anywhere; refuses uncertified/tampered/duplicate | P6.5 |
 | P8 | Cloud Platform | hosted ARVES | P0–P7 |
 | P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P0–P8 |
+| **P8** | **Foundation** 🟢 | governance + maintainer-independent certification; **2 runtimes certified under one conformance** — see `FOUNDATION.md` | Standard + Certification |
+| P9 | Certified Vendors · P10 Independent Runtime Alliance · P11 Academic · P12 Registry · P13 Cloud · P14 Ecosystem | the self-sustaining ecosystem (external parties) | P8 |
 | P10 | ARVES OS | the cognitive operating system | P0–P9 |
 
 **Kernel Bridge (P2) was brought forward on purpose:** it prevents an "SDK world" and a

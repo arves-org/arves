@@ -54,6 +54,14 @@ can be implemented **correctly, independently, deterministically, and at product
 > product-side edit. Deferred v1.1 debt: bridge request-id correlation · engine-enforced
 > determinism · Kernel batch-commit. Full record: `runtime/RUNTIME_FREEZE_v1.0.md`.
 
+> **ARVES 2.0 — Foundation (P8, 2026-07):** the goal is now *survivability*, not building.
+> A maintainer-independent certification harness certifies ANY runtime from `standard/`
+> alone — **2 runtimes (Rust + Python) certified under one conformance**. If every maintainer
+> vanished, a new party could certify a runtime, author/certify capabilities, publish, and
+> build products from this repo alone. **Claude's role is now: prove ARVES can live
+> independently of its makers.** New KPIs: certified runtimes/vendors, marketplace installs,
+> independent certifications, real orgs in production. Full record: `FOUNDATION.md`.
+
 > **Era pivot (2→3):** stop building, start disproving. *You are no longer building
 > ARVES; you are trying to prove ARVES wrong. If you fail, only then ARVES becomes
 > stronger.* Independence is graded (self → same-process → third-party); the Era-3
