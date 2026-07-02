@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Volume 9 Cognitive Control Plane v2 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Volume_9_Cognitive_Control_Plane_v2.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-volume-9-cognitive-control-plane-v2-0">ARVES Volume-9: Cognitive Control Plane v2.0</h1>
+<p>STATUS: SYSTEM CONSTITUTION (CONTROL PLANE) - SUPERSEDES Runtime &amp; Event Fabric v1 for cognitive orchestration</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>Define the control plane that sits between thinking (engines) and action (execution). The Cognitive Control Plane owns coordination and planning of cognition; it never owns cognitive truth. If this layer is correct, distributed runtime, multi-agent, certification, products and marketplace all rest naturally on top of it.</p>
+<h1 id="part-2-the-two-plane-model">Part 2 - The Two-Plane Model</h1>
+<p>ARVES is read on two axes, not one stack. The Data Plane carries information and state; the Control Plane decides. The Kernel never becomes the Control Plane.</p>
+<p>Control Plane (decides): Goal Management, Cognitive Orchestration, Engine Coordination, Capability Selection, Execution Planning, Policy Coordination, Human Collaboration, Observation Feedback.</p>
+<p>Data Plane (carries): Reality, Information Platform, Kernel, Living Cognitive World, Persistence, Query, Engine Fabric (engines as pure compute), Capability Fabric, Execution, mechanical Runtime (event bus, task, workflow).</p>
+<h1 id="part-3-engine-and-capability-placement-critical-rule">Part 3 - Engine and Capability Placement (critical rule)</h1>
+<p>The engine ITSELF (Engine Fabric, M7) is Data Plane: a pure, idempotent function that reads state and produces inference. The Engine Graph (which engines run, in what order) is Control Plane. Likewise Capability Fabric is Data Plane; Capability Planner is Control Plane. Engines never own their own orchestration - otherwise reusability is lost.</p>
+<h1 id="part-4-control-plane-components">Part 4 - Control Plane Components</h1>
+<div class="table-wrap"><table><thead><tr><th>Component</th><th>Responsibility</th></tr></thead><tbody><tr><td>Goal Manager</td><td>Receives, decomposes and tracks goals; owns goal lifecycle.</td></tr><tr><td>Task Graph</td><td>Mechanical decomposition of a goal into schedulable tasks.</td></tr><tr><td>Engine Graph</td><td>Non-linear graph of engine invocations produced to satisfy a goal.</td></tr><tr><td>Capability Planner</td><td>Selects and binds capabilities required by the plan.</td></tr><tr><td>Execution Planner</td><td>Turns the resolved plan into an executable execution plan.</td></tr><tr><td>Policy Coordination</td><td>Enforces policy decisions owned by Governance; does not own policy.</td></tr><tr><td>Human Collaboration</td><td>Approval, hand-off and human-in-the-loop checkpoints.</td></tr><tr><td>Observation Feedback</td><td>Feeds outcomes back to Goal Manager for adaptation and replan.</td></tr></tbody></table></div>
+<h1 id="part-5-control-plane-invariants">Part 5 - Control Plane Invariants</h1>
+<p>These invariants are the constitutional core and the foundation of the future distributed runtime.</p>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Invariant</th><th>Rationale</th></tr></thead><tbody><tr><td>ORCH-001</td><td>The Control Plane owns no truth. Only the Kernel owns cognitive truth.</td><td>Prevents a second state owner; keeps Kernel authoritative.</td></tr><tr><td>ORCH-002</td><td>The Control Plane produces plans, never persistent state.</td><td>Makes the Control Plane restartable and stateless over Kernel/Persistence.</td></tr><tr><td>ORCH-003</td><td>Every execution is REPLAYABLE from the same Goal, State, Policies, Capabilities and Runtime Fingerprint - via a recorded decision trace, not by recomputation.</td><td>Cognitive engines (LLMs) are non-deterministic; reproducibility means deterministic replay from recorded outcomes, not identical re-computation.</td></tr><tr><td>ORCH-004</td><td>Every engine and capability invocation is idempotent and content-addressable.</td><td>Enables safe retry and, later, distribution; the true bridge to M9.</td></tr></tbody></table></div>
+<h1 id="part-6-engine-graph-model">Part 6 - Engine Graph Model</h1>
+<p>The engine flow is no longer linear. A goal produces a non-linear (DAG) Engine Graph.</p>
+<p>Example: Goal -&gt; Engine Graph -&gt; { Planning || Simulation || Search } -&gt; Evaluation (join/arbitration) -&gt; Decision.</p>
+<ul><li>Nodes are engine invocations (pure, idempotent - see ORCH-004). Edges are data/ordering dependencies.</li></ul>
+<ul><li>Join nodes perform ARBITRATION: they merge conflicting branch outputs by policy (confidence-weighting, tie-break). Arbitration consumes truth but its output is a PLAN artifact, never truth (ORCH-001).</li></ul>
+<ul><li>The graph is DYNAMICALLY EXPANDED, not fully static: engines may emit sub-goals that grow the graph (continuation style).</li></ul>
+<ul><li>Expansion is bounded by a termination policy (max depth / budget / no-new-subgoal) to prevent infinite meta-planning.</li></ul>
+<h1 id="part-7-the-planning-recursion-design-resolution">Part 7 - The Planning Recursion (design resolution)</h1>
+<p>Planning is both a node IN the graph and the PRODUCER of the graph. Resolution: a bootstrap meta-planning step produces an initial graph; domain engines execute within it and may trigger bounded re-planning. The Orchestrator expands the graph incrementally as engines return, under the Part 6 termination policy.</p>
+<h1 id="part-8-control-plane-execution-flow">Part 8 - Control Plane Execution Flow</h1>
+<p>Goal -&gt; Orchestrator -&gt; Engine Graph -&gt; Capability Graph -&gt; Execution Plan -&gt; Execution (Data Plane) -&gt; Observation Feedback -&gt; Goal Manager.</p>
+<h1 id="part-9-reproducibility-replay">Part 9 - Reproducibility &amp; Replay</h1>
+<p>Each run records a decision trace: the expanded Engine Graph, engine outputs, arbitration choices, policy evaluations and the Runtime Fingerprint (engine versions, model routing, capability bindings, policy set). Replay re-reads recorded outcomes deterministically (ORCH-003). Recomputation is explicitly NOT guaranteed for non-deterministic engines.</p>
+<h1 id="part-10-policy-approval-and-human-in-the-loop">Part 10 - Policy, Approval and Human-in-the-Loop</h1>
+<p>Policy and governance decisions are owned by Security &amp; Governance (Vol 17) and Agent Governance (Vol 14 / Vol 2). The Control Plane ENFORCES and sequences them (approval gates, HITL checkpoints) but never becomes their owner - single-ownership per Vol 1.</p>
+<h1 id="part-11-distribution-readiness-m8-constraints-for-m9">Part 11 - Distribution Readiness (M8 constraints for M9)</h1>
+<p>M8 is built distribution-ready even though M9 performs the actual distribution.</p>
+<ul><li>Plans are serializable and location-transparent (no in-process shared-memory assumptions).</li></ul>
+<ul><li>Engine invocations are addressable, idempotent and carry correlation_id (already in the Event Envelope).</li></ul>
+<ul><li>The Control Plane is stateless over Kernel/Persistence (ORCH-002), so it can be replicated.</li></ul>
+<ul><li>What is distributed later is the Orchestrator/plan, not the Engine.</li></ul>
+<h1 id="part-12-relationship-to-existing-volumes-reclassification">Part 12 - Relationship to Existing Volumes (reclassification)</h1>
+<p>The mechanical Runtime &amp; Event Fabric described in Vol 9 v1 (event bus, task, workflow, scheduler, retry) is RECLASSIFIED as Data Plane mechanical runtime and is NOT removed. This volume (v2) elevates the cognitive control concerns on top of it. Vol 1 principles (Single Ownership, Explicit Contracts, Observability) govern.</p>
+<h1 id="part-13-open-design-decisions">Part 13 - Open Design Decisions</h1>
+<div class="table-wrap"><table><thead><tr><th>Decision</th><th>Options</th><th>Recommendation</th></tr></thead><tbody><tr><td>Graph shape</td><td>Static plan vs dynamically-expanded graph</td><td>Dynamic, bounded (Part 6-7)</td></tr><tr><td>Reproducibility</td><td>Recompute vs replay-from-trace</td><td>Replay-from-trace (ORCH-003)</td></tr><tr><td>Vol 9 identity</td><td>Overwrite v1 vs new v2 preserving v1</td><td>New v2; v1 reclassified (Part 12)</td></tr><tr><td>Arbitration owner</td><td>Engine vs Control Plane</td><td>Control Plane join node (Part 6)</td></tr></tbody></table></div>
+<h1 id="part-14-conformance-hooks">Part 14 - Conformance Hooks</h1>
+<p>Every run emits a conformance artifact (expanded Engine Graph, engine order, arbitration, policy gates). This is the input to the Scenario Conformance Framework (12 axes) and doubles as the regression suite that earns the M1-M7 completion marks.</p>
+<h1 id="part-15-success-criteria">Part 15 - Success Criteria</h1>
+<p>Thinking is coordinated into action through a stateless, replayable, distribution-ready control plane that owns no truth.</p>
+<p><em>Final Definition  Cognitive Control Plane = The Reasoning-to-Action Control Layer of ARVES.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

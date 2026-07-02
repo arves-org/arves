@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Reference Lifecycle v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Reference_Lifecycle_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-reference-lifecycle-v1-0">ARVES Reference Lifecycle v1.0</h1>
+<p>STATUS: PROCESS CONSTITUTION (HOW A COGNITIVE STANDARD IS BORN, RATIFIED AND FROZEN) - FINAL NORMATIVE DOCUMENT OF THE SPECIFICATION ERA</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>Define how a cognitive concept becomes a frozen ARVES standard: the development methodology from idea to certified ecosystem. This is the last normative document of the Specification Era. Precedent: W3C Process Document, IETF RFC 2026, Kubernetes KEP, Semantic Versioning.</p>
+<h1 id="part-2-position-authority">Part 2 - Position &amp; Authority</h1>
+<p>This document governs every UCS and UCI artifact and the process by which they change. When it is ratified, the Specification Era closes and the Implementation Era begins.</p>
+<h1 id="part-3-the-lifecycle-stages-with-exit-criteria">Part 3 - The Lifecycle Stages (with exit criteria)</h1>
+<p>Each stage produces an artifact and closes only on its exit criterion. No stage is skipped.</p>
+<div class="table-wrap"><table><thead><tr><th>Stage</th><th>Produces</th><th>Exit criterion</th></tr></thead><tbody><tr><td>Idea</td><td>Problem statement</td><td>Problem is stated and scoped</td></tr><tr><td>Research</td><td>Prior-art &amp; feasibility survey</td><td>Alternatives assessed</td></tr><tr><td>Theory</td><td>Conceptual model</td><td>Model is coherent and bounded</td></tr><tr><td>Formalization</td><td>Invariants + machine-checkable properties</td><td>Properties are testable (see Part 4)</td></tr><tr><td>Specification</td><td>Normative spec document</td><td>Passes independent-implementability test</td></tr><tr><td>Ontology</td><td>Registered types (uci.*)</td><td>Types registered and versioned</td></tr><tr><td>Contract</td><td>Interface &amp; data contracts</td><td>Contracts explicit and typed</td></tr><tr><td>Reference Behaviour</td><td>Defined expected behaviour</td><td>Behaviour is unambiguous</td></tr><tr><td>Conformance</td><td>Scenario suite + PASS criteria</td><td>Suite exists and is versioned</td></tr><tr><td>Reference Runtime</td><td>Runnable implementation</td><td>Passes conformance at a level</td></tr><tr><td>Certification</td><td>Attested conformance at a level</td><td>Certificate issued against spec version</td></tr><tr><td>Reference Product</td><td>Product on a certified runtime</td><td>Product passes its scenario set</td></tr><tr><td>Reference Ecosystem</td><td>Third-party certified implementations</td><td>&gt;=1 independent certified runtime</td></tr></tbody></table></div>
+<h1 id="part-4-formalization-what-distinguishes-arves-from-a-framewo">Part 4 - Formalization (what distinguishes ARVES from a framework)</h1>
+<p>Formalization turns Theory into invariants and machine-checkable properties that Conformance can assert - not prose. It is the bridge from idea to testable contract.</p>
+<ul><li>Produces named invariants (e.g. ORCH-001..004, O-001..007).</li></ul>
+<ul><li>Produces properties a scenario can check (isolation held, plan replayable, no truth in control plane).</li></ul>
+<ul><li>Maps every theoretical claim to at least one testable assertion; unfalsifiable claims do not advance.</li></ul>
+<h1 id="part-5-artifact-maturity-model">Part 5 - Artifact Maturity Model</h1>
+<p>Every artifact carries a status. This systematizes the corpus "FROZEN AFTER APPROVAL" marker and resolves version drift.</p>
+<div class="table-wrap"><table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody><tr><td>Draft</td><td>Under authoring; non-normative</td></tr><tr><td>Candidate</td><td>Feature-complete; under review and conformance definition</td></tr><tr><td>Ratified</td><td>Approved; normative for its version</td></tr><tr><td>Frozen</td><td>Locked; changes only by amendment or new major version</td></tr><tr><td>Deprecated</td><td>Scheduled for removal; still valid for one major cycle</td></tr><tr><td>Superseded</td><td>Replaced by a newer artifact (e.g. Vol 3/13/19 by the Ontology)</td></tr></tbody></table></div>
+<h1 id="part-6-change-governance-cognitive-change-proposal">Part 6 - Change Governance (Cognitive Change Proposal)</h1>
+<p>All changes flow through a Cognitive Change Proposal (CCP) - the RFC/KEP analogue.</p>
+<div class="table-wrap"><table><thead><tr><th>CCP State</th><th>Requirement to advance</th></tr></thead><tbody><tr><td>Proposed</td><td>Problem statement + affected artifacts</td></tr><tr><td>Accepted</td><td>Owner review; scope agreed</td></tr><tr><td>Formalized</td><td>Invariants/properties defined (Part 4)</td></tr><tr><td>Conformance-defined</td><td>At least one conformance scenario written</td></tr><tr><td>Ratified</td><td>Reference behaviour + passing conformance</td></tr><tr><td>Frozen</td><td>Versioned and locked</td></tr></tbody></table></div>
+<p>Hard rule (CCP-GATE): No behaviour is ratified without a conformance scenario.</p>
+<h1 id="part-7-versioning-amendment-policy">Part 7 - Versioning &amp; Amendment Policy</h1>
+<p>Standards are stable, not continuously changing. Semantic versioning applies at the standard level.</p>
+<div class="table-wrap"><table><thead><tr><th>Change type</th><th>Version effect</th></tr></thead><tbody><tr><td>Breaking change to types/contracts/ABI</td><td>MAJOR (new major version)</td></tr><tr><td>Backward-compatible addition</td><td>MINOR (amendment)</td></tr><tr><td>Clarification, no behaviour change</td><td>PATCH</td></tr><tr><td>Removal of a type/engine</td><td>Deprecate one major cycle, then MAJOR</td></tr></tbody></table></div>
+<p>Conformance suites are pinned to a spec version; a result is always stated as "N% at Level Lx against Spec vB / Suite vA".</p>
+<h1 id="part-8-two-track-versioning-ucs-and-uci">Part 8 - Two-Track Versioning (UCS and UCI)</h1>
+<p>UCS (the standard) and UCI (the reference implementation) have independent version lines. A UCI runtime declares which UCS version it implements - as a compiler declares which language standard it targets. A third-party runtime may implement a UCS version without using UCI.</p>
+<h1 id="part-9-the-specification-freeze">Part 9 - The Specification Freeze</h1>
+<p>Upon ratification of this document the following clause takes effect:</p>
+<p><strong>UCS v1.0 and UCI v1.0 are hereby normatively FROZEN. From this point, changes are made ONLY by amendment (MINOR) or a new MAJOR version, via the CCP process.</strong></p>
+<h1 id="part-10-era-transition">Part 10 - Era Transition</h1>
+<p>The Specification Era closes; the Implementation Era begins. After freeze, no new base standards are written.</p>
+<ul><li>Specification Era (complete): Foundation, Reference Model, Standards, Ontology, Runtime Architecture, Reference Runtime, Control Plane, Scenario Conformance, Engine ABI, Reference Lifecycle.</li></ul>
+<ul><li>Implementation Era (next): Distributed Runtime (M10), Multi-Agent Runtime (M11), Reference Products (M12), Enterprise Runtime, Marketplace, Certification Program, ARVES v2.</li></ul>
+<h1 id="part-11-independent-implementability-test">Part 11 - Independent-Implementability Test</h1>
+<p>Acceptance bar: an independent team, given only this document, can propose, formalize, conformance-test, ratify and certify a change to ARVES without consulting the original authors. If not, the process is descriptive and must be made more normative.</p>
+<h1 id="part-12-success-criteria">Part 12 - Success Criteria</h1>
+<p>ARVES has a single, normative, versioned process by which every standard is born, proven, ratified, frozen and superseded - independent of any individual.</p>
+<p><em>Final Definition  Reference Lifecycle = The Constitutional Process of ARVES, and the Close of the Specification Era.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

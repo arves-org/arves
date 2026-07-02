@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES 00 Architecture Readiness Review v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_00_Architecture_Readiness_Review_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-v1-0-architecture-readiness-review-arr-v1-0">ARVES v1.0 Architecture Readiness Review (ARR) v1.0</h1>
+<p>STATUS: READINESS REVIEW (IMPLEMENTATION-ERA ENTRY GATE)</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>A final review before the Implementation Era. The Specification Era asked "what is the correct architecture?"; the Implementation Era asks "can this architecture actually run distributed at production scale?" - a different question. This ARR is the entry gate to M10.</p>
+<p><strong>The goal of the Implementation Era is not to change the specification, but to prove that the specification can be implemented at production scale.</strong></p>
+<h1 id="part-2-review-method-verdicts">Part 2 - Review Method &amp; Verdicts</h1>
+<p>Six dimensions are reviewed against the frozen v1.0 corpus. Each item gets a verdict: READY (spec is sufficient), GAP (spec must be amended via CCP before M10), or IDR (a mechanism decision deferred to an Implementation Decision Record).</p>
+<h1 id="part-3-layer-independence">Part 3 - Layer Independence</h1>
+<p>Layers: Reality -&gt; Information Platform -&gt; Kernel -&gt; Persistence -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution.</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Verdict</th><th>Note</th></tr></thead><tbody><tr><td>Downward-only dependencies</td><td>GAP</td><td>No explicit invariant; only the "Separation of Concerns" principle</td></tr><tr><td>No lateral coupling</td><td>GAP</td><td>Not stated normatively - add LAYER-001</td></tr><tr><td>Cross-cutting via Control Plane / Event Fabric</td><td>READY</td><td>Two-plane model (Vol 9) covers this</td></tr><tr><td>Query is read-only projection</td><td>READY</td><td>Query reads state; must not mutate (confirm in contract)</td></tr></tbody></table></div>
+<p>Finding F5: introduce LAYER-001 (dependencies point downward only; no lateral calls; cross-cutting concerns traverse the Control Plane or Event Fabric).</p>
+<h1 id="part-4-distributed-readiness">Part 4 - Distributed Readiness</h1>
+<p>Per component: replicate / partition / replay / migrate / version / replace.</p>
+<div class="table-wrap"><table><thead><tr><th>Component</th><th>Replicate</th><th>Partition</th><th>Replay</th><th>Ready?</th></tr></thead><tbody><tr><td>Engine Fabric</td><td>Yes</td><td>Yes</td><td>Yes</td><td>READY (pure + idempotent, ORCH-004)</td></tr><tr><td>Control Plane</td><td>Yes</td><td>n/a</td><td>Yes</td><td>READY (stateless over Kernel, ORCH-002)</td></tr><tr><td>Capability Fabric</td><td>Yes</td><td>Yes</td><td>n/a</td><td>READY</td></tr><tr><td>Query</td><td>Yes</td><td>Yes</td><td>n/a</td><td>READY (by tenant/workspace)</td></tr><tr><td>LCW</td><td>Partial</td><td>Yes</td><td>Partial</td><td>GAP (declare tenant/workspace as shard key)</td></tr><tr><td>Persistence</td><td>Yes</td><td>Yes</td><td>Yes</td><td>IDR (WAL/replication strategy)</td></tr><tr><td>Kernel (truth)</td><td>Hard</td><td>Hard</td><td>Partial</td><td>IDR - highest risk (consensus/CAP)</td></tr></tbody></table></div>
+<p>Finding F1: the stateless/pure components are ready; the stateful truth owner (Kernel) is the primary distributed risk. CAP posture and consensus are undecided (deferred to v2 as Federated Kernel / Consensus Extensions) - the first M10 IDRs. Finding F7: declare tenant/workspace as the partition/shard key.</p>
+<h1 id="part-5-runtime-ownership">Part 5 - Runtime Ownership</h1>
+<p>Ownership of runtime responsibilities. Mostly clean thanks to Single Ownership + ORCH-001.</p>
+<div class="table-wrap"><table><thead><tr><th>Responsibility</th><th>Owner</th><th>Verdict</th></tr></thead><tbody><tr><td>Truth</td><td>Kernel</td><td>READY (ORCH-001)</td></tr><tr><td>Policy</td><td>Governance</td><td>READY</td></tr><tr><td>Execution</td><td>Execution Layer</td><td>READY</td></tr><tr><td>Planning (computation)</td><td>Engine</td><td>READY</td></tr><tr><td>Plan / Engine Graph (artifact)</td><td>Control Plane</td><td>GAP - see F3</td></tr><tr><td>Capability Selection</td><td>Capability Planner</td><td>READY</td></tr></tbody></table></div>
+<h1 id="part-6-state-ownership-most-critical-review">Part 6 - State Ownership (most critical review)</h1>
+<p>Every state must have exactly ONE owner. Two conflicts found in the frozen corpus.</p>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Declared owner(s)</th><th>Verdict</th></tr></thead><tbody><tr><td>Truth</td><td>Kernel</td><td>READY</td></tr><tr><td>Execution state</td><td>Execution Layer</td><td>READY</td></tr><tr><td>Working Memory</td><td>Cognitive Core (Vol 4 Part 25) AND LCW</td><td>CONFLICT - F2</td></tr><tr><td>Plans / Engine Graph</td><td>Engine (ARR draft) AND Control Plane (Vol 9)</td><td>CONFLICT - F3</td></tr><tr><td>Capability Binding</td><td>Capability Fabric</td><td>READY</td></tr><tr><td>Persisted knowledge</td><td>Persistence / Information Core</td><td>READY</td></tr></tbody></table></div>
+<p>Finding F2 (High): Working Memory is claimed by both Cognitive Core (Vol 4 Part 25 "Owns ... Working Memory") and the LCW. Resolve to a single owner via amendment before M10. Finding F3: the plan/Engine Graph is a Control Plane artifact (Vol 9 Part 3); the Engine owns inference only. Clarify by amendment.</p>
+<h1 id="part-7-control-plane-review">Part 7 - Control Plane Review</h1>
+<p>Is Vol 9 sufficient for distributed orchestration?</p>
+<div class="table-wrap"><table><thead><tr><th>Concern</th><th>Covered?</th><th>Note</th></tr></thead><tbody><tr><td>Orchestration</td><td>Yes</td><td>Vol 9 Engine Graph</td></tr><tr><td>Scheduling</td><td>Partial</td><td>Implicit; cluster-wide scheduling is I4</td></tr><tr><td>Retries</td><td>Yes</td><td>ABI Retry Policy + ORCH-004</td></tr><tr><td>Cancellation</td><td>No</td><td>GAP - F4</td></tr><tr><td>Priorities / preemption</td><td>No</td><td>GAP - F4</td></tr><tr><td>Human interrupts</td><td>Yes</td><td>Vol 9 Part 10 (HITL)</td></tr><tr><td>Policy interrupts</td><td>Yes</td><td>Vol 9 Part 10</td></tr></tbody></table></div>
+<p>Finding F4: add cancellation and priority/preemption semantics to Vol 9 before I4 (cluster-wide capability scheduling).</p>
+<h1 id="part-8-failure-review">Part 8 - Failure Review</h1>
+<p>The single largest unwritten area. Each failure must have a defined home before M10.</p>
+<div class="table-wrap"><table><thead><tr><th>Failure mode</th><th>Handled by</th></tr></thead><tbody><tr><td>Capability timeout</td><td>Spec (ABI Timeout/Failure Policy)</td></tr><tr><td>Duplicate replay</td><td>Spec (ORCH-004 idempotency)</td></tr><tr><td>Control-plane crash</td><td>Spec (ORCH-002 stateless restart)</td></tr><tr><td>Node crash</td><td>IDR</td></tr><tr><td>Network partition</td><td>IDR (CAP posture - F1)</td></tr><tr><td>Split brain</td><td>IDR (consensus - F1)</td></tr><tr><td>Partial execution</td><td>GAP (define compensation/saga semantics)</td></tr><tr><td>Rollback</td><td>GAP (define rollback model)</td></tr><tr><td>Replay failure</td><td>IDR</td></tr><tr><td>Human cancellation</td><td>GAP (ties to F4 cancellation)</td></tr></tbody></table></div>
+<p>Finding F6: define a failure taxonomy in the architecture (which failures the spec handles vs which are IDR mechanisms). The Kernel CAP posture (F1) is the single most important undecided item.</p>
+<h1 id="part-9-findings-summary-ranked">Part 9 - Findings Summary (ranked)</h1>
+<p>Freeze does not mean flawless; the ARR is the gate that catches pre-implementation defects. GAP findings are resolved by amendment (MINOR) via the CCP process WITHOUT reopening the Specification Era; IDR findings are mechanism decisions for M10.</p>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Finding</th><th>Severity</th><th>Resolution</th></tr></thead><tbody><tr><td>F1</td><td>Kernel distributed truth: CAP posture + consensus undecided</td><td>High</td><td>IDR (I1/I2)</td></tr><tr><td>F2</td><td>Working Memory has two owners (Vol 4 vs LCW)</td><td>High</td><td>Amendment (CCP)</td></tr><tr><td>F3</td><td>Plan/Engine Graph ownership ambiguous (Engine vs Control Plane)</td><td>Medium</td><td>Amendment</td></tr><tr><td>F4</td><td>Vol 9 lacks cancellation + priority/preemption</td><td>Medium</td><td>Amendment</td></tr><tr><td>F5</td><td>No explicit layering invariant</td><td>Medium</td><td>Amendment (LAYER-001)</td></tr><tr><td>F6</td><td>Failure taxonomy not placed in architecture</td><td>Medium</td><td>Amendment + IDR</td></tr><tr><td>F7</td><td>Partition/shard key (tenant/workspace) not declared</td><td>Low</td><td>Amendment</td></tr></tbody></table></div>
+<h1 id="part-10-new-document-type-implementation-decision-record-idr">Part 10 - New Document Type: Implementation Decision Record (IDR)</h1>
+<p>The Implementation Era writes IDRs, not specifications - the ADR (Architecture Decision Record) analogue. An IDR records a mechanism decision that implements, but never changes, the frozen spec.</p>
+<p>IDR template: ID, Title, Context, Decision, Alternatives, Consequences, Affected Components, Spec Invariants Upheld.</p>
+<ul><li>IDR-001 Distributed replay - Decision: append-only WAL rather than Kafka.</li></ul>
+<ul><li>IDR-015 Consensus - Decision: the Kernel is not leaderless.</li></ul>
+<h1 id="part-11-entry-gate-decision">Part 11 - Entry Gate Decision</h1>
+<p>M10 may begin once: (a) all GAP findings (F2, F3, F4, F5, F6-taxonomy, F7) are resolved by amendment; and (b) all IDR findings (F1, F6-mechanisms) have an opened IDR. The Specification Era does not reopen; amendments and IDRs are the only instruments.</p>
+<h1 id="part-12-success-criteria">Part 12 - Success Criteria</h1>
+<p>The architecture is proven implementation-ready: layers independent, every state singly owned, every component distribution-assessed, and every failure mode assigned a home.</p>
+<p><em>Final Definition  Architecture Readiness Review = The Entry Gate from Specification to Implementation.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contributing · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html" class="active">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="contributing-to-arves">Contributing to ARVES</h1>
+<p>ARVES is a <strong>standard with a frozen runtime</strong>, not an ordinary app — so contribution is governed. The rules below are what let an ecosystem grow without the platform drifting.</p>
+<h2 id="the-golden-rule-know-which-layer-you-re-touching">The golden rule: know which layer you're touching</h2>
+<div class="table-wrap"><table><thead><tr><th>You want to…</th><th>You are a…</th><th>Rule</th></tr></thead><tbody><tr><td>Build a product / app</td><td><strong>Product author</strong></td><td>build under <code>products/</code>; consume the Runtime v1.0 API; <strong>never edit <code>runtime/</code> or <code>standard/</code></strong></td></tr><tr><td>Publish a capability/engine/connector</td><td><strong>Ecosystem author</strong></td><td>use the Authoring Kit (<code>products/arves-ecosystem-sdk/</code>); certify + sign; publish to the Marketplace</td></tr><tr><td>Implement a new runtime (Go/Java/…)</td><td><strong>Runtime vendor</strong></td><td>implement <code>standard/</code> only; certify with <code>verification/certification/certify_runtime.py</code></td></tr><tr><td>Change the runtime</td><td><strong>Platform maintainer</strong></td><td>file a <strong>Runtime Change Request</strong> → v1.1 (additive) / v2.0 (breaking); never a silent edit</td></tr><tr><td>Change the specification</td><td><strong>Standards contributor</strong></td><td>CCP / Amendment / IDR (the frozen corpus is immutable, ED-001)</td></tr></tbody></table></div>
+<p>If your change would edit <code>runtime/crates</code> or <code>standard/</code> and you are not doing platform/ standards work through the instruments above, <strong>stop</strong> — it belongs on the product side or in an RCR.</p>
+<h2 id="every-change-is-destroy-first-ed-006">Every change is destroy-first (ED-006)</h2>
+<p><code>Implement → Destroy (adversarial) → Repair → Regression test → Conformance → Freeze.</code> A feature that survives a destroy pass with a regression test is worth more than three untested ones. Add your regression to <code>products/robustness.test.mjs</code> (products) or a crate test (runtime), and keep it green.</p>
+<h2 id="verify-before-you-send">Verify before you send</h2>
+<pre><code class="lang-bash">cargo test --manifest-path runtime/Cargo.toml --workspace   # runtime + gates + conformance
+node products/robustness.test.mjs                           # product robustness suite
+python verification/evidence/evidence_probe.py              # the evidence ledger (machine rows)</code></pre>
+<p>The architecture gate (<code>arves-conformance::architecture_gate</code>) enforces LAYER-001/OWN-001 at build time — an upward dependency or a second truth-owner fails <code>cargo test</code>. Respect it.</p>
+<h2 id="publish-a-capability-the-common-path">Publish a capability (the common path)</h2>
+<ol><li><code>defineCapability({ name, version, produces, execute })</code> — see the ecosystem-sdk README for the ARVES value model an effect <code>value</code> must satisfy.</li><li><code>arves certify &lt;file&gt;</code> (needs ≥1 representative test input; must be deterministic).</li><li><code>arves package &lt;file&gt;</code> — a content-addressed, signed artifact.</li><li>Publish to the Marketplace; any consumer can install + run it on the frozen runtime.</li></ol>
+<h2 id="governance-ownership">Governance &amp; ownership</h2>
+<p>The Foundation owns the spec, certification, and registries (<a href="foundation.html">FOUNDATION.md</a>). Registry allocations (domain tags, hash codes, reason codes) are Specification-Required (ACS-001 §4.1). No single maintainer is required to certify or extend — that is the point.</p>
+<h2 id="before-public-release-maintainer-action">Before public release (maintainer action)</h2>
+<ul><li><strong>License:</strong> the repo is released under the <strong>Apache License 2.0</strong> — see <a href="LICENSE">LICENSE</a>.</li><li>Still outstanding: a code of conduct and a security-reporting policy.</li><li>These are outward-facing decisions for the maintainers, not code.</li></ul>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

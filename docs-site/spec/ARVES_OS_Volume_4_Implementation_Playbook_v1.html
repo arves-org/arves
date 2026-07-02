@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES OS Volume 4 Implementation Playbook v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_OS_Volume_4_Implementation_Playbook_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engineering-operating-manual-volume-4-implementation-p">ARVES Engineering Operating Manual - Volume 4: Implementation Playbook</h1>
+<p><strong>STATUS: Implementation Era (Active) | Specification Era FROZEN as of 2026-07-01 | Normative for UCI reference implementation | Non-normative for the UCS standard | Version 1.0 | Dependency direction: Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation (never reversed)</strong></p>
+<p>This volume is the Implementation Playbook for building the Universal Cognitive Infrastructure (UCI), the reference implementation of the Universal Cognitive Standard (UCS). It governs HOW we build, never WHAT the standard means. The Specification Era is frozen. Implementation proves the specification and never changes it. Where a rule here would require altering a frozen contract, behaviour, or invariant, the rule is wrong and the implementer must stop and raise a change instrument (CCP, Amendment, IDR, or next major version) instead of redesigning while implementing.</p>
+<p>Legend for normative weight used throughout this volume: REGISTERED invariants (ORCH-001..004, OWN-001, LAYER-001, SHARD-001) are normative and binding. Ontology principles O-001..007 are definitional design principles, not runtime-provable invariants. PROPOSED invariants (G-001, QUERY-001, LCW-001, PERSIST-001, CAP-001..009, ENG-001..005) are INFORMATIVE only and are marked "proposed (pending CCP)" at every appearance; they must never be implemented as if ratified. IDR-001..005 are reference implementation decisions (non-normative) that ground all distributed mechanics in this volume.</p>
+<h1 id="part-1-purpose-scope-and-the-implementation-contract">Part 1 - Purpose, Scope, and the Implementation Contract</h1>
+<p>Volume 4 defines the discipline of turning a frozen specification into running, certifiable software without mutating the specification. It is the operating contract between the people who wrote the standard and the people who build the runtime. The single hardest rule in this volume is also the simplest to state: never redesign while implementing.</p>
+<h2 id="1-1-what-this-volume-governs">1.1 What this volume governs</h2>
+<ul><li>The nine implementation properties every UCI component must exhibit.</li></ul>
+<ul><li>The twelve mandatory test types and when each is required.</li></ul>
+<ul><li>The IDR (Implementation Decision Record) process and template.</li></ul>
+<ul><li>The CCP (Cognitive Change Proposal) process, template, and the CCP-GATE.</li></ul>
+<ul><li>Per-milestone success criteria and the Definition of DONE for milestones I1 through I6.</li></ul>
+<h2 id="1-2-what-this-volume-must-not-do">1.2 What this volume must NOT do</h2>
+<ul><li>It must not introduce new layers, invariants, or milestones beyond the frozen Baseline.</li></ul>
+<ul><li>It must not reinterpret the meaning of any ratified contract or behaviour.</li></ul>
+<ul><li>It must not promote a PROPOSED invariant to normative status; only a ratified CCP can.</li></ul>
+<ul><li>It must not let the Kernel become the Control Plane, nor let the Control Plane own truth.</li></ul>
+<h2 id="1-3-the-dependency-chain-is-one-directional">1.3 The dependency chain is one-directional</h2>
+<p>Every artifact in the build traces upward to something frozen. Implementation is the last link and the only mutable one. When reality disagrees with the specification, the specification wins and the implementation is defective; the remedy is a change instrument, not a quiet fix.</p>
+<div class="table-wrap"><table><thead><tr><th>Stage</th><th>Owner Era</th><th>Mutable now?</th><th>Implementation obligation</th></tr></thead><tbody><tr><td>Theory</td><td>Frozen</td><td>No</td><td>Honour; never contradict.</td></tr><tr><td>Specification</td><td>Frozen</td><td>No</td><td>Prove via conformance; never edit.</td></tr><tr><td>Contracts</td><td>Frozen</td><td>No</td><td>Bind to exactly; version on change via CCP.</td></tr><tr><td>Behaviour</td><td>Frozen</td><td>No</td><td>Reproduce observable behaviour; no golden-output coupling.</td></tr><tr><td>Conformance</td><td>Frozen</td><td>No</td><td>Pass scenarios; verdict is invariant/property based.</td></tr><tr><td>Implementation (UCI)</td><td>Active</td><td>Yes</td><td>Deterministic, replayable, replaceable, observable, auditable, conformant, versioned, testable, independent.</td></tr></tbody></table></div>
+<h1 id="part-2-the-nine-implementation-properties-the-implementation">Part 2 - The Nine Implementation Properties (The Implementation Standard)</h1>
+<p>Every UCI component, at every layer, must exhibit the nine properties below. These are the acceptance predicate for "is this implemented correctly", independent of feature completeness. A component that lacks any one of these is not DONE regardless of what it can do.</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Property</th><th>Definition</th><th>Grounded in</th><th>Primary test types</th></tr></thead><tbody><tr><td>1</td><td>Deterministic</td><td>Same recorded inputs + same decision trace -&gt; same committed outcome; no hidden nondeterminism in the commit path.</td><td>ORCH-003, ORCH-004</td><td>Replay, property, invariant</td></tr><tr><td>2</td><td>Replayable</td><td>State reconstructed from the recorded decision trace (WAL), NOT by recomputation of engine invocations.</td><td>ORCH-003, IDR-005</td><td>Replay, recovery</td></tr><tr><td>3</td><td>Replaceable</td><td>Any component swappable behind its contract without changing callers; enables Independent Runtimes A and B.</td><td>LAYER-001, contracts</td><td>Conformance, integration, architecture</td></tr><tr><td>4</td><td>Observable</td><td>Metrics, logs, tracing, presence emitted on the AP path; observability never becomes a source of truth.</td><td>IDR (Truth=CP, observability=AP)</td><td>Integration, stress, failure-injection</td></tr><tr><td>5</td><td>Auditable</td><td>Every committed effect traceable to a provenance-bearing decision in the WAL; who/what/when reconstructable.</td><td>ORCH-001, O-003 (principle)</td><td>Replay, conformance, invariant</td></tr><tr><td>6</td><td>Conformant</td><td>Passes the relevant reference conformance scenarios for its certification level.</td><td>Conformance suite, CCP-GATE</td><td>Conformance, certification</td></tr><tr><td>7</td><td>Versioned</td><td>Every type/contract versioned + registered; breaking change requires a new version via CCP.</td><td>O-006 (principle), change instruments</td><td>Architecture, conformance</td></tr><tr><td>8</td><td>Testable</td><td>Exercisable in isolation and in composition; deterministic seams for injection and replay.</td><td>Test types 1-12</td><td>All 12 test types</td></tr><tr><td>9</td><td>Independent</td><td>No lateral coupling; cross-cutting concerns flow through Control Plane / Event Fabric only.</td><td>LAYER-001</td><td>Architecture, distributed</td></tr></tbody></table></div>
+<h2 id="2-1-the-prime-directive-never-redesign-while-implementing">2.1 The prime directive: never redesign while implementing</h2>
+<p>When an implementer discovers that the specification appears wrong, incomplete, or awkward, the correct action is to STOP and raise a change instrument. Editing behaviour, relaxing a contract, or "improving" an invariant inside a pull request is prohibited. The implementation records the friction as an IDR (if it is a reference-implementation choice) or escalates to a CCP (if it would change meaning). This preserves the property that implementation proves the spec.</p>
+<h2 id="2-2-two-planes-one-truth">2.2 Two planes, one truth</h2>
+<p>The Control Plane decides; the Data Plane carries. The Kernel owns TRUTH and never becomes the Control Plane. The Control Plane owns Plan and Engine Graph and never owns truth or persistent state (ORCH-001, ORCH-002). Every implementation task must be able to answer: which plane is this code on, and does it respect that the Kernel is the only committer of truth?</p>
+<h1 id="part-3-the-layer-model-as-an-implementation-constraint">Part 3 - The Layer Model as an Implementation Constraint</h1>
+<p>Dependencies are downward-only (LAYER-001). No lateral coupling between peer layers; cross-cutting concerns are mediated by the Control Plane or the Event Fabric. The layer stack is fixed:</p>
+<p>Reality -&gt; Information Platform -&gt; Kernel -&gt; Persistence -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution, plus the cross-cutting Control Plane.</p>
+<h2 id="3-1-layer-responsibility-matrix-implementation-view">3.1 Layer Responsibility Matrix (implementation view)</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Owns</th><th>Reads</th><th>Writes</th><th>Cannot</th></tr></thead><tbody><tr><td>Kernel</td><td>TRUTH (commits)</td><td>Committed state, proposed effects</td><td>Commits to WAL</td><td>Orchestrate / plan / execute</td></tr><tr><td>LCW</td><td>Working Memory / live state (NOT truth)</td><td>Kernel truth, events</td><td>Live/working state only</td><td>Own or assert truth</td></tr><tr><td>Query</td><td>Nothing</td><td>Committed + working state</td><td>Nothing (READ-ONLY)</td><td>Mutate any state</td></tr><tr><td>Engine</td><td>Nothing persistent</td><td>Inputs, context</td><td>Proposed effects only (Kernel commits)</td><td>Commit truth; hold persistent state</td></tr><tr><td>Capability Fabric</td><td>Registry + bindings</td><td>Registry, contracts</td><td>Registry/binding records</td><td>Own truth or plan graph</td></tr><tr><td>Control Plane</td><td>Plan / Engine Graph</td><td>Contracts, capability registry</td><td>Plans (never persistent state)</td><td>Own truth; hold persistent state</td></tr></tbody></table></div>
+<h2 id="3-2-architecture-test-consequences">3.2 Architecture-test consequences</h2>
+<ul><li>An import from a higher layer into a lower layer is an architecture-test failure.</li></ul>
+<ul><li>A lateral import between peers (e.g., Query -&gt; Engine) that bypasses Control Plane/Event Fabric fails.</li></ul>
+<ul><li>Any write path in Query, or any commit path outside the Kernel, fails the invariant test.</li></ul>
+<ul><li>Any persistent state held by Engine or Control Plane fails ORCH-002 checks.</li></ul>
+<h1 id="part-4-registered-invariants-as-executable-guards">Part 4 - Registered Invariants as Executable Guards</h1>
+<p>The registered invariants are normative and must be encoded as executable guards (invariant tests) that run in CI and, where feasible, as runtime assertions on the commit path. They are the non-negotiable contract of the runtime.</p>
+<div class="table-wrap"><table><thead><tr><th>Invariant</th><th>Statement</th><th>How the implementation enforces it</th></tr></thead><tbody><tr><td>ORCH-001</td><td>Control Plane owns no truth; only Kernel owns truth.</td><td>Commit API exposed only by Kernel; CP has no persistence handle; invariant test asserts no CP write to committed store.</td></tr><tr><td>ORCH-002</td><td>Control Plane produces plans, never persistent state.</td><td>Plans are values passed to Kernel; CP holds no durable store; architecture test forbids CP persistence deps.</td></tr><tr><td>ORCH-003</td><td>Execution replayable from recorded decision trace, NOT recomputation.</td><td>Replay reconstructs from WAL/decision trace; replay test forbids re-invoking engines to rebuild state.</td></tr><tr><td>ORCH-004</td><td>Every engine/capability invocation idempotent + content-addressable.</td><td>Invocations keyed by content hash; dedup at commit; property test: repeat invocation -&gt; same outcome, no double effect.</td></tr><tr><td>OWN-001</td><td>Every state has exactly one owner.</td><td>Ownership registry; static check maps each state type to one owner layer; invariant test flags multi-owner state.</td></tr><tr><td>LAYER-001</td><td>Downward-only deps; no lateral coupling; cross-cutting via CP/Event Fabric.</td><td>Architecture test on the dependency graph; build fails on upward/lateral edges.</td></tr><tr><td>SHARD-001</td><td>Partition by tenant/workspace; partition key immutable.</td><td>Shard key set at creation, never updatable; invariant test rejects any key mutation path.</td></tr></tbody></table></div>
+<h2 id="4-1-ontology-design-principles-definitional-not-runtime-prov">4.1 Ontology design principles (definitional, not runtime-provable)</h2>
+<p>O-001..007 shape types and meaning but are NOT enforced as runtime invariants. They inform reviews and modelling, not CI gates.</p>
+<ul><li>O-001 everything is a cognitive entity.</li></ul>
+<ul><li>O-002 every entity has identity.</li></ul>
+<ul><li>O-003 every observation has provenance.</li></ul>
+<ul><li>O-004 truth emerges from validated evidence.</li></ul>
+<ul><li>O-005 derivation is not inheritance.</li></ul>
+<ul><li>O-006 every type versioned + registered.</li></ul>
+<ul><li>O-007 ontology defines meaning, not storage.</li></ul>
+<h2 id="4-2-proposed-invariants-informative-only-pending-ccp">4.2 Proposed invariants (INFORMATIVE only - pending CCP)</h2>
+<p>The following are PROPOSED and pending CCP. They must be labelled "proposed (pending CCP)" wherever referenced and must NOT be enforced as normative gates. They may inform design exploration and draft tests marked as non-blocking.</p>
+<div class="table-wrap"><table><thead><tr><th>Proposed id (pending CCP)</th><th>Concern area</th><th>Implementation status</th></tr></thead><tbody><tr><td>G-001 (proposed, pending CCP)</td><td>Global/cross-cutting guarantee</td><td>Informative; not enforced.</td></tr><tr><td>QUERY-001 (proposed, pending CCP)</td><td>Query read-only guarantees</td><td>Informative; Query read-only is also implied by matrix.</td></tr><tr><td>LCW-001 (proposed, pending CCP)</td><td>Working memory semantics</td><td>Informative; not enforced.</td></tr><tr><td>PERSIST-001 (proposed, pending CCP)</td><td>Persistence guarantees</td><td>Informative; not enforced.</td></tr><tr><td>CAP-001..009 (proposed, pending CCP)</td><td>Capability fabric guarantees</td><td>Informative; not enforced.</td></tr><tr><td>ENG-001..005 (proposed, pending CCP)</td><td>Engine purity/statelessness guarantees</td><td>Informative; not enforced.</td></tr></tbody></table></div>
+<h1 id="part-5-the-twelve-mandatory-test-types">Part 5 - The Twelve Mandatory Test Types</h1>
+<p>Every UCI component ships with the applicable subset of these twelve test types; distributed components ship all twelve. Conformance verdicts are invariant/property based, never golden-output based. The suite is the operational meaning of the "conformant" and "testable" properties.</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Test type</th><th>What it proves</th><th>Verdict basis</th><th>Ties to</th></tr></thead><tbody><tr><td>1</td><td>Unit</td><td>Single unit behaves per contract in isolation.</td><td>Assertions on outputs/effects</td><td>Testable</td></tr><tr><td>2</td><td>Integration</td><td>Composed units honour contracts across seams.</td><td>Cross-seam assertions</td><td>Replaceable, observable</td></tr><tr><td>3</td><td>Architecture</td><td>Dependency graph is downward-only; no lateral/upward edges; single ownership.</td><td>LAYER-001, OWN-001 checks</td><td>Independent, versioned</td></tr><tr><td>4</td><td>Invariant</td><td>Registered invariants hold under all exercised paths.</td><td>ORCH/OWN/SHARD guards</td><td>All registered invariants</td></tr><tr><td>5</td><td>Distributed</td><td>Correctness across nodes/shards, leaders/followers.</td><td>Linearizability + invariant checks</td><td>IDR-001..004</td></tr><tr><td>6</td><td>Replay</td><td>State rebuilt from decision trace equals live state; no recomputation.</td><td>Trace-vs-state equivalence</td><td>ORCH-003, IDR-005</td></tr><tr><td>7</td><td>Property</td><td>Properties hold over generated inputs (idempotency, determinism).</td><td>Property predicates</td><td>ORCH-004, determinism</td></tr><tr><td>8</td><td>Stress</td><td>Behaviour under load/high-volume streaming stays correct + bounded.</td><td>SLO + invariant under load</td><td>Observable, high-volume axis</td></tr><tr><td>9</td><td>Failure-injection</td><td>Faults (crash, partition, split-brain, slow disk) do not violate truth.</td><td>No partial truth; invariants hold</td><td>Amendment-006, IDR</td></tr><tr><td>10</td><td>Recovery</td><td>After fault, node/shard recovers from WAL + snapshot to consistent truth.</td><td>Post-recovery invariant + replay</td><td>IDR-002, IDR-005</td></tr><tr><td>11</td><td>Conformance</td><td>Reference scenarios pass for the target certification level.</td><td>PASS/PARTIAL/FAIL (invariant/property)</td><td>Conformance suite</td></tr><tr><td>12</td><td>Certification</td><td>End-to-end certification level achieved (L1..L4, Certified Product).</td><td>Level probe verdicts</td><td>Certification levels</td></tr></tbody></table></div>
+<h2 id="5-1-applicability-matrix-by-component-kind">5.1 Applicability matrix by component kind</h2>
+<div class="table-wrap"><table><thead><tr><th>Component kind</th><th>Required test types</th></tr></thead><tbody><tr><td>Pure Engine (stateless)</td><td>1,2,3,4,7,11 (+ replay 6 for effect-proposal determinism)</td></tr><tr><td>Kernel / commit path</td><td>All 1-12 (mandatory)</td></tr><tr><td>Query (read-only)</td><td>1,2,3,4,7,8,11 (write-path invariant tests assert zero writes)</td></tr><tr><td>LCW (working memory)</td><td>1,2,3,4,6,9,10,11</td></tr><tr><td>Capability Fabric</td><td>1,2,3,4,7,11</td></tr><tr><td>Distributed subsystem</td><td>All 1-12 (mandatory)</td></tr></tbody></table></div>
+<h2 id="5-2-verdict-rule-normative-for-conformance">5.2 Verdict rule (normative for conformance)</h2>
+<ul><li>Conformance and certification verdicts are PASS / PARTIAL / FAIL.</li></ul>
+<ul><li>Verdicts are invariant/property based; comparing to a frozen golden output is prohibited.</li></ul>
+<ul><li>CCP-GATE: no behaviour may be ratified without an accompanying conformance scenario.</li></ul>
+<h1 id="part-6-distributed-implementation-grounding-idr-001-005">Part 6 - Distributed Implementation Grounding (IDR-001..005)</h1>
+<p>All distributed mechanics in UCI are grounded in the reference IDRs below. These are non-normative reference-implementation decisions: an Independent Runtime may choose other mechanisms so long as it satisfies the same contracts and conformance scenarios.</p>
+<div class="table-wrap"><table><thead><tr><th>IDR</th><th>Decision</th><th>Key mechanics</th></tr></thead><tbody><tr><td>IDR-001</td><td>Kernel is the Control-of-Truth via per-shard Raft.</td><td>One Raft group per tenant/workspace shard; replicate committed OUTCOMES not engine invocations; engines run anywhere, only the commit goes through the shard leader; Raft log = WAL = decision trace; no cross-shard atomic commit in v1 (use sagas).</td></tr><tr><td>IDR-002</td><td>Replication topology.</td><td>Leader -&gt; followers replication + snapshots + WAL.</td></tr><tr><td>IDR-003</td><td>Membership changes.</td><td>Raft joint consensus.</td></tr><tr><td>IDR-004</td><td>Leadership.</td><td>Per-shard leader election.</td></tr><tr><td>IDR-005</td><td>Durability format.</td><td>Append-only WAL + snapshots.</td></tr></tbody></table></div>
+<h2 id="6-1-truth-is-cp-observability-is-ap">6.1 Truth is CP; observability is AP</h2>
+<p>In the CAP sense, the truth (commit) path is CP: it favours consistency and will refuse to commit rather than fork truth. Observability (metrics, logs, tracing, presence) is AP: it stays available and eventually consistent and is never a source of truth. Implementers must not read observability data as if it were committed state.</p>
+<h2 id="6-2-read-consistency-tiers">6.2 Read consistency tiers</h2>
+<div class="table-wrap"><table><thead><tr><th>Tier</th><th>Served from</th><th>Guarantee</th><th>Use when</th></tr></thead><tbody><tr><td>Linearizable</td><td>Through the shard leader</td><td>Freshest, ordered, authoritative</td><td>Truth-critical reads, decisions</td></tr><tr><td>Bounded-staleness</td><td>A follower</td><td>Fresh within a bounded lag</td><td>Dashboards needing near-real-time</td></tr><tr><td>Eventual</td><td>A replica</td><td>Eventually consistent</td><td>Cheap, tolerant analytics</td></tr></tbody></table></div>
+<h2 id="6-3-no-cross-shard-atomic-commit-in-v1">6.3 No cross-shard atomic commit in v1</h2>
+<ul><li>Cross-shard workflows use sagas, not a distributed atomic commit.</li></ul>
+<ul><li>Committed effects that must be undone are compensated saga-style (Amendment-006).</li></ul>
+<ul><li>Partition key is immutable (SHARD-001); a workflow never migrates a shard key mid-flight.</li></ul>
+<h1 id="part-7-failure-cancellation-and-recovery-model">Part 7 - Failure, Cancellation, and Recovery Model</h1>
+<h2 id="7-1-failure-model-amendment-006">7.1 Failure model (Amendment-006)</h2>
+<ul><li>Partial execution is rolled back by simply NOT committing; uncommitted work has no truth effect.</li></ul>
+<ul><li>Committed effects are compensated saga-style, never mutated in place to fake atomicity.</li></ul>
+<ul><li>Node crash, network partition, and split-brain are handled by the IDR Raft mechanisms.</li></ul>
+<h2 id="7-2-cancellation-model-amendment-005">7.2 Cancellation model (Amendment-005)</h2>
+<ul><li>Cancellation is cooperative and idempotent; a cancel may arrive more than once.</li></ul>
+<ul><li>Cancellation produces no partial truth; either an outcome is committed or it is not.</li></ul>
+<ul><li>Priority and preemption use checkpoint -&gt; replay, consistent with ORCH-003.</li></ul>
+<h2 id="7-3-recovery-obligations">7.3 Recovery obligations</h2>
+<div class="table-wrap"><table><thead><tr><th>Fault</th><th>Detection</th><th>Recovery path</th><th>Test type</th></tr></thead><tbody><tr><td>Node crash</td><td>Leader election / heartbeat loss</td><td>Rejoin, replay WAL from snapshot</td><td>Recovery, failure-injection</td></tr><tr><td>Partition</td><td>Quorum loss on minority side</td><td>Minority refuses commits; heals on rejoin</td><td>Distributed, failure-injection</td></tr><tr><td>Split-brain risk</td><td>Raft term/quorum rules</td><td>Only quorum leader commits; stale leader steps down</td><td>Distributed, invariant</td></tr><tr><td>Corrupt/slow disk</td><td>WAL checksum / latency SLO</td><td>Snapshot restore + WAL replay</td><td>Recovery, stress</td></tr></tbody></table></div>
+<h1 id="part-8-the-idr-process-implementation-decision-record">Part 8 - The IDR Process (Implementation Decision Record)</h1>
+<p>An IDR records a reference-implementation choice that is NOT normative and does NOT change the specification. IDRs are how UCI documents "how we chose to build it" without contaminating the standard. If a decision would change meaning, contract, or behaviour, it is NOT an IDR; it is a CCP.</p>
+<h2 id="8-1-when-to-write-an-idr-vs-escalate-to-a-ccp">8.1 When to write an IDR vs escalate to a CCP</h2>
+<div class="table-wrap"><table><thead><tr><th>Situation</th><th>Instrument</th></tr></thead><tbody><tr><td>Choosing a replication algorithm, storage engine, or wire format</td><td>IDR</td></tr><tr><td>A build-time trade-off that any Independent Runtime could decide differently</td><td>IDR</td></tr><tr><td>A change that alters a frozen contract, behaviour, or invariant meaning</td><td>CCP (STOP; do not implement)</td></tr><tr><td>Adding/removing a layer, invariant, or milestone</td><td>CCP or Amendment (never inline)</td></tr><tr><td>Promoting a PROPOSED invariant to normative</td><td>CCP (only path)</td></tr></tbody></table></div>
+<h2 id="8-2-idr-template">8.2 IDR template</h2>
+<ul><li>IDR id and title (e.g., IDR-006 - Snapshot cadence).</li></ul>
+<ul><li>Status: Proposed / Accepted / Superseded (and by which IDR).</li></ul>
+<ul><li>Context: the forces and constraints; which layer/plane it touches.</li></ul>
+<ul><li>Decision: the chosen mechanism, stated precisely.</li></ul>
+<ul><li>Non-normativity statement: confirms it does not change spec/contract/behaviour.</li></ul>
+<ul><li>Alternatives considered and why rejected.</li></ul>
+<ul><li>Invariants respected: list the REGISTERED invariants upheld (ORCH/OWN/LAYER/SHARD).</li></ul>
+<ul><li>Conformance impact: which scenarios still pass; none weakened.</li></ul>
+<ul><li>Independent-runtime note: how another runtime could decide differently and still conform.</li></ul>
+<ul><li>Consequences: operational, testing, and observability implications.</li></ul>
+<h2 id="8-3-worked-example-illustrative-non-normative">8.3 Worked example (illustrative, non-normative)</h2>
+<p>IDR-001 records that the Kernel realizes control-of-truth via per-shard Raft, replicating committed outcomes and treating the Raft log as WAL and decision trace. It respects ORCH-001 (only Kernel owns truth), ORCH-003 (replay from trace), and SHARD-001 (immutable partition key). An Independent Runtime B could substitute a different consensus protocol and remain conformant because the contract, not the algorithm, is normative.</p>
+<h1 id="part-9-the-ccp-process-cognitive-change-proposal">Part 9 - The CCP Process (Cognitive Change Proposal)</h1>
+<p>The CCP is the primary change instrument for anything that touches meaning: theory, specification, contract, behaviour, ontology, invariant status, layers, or milestones. During the Implementation Era the specification is frozen, so any such change MUST go through a CCP and MUST NOT be made inline while implementing.</p>
+<h2 id="9-1-ccp-template">9.1 CCP template</h2>
+<ul><li>CCP id and title.</li></ul>
+<ul><li>Status/maturity target: Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen (and later Deprecated/Superseded).</li></ul>
+<ul><li>Motivation: the friction discovered during implementation or use.</li></ul>
+<ul><li>Affected artifacts: theory/spec/contract/behaviour/invariant/layer/milestone.</li></ul>
+<ul><li>Dependency-chain analysis: what upstream stages are impacted and why the change is safe.</li></ul>
+<ul><li>Invariant impact: which REGISTERED invariants are affected; promotion of any PROPOSED invariant is stated explicitly.</li></ul>
+<ul><li>Proposed conformance scenario(s): MANDATORY - the CCP-GATE requirement.</li></ul>
+<ul><li>Certification impact: which levels (L1..L4) are affected and re-run needs.</li></ul>
+<ul><li>Migration/versioning plan: new version numbers; backward-compat notes.</li></ul>
+<ul><li>Rollback plan and decision record.</li></ul>
+<h2 id="9-2-ccp-gate-normative">9.2 CCP-GATE (normative)</h2>
+<p>No behaviour may be ratified without an accompanying conformance scenario. A CCP that changes or adds behaviour but ships no conformance scenario is automatically blocked at the gate. This gate is what keeps "conformant" meaningful across Independent Runtimes.</p>
+<div class="table-wrap"><table><thead><tr><th>Gate check</th><th>Pass condition</th></tr></thead><tbody><tr><td>Conformance scenario present</td><td>At least one reference scenario covers the new/changed behaviour.</td></tr><tr><td>Verdict style</td><td>Scenario verdict is invariant/property based, not golden-output.</td></tr><tr><td>Invariant consistency</td><td>No REGISTERED invariant is violated; any promotion is explicit.</td></tr><tr><td>Dependency direction</td><td>Change does not reverse Theory-&gt;...-&gt;Implementation.</td></tr><tr><td>Independent-runtime feasibility</td><td>Two independent runtimes could both satisfy it.</td></tr></tbody></table></div>
+<h2 id="9-3-reference-lifecycle-and-maturity">9.3 Reference Lifecycle and maturity</h2>
+<p>The full reference lifecycle has 13 stages: Idea -&gt; Research -&gt; Theory -&gt; Formalization -&gt; Specification -&gt; Ontology -&gt; Contract -&gt; Reference Behaviour -&gt; Conformance -&gt; Reference Runtime -&gt; Certification -&gt; Reference Product -&gt; Reference Ecosystem. Maturity for any artifact moves Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen -&gt; Deprecated -&gt; Superseded.</p>
+<h1 id="part-10-conformance-and-certification-in-practice">Part 10 - Conformance and Certification in Practice</h1>
+<p>Conformance flows from twelve axes to reference scenarios to node probes to a verdict. Certification composes conformance results into levels.</p>
+<h2 id="10-1-the-twelve-conformance-axes">10.1 The twelve conformance axes</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Axis</th><th>Stresses</th></tr></thead><tbody><tr><td>1</td><td>Information-intensive</td><td>Large knowledge/state handling.</td></tr><tr><td>2</td><td>Event-driven</td><td>Reactive event processing.</td></tr><tr><td>3</td><td>Human-collaboration</td><td>Human-in-the-loop flows.</td></tr><tr><td>4</td><td>Multi-step planning</td><td>Plan generation and execution.</td></tr><tr><td>5</td><td>Long-running</td><td>Durable, resumable work.</td></tr><tr><td>6</td><td>Physical-world</td><td>Actuation and real-world effects.</td></tr><tr><td>7</td><td>Safety-critical</td><td>No partial truth under fault.</td></tr><tr><td>8</td><td>High-volume streaming</td><td>Throughput and backpressure.</td></tr><tr><td>9</td><td>Multi-agent</td><td>Coordination across agents.</td></tr><tr><td>10</td><td>Policy-heavy</td><td>Rich policy/authorization.</td></tr><tr><td>11</td><td>Autonomous</td><td>Self-directed operation.</td></tr><tr><td>12</td><td>Recovery/replay</td><td>Rebuild from decision trace.</td></tr></tbody></table></div>
+<h2 id="10-2-conformance-pipeline-and-verdict">10.2 Conformance pipeline and verdict</h2>
+<ul><li>Axes -&gt; reference scenarios -&gt; node probes -&gt; verdict (PASS / PARTIAL / FAIL).</li></ul>
+<ul><li>Verdicts are invariant/property based, never golden-output based.</li></ul>
+<ul><li>A PARTIAL verdict names the exact scenario/probe that did not fully pass.</li></ul>
+<h2 id="10-3-certification-levels">10.3 Certification levels</h2>
+<div class="table-wrap"><table><thead><tr><th>Level</th><th>Name</th><th>Focus</th></tr></thead><tbody><tr><td>L1</td><td>Core Runtime</td><td>Kernel truth, WAL, replay, single-shard correctness.</td></tr><tr><td>L2</td><td>Cognitive Control</td><td>Control Plane planning, engine invocation, capability binding.</td></tr><tr><td>L3</td><td>Distributed</td><td>Multi-shard, replication, membership, failure/recovery.</td></tr><tr><td>L4</td><td>Multi-Agent</td><td>Multi-agent coordination and shared conformance.</td></tr><tr><td>Certified Product</td><td>Certified Product</td><td>A real product built on ARVES without modifying the standard.</td></tr></tbody></table></div>
+<h2 id="10-4-ecosystem-goals-build-targets-not-new-architecture">10.4 Ecosystem goals (build targets, not new architecture)</h2>
+<ul><li>Production distributed runtime and a complete conformance suite.</li></ul>
+<ul><li>Independent Runtime A and Independent Runtime B both pass certification.</li></ul>
+<ul><li>Third-party certification, enterprise runtime, SDKs, marketplace, and cloud.</li></ul>
+<ul><li>Real products built on ARVES without modifying the standard.</li></ul>
+<h1 id="part-11-milestones-i1-i6-scope-and-success-criteria">Part 11 - Milestones I1..I6: Scope and Success Criteria</h1>
+<p>The frozen Baseline (Part 5) defines exactly six implementation milestones. These names are used verbatim; no other milestone names exist. Each milestone maps to certification levels and to the test types that must pass.</p>
+<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Name</th><th>Primary scope</th><th>Certification target</th><th>Grounded in</th></tr></thead><tbody><tr><td>I1</td><td>Distributed Runtime</td><td>Node/process runtime, WAL, single-shard Raft, replay foundation.</td><td>Toward L1</td><td>IDR-001, IDR-005, ORCH-003</td></tr><tr><td>I2</td><td>Cluster Kernel</td><td>Multi-node Kernel: replication, membership, leader election, snapshots.</td><td>L1 -&gt; L3 foundation</td><td>IDR-002, IDR-003, IDR-004</td></tr><tr><td>I3</td><td>Distributed Query</td><td>Read-only distributed query across shards with consistency tiers.</td><td>L3</td><td>QUERY read-only, SHARD-001</td></tr><tr><td>I4</td><td>Capability Scheduling</td><td>Capability registry/bindings + scheduling of idempotent invocations.</td><td>L2</td><td>ORCH-004, Capability Fabric</td></tr><tr><td>I5</td><td>Multi-Agent Runtime</td><td>Multi-agent coordination on the distributed runtime.</td><td>L4</td><td>ORCH-001..004, multi-agent axis</td></tr><tr><td>I6</td><td>Reference Products</td><td>Certified reference products built without modifying the standard.</td><td>Certified Product</td><td>Ecosystem goals</td></tr></tbody></table></div>
+<h2 id="11-1-per-milestone-success-criteria">11.1 Per-milestone success criteria</h2>
+<h2 id="i1-distributed-runtime">I1 - Distributed Runtime</h2>
+<ul><li>Kernel is the sole committer of truth; commit path exposed nowhere else (ORCH-001).</li></ul>
+<ul><li>Append-only WAL + snapshots implemented; Raft log == WAL == decision trace (IDR-005, IDR-001).</li></ul>
+<ul><li>Replay reconstructs state from the decision trace, not by recomputation (ORCH-003).</li></ul>
+<ul><li>Invariant tests for ORCH-001/003/004, OWN-001, SHARD-001 pass; architecture test green (LAYER-001).</li></ul>
+<ul><li>Unit, integration, architecture, invariant, replay, property tests pass.</li></ul>
+<h2 id="i2-cluster-kernel">I2 - Cluster Kernel</h2>
+<ul><li>Leader -&gt; follower replication with snapshots operational (IDR-002).</li></ul>
+<ul><li>Membership changes via Raft joint consensus (IDR-003); per-shard leader election (IDR-004).</li></ul>
+<ul><li>Failure-injection (crash, partition, split-brain) yields no partial truth (Amendment-006).</li></ul>
+<ul><li>Recovery from WAL + snapshot restores consistent truth; recovery + distributed tests pass.</li></ul>
+<ul><li>Only the quorum leader commits; stale leaders step down (no split-brain truth fork).</li></ul>
+<h2 id="i3-distributed-query">I3 - Distributed Query</h2>
+<ul><li>Query writes nothing; write-path invariant tests assert zero writes (READ-ONLY).</li></ul>
+<ul><li>Linearizable, bounded-staleness, and eventual read tiers implemented and selectable.</li></ul>
+<ul><li>Cross-shard reads respect immutable partition keys (SHARD-001).</li></ul>
+<ul><li>Stress tests hold correctness and bounded latency under high-volume streaming.</li></ul>
+<ul><li>Conformance scenarios for information-intensive and high-volume axes pass.</li></ul>
+<h2 id="i4-capability-scheduling">I4 - Capability Scheduling</h2>
+<ul><li>Capability Fabric owns registry + bindings; Control Plane owns the plan/engine graph only.</li></ul>
+<ul><li>Every engine/capability invocation is idempotent + content-addressable (ORCH-004).</li></ul>
+<ul><li>Engines hold no persistent state; writes are proposed effects only the Kernel commits.</li></ul>
+<ul><li>Property tests prove repeat invocation -&gt; same outcome with no duplicated effect.</li></ul>
+<ul><li>Conformance for multi-step planning axis passes at L2.</li></ul>
+<h2 id="i5-multi-agent-runtime">I5 - Multi-Agent Runtime</h2>
+<ul><li>Multi-agent coordination runs on the distributed runtime without the Kernel becoming CP.</li></ul>
+<ul><li>Control Plane owns plans, never truth or persistent state (ORCH-001, ORCH-002).</li></ul>
+<ul><li>Cancellation is cooperative + idempotent; preemption uses checkpoint -&gt; replay (Amendment-005).</li></ul>
+<ul><li>Cross-shard flows use sagas; committed effects compensated saga-style (Amendment-006).</li></ul>
+<ul><li>Conformance for multi-agent and autonomous axes passes at L4.</li></ul>
+<h2 id="i6-reference-products">I6 - Reference Products</h2>
+<ul><li>At least one reference product certified as a Certified Product.</li></ul>
+<ul><li>Independent Runtime A and Independent Runtime B both pass certification.</li></ul>
+<ul><li>No product modifies the standard; all changes to meaning went through CCPs.</li></ul>
+<ul><li>Complete conformance suite runs green across the twelve axes.</li></ul>
+<ul><li>SDKs / marketplace / cloud packaging available as ecosystem deliverables.</li></ul>
+<h1 id="part-12-definition-of-done-per-milestone">Part 12 - Definition of DONE per Milestone</h1>
+<p>A milestone is DONE only when ALL of the following hold. "Feature works on my machine" is never DONE. DONE is defined by properties, invariants, tests, conformance, and clean change hygiene.</p>
+<h2 id="12-1-universal-done-checklist-applies-to-every-milestone">12.1 Universal DONE checklist (applies to every milestone)</h2>
+<ul><li>All nine implementation properties demonstrably hold for the milestone components.</li></ul>
+<ul><li>All applicable test types (from Part 5) pass in CI, including invariant and architecture tests.</li></ul>
+<ul><li>No REGISTERED invariant is violated on any exercised path.</li></ul>
+<ul><li>No PROPOSED invariant was silently promoted; any promotion has a ratified CCP.</li></ul>
+<ul><li>No spec/contract/behaviour was edited during implementation; frictions captured as IDRs or CCPs.</li></ul>
+<ul><li>Relevant conformance scenarios return PASS (or documented PARTIAL with an accepted plan).</li></ul>
+<ul><li>Observability (metrics/logs/tracing/presence) present on the AP path and never used as truth.</li></ul>
+<ul><li>IDRs for all reference-implementation choices are written and accepted.</li></ul>
+<ul><li>Replay verified: state rebuilt from decision trace equals live state.</li></ul>
+<h2 id="12-2-done-mapping-per-milestone">12.2 DONE mapping per milestone</h2>
+<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>DONE gate (in addition to universal checklist)</th></tr></thead><tbody><tr><td>I1</td><td>Replay from WAL exact; single-shard invariant + architecture green; L1 foundation probes pass.</td></tr><tr><td>I2</td><td>Failure-injection + recovery pass; no split-brain truth; L3 replication/membership probes pass.</td></tr><tr><td>I3</td><td>Zero-write proof for Query; three read tiers verified; high-volume conformance PASS.</td></tr><tr><td>I4</td><td>Idempotency + content-addressability proven; L2 planning conformance PASS.</td></tr><tr><td>I5</td><td>Multi-agent + autonomous conformance PASS at L4; saga compensation verified.</td></tr><tr><td>I6</td><td>Certified Product achieved; Runtime A and B certified; full suite green; standard unmodified.</td></tr></tbody></table></div>
+<h1 id="part-13-implementation-workflow-and-anti-patterns">Part 13 - Implementation Workflow and Anti-Patterns</h1>
+<h2 id="13-1-the-per-change-workflow">13.1 The per-change workflow</h2>
+<ul><li>Locate the frozen artifact the change proves (contract/behaviour/scenario).</li></ul>
+<ul><li>Confirm the plane (Control vs Data) and the owning layer for any state touched.</li></ul>
+<ul><li>Write or extend the applicable test types FIRST where practical (invariant + property).</li></ul>
+<ul><li>Implement behind the contract; keep engines pure and the commit path in the Kernel.</li></ul>
+<ul><li>If friction with the spec appears: STOP; write an IDR, or escalate to a CCP; never redesign inline.</li></ul>
+<ul><li>Run architecture + invariant tests locally; ensure downward-only deps.</li></ul>
+<ul><li>Attach/refresh the conformance scenario if behaviour changed (CCP-GATE).</li></ul>
+<h2 id="13-2-anti-patterns-automatic-rejection">13.2 Anti-patterns (automatic rejection)</h2>
+<div class="table-wrap"><table><thead><tr><th>Anti-pattern</th><th>Why it fails</th><th>Correct action</th></tr></thead><tbody><tr><td>Editing a frozen behaviour to make a test pass</td><td>Reverses the dependency chain</td><td>Fix the implementation or raise a CCP</td></tr><tr><td>Kernel starts orchestrating/planning</td><td>Kernel becomes Control Plane</td><td>Keep planning in Control Plane</td></tr><tr><td>Control Plane persists state</td><td>Violates ORCH-002</td><td>Pass plans to Kernel; hold no store</td></tr><tr><td>Rebuilding state by recomputation</td><td>Violates ORCH-003</td><td>Replay from decision trace</td></tr><tr><td>Non-idempotent invocation</td><td>Violates ORCH-004</td><td>Content-address + dedup at commit</td></tr><tr><td>Query writing state</td><td>Violates read-only role</td><td>Route mutations through Kernel</td></tr><tr><td>Treating a PROPOSED invariant as normative</td><td>Skips the CCP</td><td>Label proposed; do not gate on it</td></tr><tr><td>Golden-output conformance check</td><td>Wrong verdict basis</td><td>Use invariant/property verdicts</td></tr><tr><td>Cross-shard atomic commit in v1</td><td>Not supported</td><td>Use sagas + compensation</td></tr><tr><td>Mutating a partition key</td><td>Violates SHARD-001</td><td>Keys are immutable at creation</td></tr></tbody></table></div>
+<h1 id="part-14-traceability-evidence-and-audit">Part 14 - Traceability, Evidence, and Audit</h1>
+<p>Auditability is a first-class property. Every committed effect must trace to a provenance-bearing decision in the WAL, and every milestone must produce an evidence bundle that a certifier can independently verify.</p>
+<h2 id="14-1-evidence-bundle-contents-per-milestone">14.1 Evidence bundle contents (per milestone)</h2>
+<ul><li>Test reports for all applicable test types with pass/fail and coverage of exercised paths.</li></ul>
+<ul><li>Invariant guard results for ORCH-001..004, OWN-001, LAYER-001, SHARD-001.</li></ul>
+<ul><li>Conformance verdicts (PASS/PARTIAL/FAIL) per relevant axis and scenario.</li></ul>
+<ul><li>Replay evidence: decision-trace-rebuilt state equals live state.</li></ul>
+<ul><li>Accepted IDRs and any ratified CCPs used during the milestone.</li></ul>
+<ul><li>Observability samples proving AP-path emission and non-use as truth.</li></ul>
+<h2 id="14-2-traceability-matrix-illustrative">14.2 Traceability matrix (illustrative)</h2>
+<div class="table-wrap"><table><thead><tr><th>Artifact</th><th>Traces up to</th><th>Verified by</th></tr></thead><tbody><tr><td>Commit path code</td><td>Kernel truth contract; ORCH-001</td><td>Invariant + replay tests</td></tr><tr><td>Replication code</td><td>IDR-002/003/004</td><td>Distributed + recovery tests</td></tr><tr><td>Query read tiers</td><td>Read consistency tiers</td><td>Integration + conformance</td></tr><tr><td>Capability scheduling</td><td>ORCH-004; Capability Fabric</td><td>Property + conformance</td></tr><tr><td>Multi-agent coordination</td><td>ORCH-001/002; multi-agent axis</td><td>Conformance at L4</td></tr></tbody></table></div>
+<h1 id="part-15-quick-reference-cards">Part 15 - Quick-Reference Cards</h1>
+<h2 id="15-1-stop-conditions-never-proceed-raise-an-instrument">15.1 STOP conditions (never proceed; raise an instrument)</h2>
+<ul><li>You need to change a frozen contract, behaviour, invariant, layer, or milestone.</li></ul>
+<ul><li>You need to promote a PROPOSED invariant to normative.</li></ul>
+<ul><li>You need a cross-shard atomic commit (not in v1).</li></ul>
+<ul><li>You need the Kernel to plan/orchestrate or the Control Plane to persist truth.</li></ul>
+<h2 id="15-2-normative-weight-card">15.2 Normative-weight card</h2>
+<ul><li>Normative: ORCH-001..004, OWN-001, LAYER-001, SHARD-001; the CCP-GATE; certification verdict rules.</li></ul>
+<ul><li>Definitional principles (not runtime invariants): O-001..007.</li></ul>
+<ul><li>Non-normative reference decisions: IDR-001..005.</li></ul>
+<ul><li>Informative, pending CCP (never gate): G-001, QUERY-001, LCW-001, PERSIST-001, CAP-001..009, ENG-001..005.</li></ul>
+<h2 id="15-3-milestone-to-level-card">15.3 Milestone-to-level card</h2>
+<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Level target</th></tr></thead><tbody><tr><td>I1 Distributed Runtime</td><td>L1 foundation</td></tr><tr><td>I2 Cluster Kernel</td><td>L1 -&gt; L3</td></tr><tr><td>I3 Distributed Query</td><td>L3</td></tr><tr><td>I4 Capability Scheduling</td><td>L2</td></tr><tr><td>I5 Multi-Agent Runtime</td><td>L4</td></tr><tr><td>I6 Reference Products</td><td>Certified Product</td></tr></tbody></table></div>
+<p><em>Final Definition  Implementation proves the frozen specification and never changes it: build deterministic, replayable, replaceable, observable, auditable, conformant, versioned, testable, and independent runtimes across milestones I1 through I6, enforce the registered invariants as executable guards, ground all distribution in IDR-001..005, and route every change of meaning through a CCP that clears the CCP-GATE.</em></p>
+<h1 id="reconciliation-note-milestone-to-level-mapping">Reconciliation Note - Milestone-to-Level Mapping</h1>
+<p>Any milestone-to-certification-level pairing in this volume is illustrative only. The CANONICAL milestone-to-level mapping is defined in Volume 6 (Certification &amp; Review Manual), Part 8; on any conflict, Volume 6 governs.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

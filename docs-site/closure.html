@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build Program Closure · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html" class="active">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><pre><code>====================================================================
+   ARVES ENGINEERING PROGRAM  ·  VERSION 1.0  ·  STATUS: COMPLETE
+   REFERENCE RUNTIME: FROZEN   ·   SPECIFICATION: FROZEN
+   STANDARD: FROZEN            ·   FUTURE CHANGES: RCR ONLY
+--------------------------------------------------------------------
+   BUILD PROGRAM: SEALED — never reopened.
+   The Runtime changes only through a Runtime Change Request.
+====================================================================</code></pre>
+<h1 id="arves-build-program-closure-record">ARVES Build Program — Closure Record</h1>
+<p>This document closes the ARVES Build Program. It is the program's <em>death certificate</em>: once sealed it is not reopened, and no feature is ever added to the Build Program again. From this point ARVES advances through the <strong>Growth Program</strong>, and the core changes only through the governed <strong>RCR / CCP / IDR</strong> instruments.</p>
+<h2 id="purpose">Purpose</h2>
+<p>Prove — not assert — that the ARVES Build Program is complete. The Build Program's final claim ("we are complete") was subjected to the same evidence discipline as every other ARVES claim: an <strong>independent, adversarial closure audit</strong> (multi-agent, 16 pillars) that tried to prove the program <em>not</em> complete. It is closed on that evidence, not on opinion.</p>
+<h2 id="scope">Scope</h2>
+<p>In scope (and now sealed): the <strong>theory → specification → standard → reference runtime → SDK → products → marketplace → certification → foundation → launch documentation</strong> chain. Out of scope: everything in "What We Deliberately Did NOT Build" below (the Growth Program).</p>
+<h2 id="evidence">Evidence</h2>
+<p>Execution ground truth at seal (round-3 sweep, all exit 0):</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody><tr><td><code>cargo build -p arves-bridge</code></td><td>PASS</td></tr><tr><td><code>cargo test --workspace</code></td><td><strong>65 passed / 0 failed</strong></td></tr><tr><td><code>node products/robustness.test.mjs</code></td><td><strong>40/40</strong></td></tr><tr><td>Personal OS / Enterprise OS / Agent Runtime / Cognitive Memory / SDK examples</td><td>all exit 0</td></tr><tr><td><code>arves certify</code> (invoice.ocr)</td><td>CERTIFIED (5/5)</td></tr><tr><td>Marketplace publish → install → execute</td><td>PASS (refuses uncertified/tampered/duplicate)</td></tr><tr><td><code>certify_runtime.py</code></td><td><strong>2/2 runtimes certified under one conformance</strong> (G1)</td></tr><tr><td><code>evidence_probe.py</code></td><td><strong>7/7 executable evidence rows</strong></td></tr></tbody></table></div>
+<p>Living evidence: <code>verification/evidence/EVIDENCE_LEDGER.md</code> (+ <code>evidence_ledger.tsv</code>).</p>
+<h2 id="audit">Audit</h2>
+<p>Three adversarial rounds (each: an execution sweep + one skeptic per pillar + a completeness critic; every finding required concrete file/line/command evidence):</p>
+<ul><li><strong>Round 1</strong> (15 pillars) → <code>CLOSE_WITH_CAVEATS</code>, <strong>6 launch blockers</strong>: no LICENSE; runtime "all-milestones" overclaim; marketplace cert-gate self-attested (forgeable); FOUNDATION survivability overclaimed as "PROVEN/ANSWER: YES"; <code>certify_runtime.py</code> console mojibake; stale "NO implementation yet" crate headers.</li><li><strong>Fixes (Living layers only; frozen-runtime findings recorded as v1.1 RCR, never edited under freeze):</strong> added Apache-2.0 LICENSE; scoped runtime to single-node I1; <strong>enforced</strong> the cert-gate (certification re-run at publish+install over tamper-evident, signature-bound test inputs — the forgeable flag removed); rewrote FOUNDATION/README to honest <strong>G1/G2</strong> grading; fixed mojibake; recorded runtime findings in the RUNTIME_FREEZE v1.1 backlog.</li><li><strong>Round 2</strong> (16 pillars, +Replaceability) → <code>DO_NOT_CLOSE</code>: one residual overclaim (<code>EVIDENCE_LEDGER.md</code> called a G1 row "the 'outlives its makers' proof") plus staleness the fixes themselves introduced (robustness 37→40, probe 6→7, tests 61→65 not propagated).</li><li><strong>Fixes:</strong> softened the ledger overclaim to a "G1 rehearsal"; propagated the corrected counts across README/FOUNDATION/ledger; completed the mojibake fix in <code>evidence_probe.py</code>; corrected the CONTRIBUTING LICENSE note and the ecosystem-SDK API doc.</li><li><strong>Round 3</strong> (16 pillars) → <strong>14 HOLDS · 2 documented PARTIAL</strong> (runtime I1-scope; replaceability), exec <strong>13/13</strong>, <strong>zero residual overclaim in the working tree</strong>. The only <code>DO_NOT_CLOSE</code> cause was that the verified fixes were <em>uncommitted</em> — resolved by the seal commit that accompanies this record.</li></ul>
+<h2 id="verdict">Verdict</h2>
+<p><strong>CLOSE (SEALED).</strong> The working-tree content passed round-3 (14 HOLDS, 2 honest PARTIAL, no residual overclaim). The seal commit makes that verified content the tagged public artifact; post-commit verification confirms HEAD carries the LICENSE and none of the six original overclaims. Tags: <code>runtime-v1.0</code> → <code>foundation-v1.0</code> → <strong><code>arves-build-v1.0</code></strong> → <strong><code>growth-program-v1</code></strong> (the chronology tells the story).</p>
+<h2 id="build-success-criteria">Build Success Criteria</h2>
+<div class="table-wrap"><table><thead><tr><th>Criterion</th><th>Status</th></tr></thead><tbody><tr><td>Frozen Specification</td><td>✅</td></tr><tr><td>Reference Runtime (single-node I1)</td><td>✅</td></tr><tr><td>Products (P0–P7)</td><td>✅</td></tr><tr><td>Marketplace</td><td>✅</td></tr><tr><td>Foundation</td><td>✅</td></tr><tr><td>Certification</td><td>✅</td></tr><tr><td>Independent Runtime</td><td>✅ <em>(internal / grade G1 evidence)</em></td></tr><tr><td><strong>External Adoption</strong></td><td>⏳ <strong>Growth Program</strong></td></tr><tr><td><strong>Commercialization</strong></td><td>⏳ <strong>Growth Program</strong></td></tr></tbody></table></div>
+<h2 id="what-we-deliberately-did-not-build">What We Deliberately Did NOT Build</h2>
+<p>Recorded so no one later asks <em>"why is there no cloud?"</em> — these were <strong>out of Build Program scope by design</strong>, and belong to the Growth Program:</p>
+<div class="table-wrap"><table><thead><tr><th>Excluded</th><th>Reason</th></tr></thead><tbody><tr><td>LLM / model training</td><td>ARVES is substrate-neutral; models are inputs, not the platform</td></tr><tr><td>Cloud / Hosting</td><td>operational offering — Growth (Commercial)</td></tr><tr><td>Billing / Commercial / Licensing sales</td><td>monetization — Growth (Commercial)</td></tr><tr><td>Website / Community / Videos / Conference</td><td>adoption — Growth (Adoption)</td></tr><tr><td>Real Customers / Partners / University programs</td><td>external, cannot be self-produced — Growth</td></tr></tbody></table></div>
+<h2 id="known-limitations-honest-at-seal">Known Limitations (honest, at seal)</h2>
+<ul><li><strong>Runtime is single-node I1.</strong> Distributed I2–I6 (per-shard Raft per IDR-001..005) are <strong>not built</strong> — future work via RCR; the freeze doc scopes v1.0 accordingly.</li><li><strong>Independence is grade G1</strong> (same-process). <strong>G2</strong> — a genuine outside team building a passing runtime from the Kit alone — is <strong>NOT YET MET</strong>; it is the real exit gate (Growth).</li><li><strong>Truth-store has no cryptographic tamper-evidence</strong> (CRC32, no hash-chain/signature/authN). v1.0 threat model = <strong>trusted single host</strong>; zero-trust hardening is a v1.1/v2.0 RCR.</li><li><strong>v1.1 RCR backlog</strong> (RUNTIME_FREEZE_v1.0.md): stale crate headers; <code>is_cancelled()</code> no-op; engine/capability-fabric guarantee alignment; commit <code>Cargo.lock</code>; truth-store crypto.</li><li><strong>Frozen spec corpus is ~55 binary <code>.docx</code></strong> at repo root — the runtime-governing invariants are re-expressed in markdown and enforced by the architecture-gate test, but rendering the full corpus to committed markdown (grep/diff/version-control) is a <strong>Foundation task</strong>.</li><li><strong>Formal (TLA+) not model-checked (L0)</strong>; live-runtime behaviour conformance (12 Scenario axes) not yet populated.</li></ul>
+<h2 id="what-belongs-to-runtime-frozen-rcr-only">What belongs to Runtime (FROZEN — RCR only)</h2>
+<p>Kernel · Persistence · Engine Fabric · Capability Fabric · Bridge · ACS codec · SDK core · <code>standard/</code>. Byte-stable; changes exclusively via a <strong>Runtime Change Request</strong> (v1.1 additive / v2.0 breaking). Never edited from product or growth work.</p>
+<h2 id="what-belongs-to-growth-living">What belongs to Growth (LIVING)</h2>
+<p><code>products/</code> · <code>marketplace</code> · ecosystem SDK &amp; authoring kit · developer platform (CLI, IDE extensions, templates) · docs &amp; education · community · foundation operations · cloud &amp; commercial. Ships continuously, consuming the frozen Runtime API.</p>
+<h2 id="future-governance">Future Governance</h2>
+<ul><li><strong>Runtime / Standard change</strong> → RCR (→ v1.1 / v2.0), each with its own destroy→prove cycle.</li><li><strong>Specification change</strong> → CCP / Amendment / IDR (the frozen corpus is immutable, ED-001).</li><li><strong>Certification</strong> → <code>standard/</code> vectors + the maintainer-independent harness; no person required. The G2 event (a genuine third-party runtime) is the open exit gate.</li><li><strong>The seal is permanent.</strong> No feature is ever added to the Build Program again.</li></ul>
+<h2 id="the-metric-that-matters-now">The metric that matters now</h2>
+<p>Not lines of code, GitHub stars, downloads, or revenue — but <strong>how little core code must change while the ecosystem keeps growing</strong>, and above all: <strong>the number of independent teams that successfully build on ARVES without ever talking to the original authors</strong> (0 → 5 → 20 → 100 → 1000). The day that number climbs, ARVES is genuinely alive.</p>
+<hr>
+<p><em>Sealed 2026-07. The Build Program is complete; the Growth Program is open. Claude's role changes from Build ARVES to Grow ARVES.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

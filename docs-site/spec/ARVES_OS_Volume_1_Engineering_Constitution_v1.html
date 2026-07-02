@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES OS Volume 1 Engineering Constitution v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_OS_Volume_1_Engineering_Constitution_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engineering-operating-manual-volume-1-engineering-cons">ARVES Engineering Operating Manual - Volume 1: Engineering Constitution v1.0</h1>
+<p>STATUS: AEOS CONSTITUTION LAYER (NORMATIVE) - The governing volume of the ARVES Engineering Operating System</p>
+<h1 id="part-1-purpose-scope">Part 1 - Purpose &amp; Scope</h1>
+<p>This is the constitutional volume of the ARVES Engineering Operating System (AEOS). It governs every engineering activity in the ARVES repository and defines who ARVES is built by, under what rules, and toward what end. It is normative: Volumes 2-6 (Workflow, Playbooks, Manuals) operate under it, and CLAUDE.md is its per-session enactment.</p>
+<h1 id="part-2-ucs-uci-split">Part 2 - UCS / UCI Split</h1>
+<p>ARVES is a Universal Cognitive Infrastructure expressed in two version lines. UCS (Universal Cognitive Standard) is the standard - ontology, contracts, engine ABI, conformance, certification. UCI is the reference implementation - Information Platform, Kernel, LCW, Persistence, Query, Fabrics, Runtime. A UCI runtime declares which UCS version it implements; independent runtimes may implement UCS without using UCI.</p>
+<h1 id="part-3-era-model">Part 3 - Era Model</h1>
+<p>The Specification Era is COMPLETE and FROZEN (2026-07-01). The Implementation Era is in progress. No base standard is authored after the freeze; the focus is proving the frozen specification at production scale.</p>
+<div class="table-wrap"><table><thead><tr><th>Era</th><th>Status</th><th>Output</th></tr></thead><tbody><tr><td>Specification Era</td><td>Complete / Frozen</td><td>UCS, UCI spec, Ontology, Control Plane, ABI, Conformance, Lifecycle, ARR, Baseline</td></tr><tr><td>Implementation Era</td><td>In progress</td><td>Working code, IDRs, conformance reports, benchmarks, certification</td></tr></tbody></table></div>
+<h1 id="part-4-the-primary-principle">Part 4 - The Primary Principle</h1>
+<p>Preserve the dependency chain and never reverse it:</p>
+<p>Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation.</p>
+<p>Implementation serves Specification. Specification never serves Implementation. Implementation proves the specification; it never changes it.</p>
+<h1 id="part-5-engineering-doctrine-philosophy">Part 5 - Engineering Doctrine &amp; Philosophy</h1>
+<p>Always prefer:</p>
+<ul><li>Simple over Clever; Explicit over Implicit; Deterministic over Dynamic.</li></ul>
+<ul><li>Contracts over Assumptions; Architecture over Features; Correctness over Speed.</li></ul>
+<ul><li>Replayability over Convenience; Proof over Opinion; Standards over Frameworks.</li></ul>
+<ul><li>Engineering over Prompt Engineering.</li></ul>
+<h1 id="part-6-the-ten-non-negotiable-rules">Part 6 - The Ten Non-Negotiable Rules</h1>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Rule</th></tr></thead><tbody><tr><td>1</td><td>Never modify the frozen specification.</td></tr><tr><td>2</td><td>Never invent architecture.</td></tr><tr><td>3</td><td>Never introduce new architectural layers.</td></tr><tr><td>4</td><td>Never bypass architectural ownership.</td></tr><tr><td>5</td><td>Never violate registered invariants.</td></tr><tr><td>6</td><td>Never add features because they seem useful.</td></tr><tr><td>7</td><td>Never optimize before correctness.</td></tr><tr><td>8</td><td>Never duplicate ownership.</td></tr><tr><td>9</td><td>Never couple runtime components unnecessarily.</td></tr><tr><td>10</td><td>Every engineering decision must be traceable to the frozen specification.</td></tr></tbody></table></div>
+<h1 id="part-7-the-two-planes-the-layers">Part 7 - The Two Planes &amp; The Layers</h1>
+<p>Control Plane (decides) vs Data Plane (carries); the Kernel never becomes the Control Plane. Layers, with downward-only dependencies (LAYER-001):</p>
+<p>Reality -&gt; Information Platform -&gt; Kernel -&gt; Persistence -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution, plus the cross-cutting Control Plane.</p>
+<h1 id="part-8-registered-invariants-normative">Part 8 - Registered Invariants (normative)</h1>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Statement</th><th>Source</th></tr></thead><tbody><tr><td>ORCH-001</td><td>Control Plane owns no truth; only the Kernel owns truth.</td><td>Vol 9 v2 Part 5</td></tr><tr><td>ORCH-002</td><td>Control Plane produces plans, never persistent state.</td><td>Vol 9 v2 Part 5</td></tr><tr><td>ORCH-003</td><td>Execution is replayable from a recorded decision trace, not recomputation.</td><td>Vol 9 v2 Part 5</td></tr><tr><td>ORCH-004</td><td>Every engine/capability invocation is idempotent and content-addressable.</td><td>Vol 9 v2 Part 5</td></tr><tr><td>OWN-001</td><td>Every state has exactly one owner.</td><td>Amendments A-001</td></tr><tr><td>LAYER-001</td><td>Downward-only deps; no lateral coupling; cross-cutting via Control Plane/Event Fabric.</td><td>Amendments A-003</td></tr><tr><td>SHARD-001</td><td>Partition by tenant/workspace; partition key immutable.</td><td>Amendments A-004</td></tr></tbody></table></div>
+<p>Ontology Design Principles O-001..007 are definitional (not runtime-provable). Proposed invariants G-001, QUERY-001, LCW-001, PERSIST-001, CAP-001..009, ENG-001..005 are INFORMATIVE and pending CCP; they are not enforced as registered until ratified. See ARVES_00_Invariant_Registry.</p>
+<h1 id="part-9-current-distributed-decisions-idr-001-005">Part 9 - Current Distributed Decisions (IDR-001..005)</h1>
+<div class="table-wrap"><table><thead><tr><th>Concern</th><th>Decision</th></tr></thead><tbody><tr><td>Kernel</td><td>CP (Consistency First)</td></tr><tr><td>Consensus</td><td>Per-shard Raft (one group per tenant/workspace)</td></tr><tr><td>Replication</td><td>Leader -&gt; Followers -&gt; Snapshots -&gt; WAL</td></tr><tr><td>Membership</td><td>Joint Consensus</td></tr><tr><td>Leader Election</td><td>Per shard</td></tr><tr><td>Storage</td><td>Append-only WAL = decision trace</td></tr><tr><td>Truth / Observability</td><td>Truth CP; Observability AP</td></tr></tbody></table></div>
+<h1 id="part-10-change-management">Part 10 - Change Management</h1>
+<p>On discovering a specification issue: STOP. Do not implement around it. Classify and route:</p>
+<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Instrument</th></tr></thead><tbody><tr><td>Minor wording</td><td>CCP Amendment</td></tr><tr><td>Architectural ambiguity</td><td>Architecture Review</td></tr><tr><td>Engineering decision</td><td>IDR</td></tr><tr><td>Specification change</td><td>Next Major Version (via CCP -&gt; Review -&gt; Amendment -&gt; Ratification -&gt; Baseline v2)</td></tr></tbody></table></div>
+<p>Never silently change the architecture. The frozen Baseline Part 5 milestone set (I1 Distributed Runtime, I2 Cluster Kernel, I3 Distributed Query, I4 Capability Scheduling, I5 Multi-Agent Runtime, I6 Reference Products) is the single source of truth and changes only through this chain.</p>
+<h1 id="part-11-definition-of-done">Part 11 - Definition of DONE</h1>
+<p>A milestone is DONE only when all of the following are PASS:</p>
+<ul><li>Architecture PASS; Conformance PASS; Certification PASS; Independent Review PASS.</li></ul>
+<ul><li>Invariant coverage 100%; Replay PASS; Distributed tests PASS.</li></ul>
+<ul><li>No architecture drift; no specification drift.</li></ul>
+<h1 id="part-12-reject-criteria">Part 12 - REJECT Criteria</h1>
+<p>Reject any work that:</p>
+<ul><li>Modifies the frozen specification without a ratified CCP.</li></ul>
+<ul><li>Introduces a new layer, invariant, or milestone name by fiat.</li></ul>
+<ul><li>Creates a second owner for any state or concept.</li></ul>
+<ul><li>Cannot be traced to a frozen document, contract, invariant, or IDR.</li></ul>
+<ul><li>Cannot be reproduced by an independent implementation from the specification alone.</li></ul>
+<h1 id="part-13-when-in-doubt">Part 13 - When In Doubt</h1>
+<p>Never ask "Can this work?" Always ask "Does this preserve the standard?" If not, reject it.</p>
+<h1 id="part-14-relationship-to-the-aeos">Part 14 - Relationship to the AEOS</h1>
+<p>This volume is the Constitution layer of the AEOS. Volume 2 defines the Workflow; Volumes 3-5 are the Playbooks; Volume 6 is the Certification &amp; Review Manual. The frozen UCS/UCI v1.0 is the Specification layer; source code is the Runtime layer. CLAUDE.md enacts this constitution each session.</p>
+<p><em>Final Definition  Engineering Constitution = The Governing Law of the ARVES Engineering Operating System.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

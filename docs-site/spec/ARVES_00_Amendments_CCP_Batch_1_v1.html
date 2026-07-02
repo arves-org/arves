@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES 00 Amendments CCP Batch 1 v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_00_Amendments_CCP_Batch_1_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-v1-0-amendments-ccp-batch-1-arr-resolution">ARVES v1.0 Amendments - CCP Batch 1 (ARR Resolution)</h1>
+<p>STATUS: AMENDMENT RECORD (MINOR / CCP) - RESOLVES ARR FINDINGS WITHOUT REOPENING THE SPECIFICATION ERA</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>Resolve the GAP and CONFLICT findings of the Architecture Readiness Review (ARR) via amendments (MINOR) under the Reference Lifecycle CCP process. The Specification Era is NOT reopened; these are the first real use of the ARVES change process on ARVES itself.</p>
+<h1 id="amendment-001-working-memory-ownership-resolves-f2">Amendment-001 - Working Memory Ownership (resolves F2)</h1>
+<p><strong>Decision: </strong>LCW is the SINGLE owner of Working Memory (the live, mutable cognitive/world state).</p>
+<p><strong>Detail: </strong>The Cognitive Core USES Working Memory but does not own it. Per-invocation engine scratch is ephemeral, engine-local, and is NOT system state (engine purity).</p>
+<p><strong>Affected: </strong>Vol 4 Part 25: "Owns ... Working Memory" -&gt; "Uses Working Memory (owned by LCW)".</p>
+<p><strong>Invariant upheld: </strong>OWN-001 (single owner per state); ORCH-001 (truth stays in the Kernel).</p>
+<h1 id="amendment-002-plan-ownership-resolves-f3">Amendment-002 - Plan Ownership (resolves F3)</h1>
+<p><strong>Decision: </strong>The Control Plane is the SINGLE owner of the Plan / Engine Graph artifact.</p>
+<p><strong>Detail: </strong>The Planning Engine PRODUCES plan proposals as inference; it does not own the plan. The executable Engine Graph is a Control Plane plan artifact - never truth.</p>
+<p><strong>Affected: </strong>Engine ABI: Planning engine Produces a plan-proposal type; Vol 9 confirmed as owner.</p>
+<p><strong>Invariant upheld: </strong>ORCH-001 (plan artifact != truth); OWN-001.</p>
+<h1 id="amendment-003-layer-001-layer-responsibility-matrix-resolves">Amendment-003 - LAYER-001 &amp; Layer Responsibility Matrix (resolves F5)</h1>
+<p><strong>Invariant LAYER-001: </strong>Dependencies point downward only; no lateral peer-layer calls; cross-cutting concerns traverse the Control Plane or Event Fabric.</p>
+<p>Layer Responsibility Matrix:</p>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Owns</th><th>Reads</th><th>Writes</th><th>Cannot</th></tr></thead><tbody><tr><td>Reality</td><td>External world</td><td>-</td><td>Emits raw signals</td><td>Be mutated except via Execution</td></tr><tr><td>Information Platform</td><td>Provider/connector registry, canonicalization</td><td>Reality (raw)</td><td>Proposed canonical observations to Kernel</td><td>Own truth or hold cognitive state</td></tr><tr><td>Kernel</td><td>TRUTH (committed canonical state)</td><td>Proposed writes/inference</td><td>Commits truth; emits events</td><td>Orchestrate, plan or execute</td></tr><tr><td>Persistence</td><td>Durable store of committed state/events</td><td>Kernel commits</td><td>Durable records</td><td>Interpret meaning or decide</td></tr><tr><td>LCW</td><td>Working Memory / live world state</td><td>Kernel truth, events</td><td>Mutable live state (not truth)</td><td>Own truth or be authoritative store</td></tr><tr><td>Query</td><td>Read projections/views</td><td>Kernel, LCW, Persistence</td><td>NOTHING (read-only)</td><td>Mutate any state</td></tr><tr><td>Engine</td><td>Nothing persistent (pure)</td><td>State via Query</td><td>Inference + proposed effects/plan proposals</td><td>Mutate truth, own plans, or persist state</td></tr><tr><td>Capability</td><td>Capability registry &amp; bindings</td><td>Plan requirements</td><td>Capability bindings</td><td>Own truth or plans</td></tr><tr><td>Execution</td><td>In-flight execution state</td><td>Execution plan</td><td>Actions to world; outcomes proposed to Kernel</td><td>Own truth or plan</td></tr><tr><td>Control Plane</td><td>Plan/Engine Graph, orchestration</td><td>Goals, state</td><td>Plans, schedules</td><td>Own truth or persist state (ORCH-001/002)</td></tr></tbody></table></div>
+<h1 id="amendment-004-shard-identity-resolves-f7">Amendment-004 - Shard Identity (resolves F7)</h1>
+<p><strong>Entity Key: </strong>Ontology urn + id (Identity aspect, Ontology Spec Part 4).</p>
+<p><strong>Partition / Shard Key: </strong>tenant_id (primary) + workspace_id (secondary). All state partitioned by tenant/workspace; no cross-tenant data in a single shard.</p>
+<p><strong>Routing Key: </strong>tenant_id + correlation_id (Event Envelope).</p>
+<p><strong>Invariant SHARD-001: </strong>Partition by tenant/workspace; the partition key is immutable for an entity lifetime.</p>
+<p><strong>Affected: </strong>Vol 2 (tenant isolation), Vol 9 / ARVES-21 (envelope), Ontology (Identity aspect).</p>
+<h1 id="amendment-005-cancellation-priority-resolves-f4-added-to-rea">Amendment-005 - Cancellation &amp; Priority (resolves F4; added to reach 0 GAP)</h1>
+<p><strong>Cancellation: </strong>Every engine invocation and plan is cancellable. Cancellation is cooperative and idempotent (ORCH-004); cancelled work emits a cancellation event and leaves no partial truth (uncommitted proposed writes are discarded).</p>
+<p><strong>Priority / Preemption: </strong>Plans and tasks carry a priority; the scheduler may preempt lower priority work. Preempted work is checkpointed to its decision trace and is replayable (ORCH-003).</p>
+<p><strong>Affected: </strong>Vol 9 Control Plane; Engine ABI adds Cancellation semantics + Priority field.</p>
+<h1 id="amendment-006-failure-taxonomy-resolves-f6-taxonomy-mechanis">Amendment-006 - Failure Taxonomy (resolves F6 taxonomy; mechanisms -&gt; IDR)</h1>
+<p><strong>Model: </strong>Partial execution is rolled back by NOT committing (uncommitted proposed writes are discarded, since the Kernel owns truth and engines are pure). Already-committed effects are compensated by explicit compensation actions recorded in the decision trace (saga-style).</p>
+<p>Failure placement:</p>
+<div class="table-wrap"><table><thead><tr><th>Failure</th><th>Home</th></tr></thead><tbody><tr><td>Capability timeout</td><td>Spec (ABI Timeout/Failure)</td></tr><tr><td>Duplicate replay</td><td>Spec (ORCH-004)</td></tr><tr><td>Control-plane crash</td><td>Spec (ORCH-002)</td></tr><tr><td>Partial execution / rollback</td><td>Amendment-006 (compensation model)</td></tr><tr><td>Human cancellation</td><td>Amendment-005</td></tr><tr><td>Node crash / partition / split brain</td><td>IDR (F1 mechanisms)</td></tr><tr><td>Replay failure</td><td>IDR</td></tr></tbody></table></div>
+<h1 id="new-invariants-registered">New Invariants Registered</h1>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Invariant</th></tr></thead><tbody><tr><td>OWN-001</td><td>Every state has exactly one owner.</td></tr><tr><td>LAYER-001</td><td>Dependencies downward only; no lateral coupling; cross-cutting via Control Plane/Event Fabric.</td></tr><tr><td>SHARD-001</td><td>State is partitioned by tenant/workspace; partition key is immutable.</td></tr></tbody></table></div>
+<h1 id="post-amendment-arr-status">Post-Amendment ARR Status</h1>
+<div class="table-wrap"><table><thead><tr><th>Finding</th><th>Status</th></tr></thead><tbody><tr><td>F2 Working Memory ownership</td><td>RESOLVED (A-001)</td></tr><tr><td>F3 Plan ownership</td><td>RESOLVED (A-002)</td></tr><tr><td>F5 Layer invariant</td><td>RESOLVED (A-003)</td></tr><tr><td>F7 Shard identity</td><td>RESOLVED (A-004)</td></tr><tr><td>F4 Cancellation/priority</td><td>RESOLVED (A-005)</td></tr><tr><td>F6 Failure taxonomy</td><td>RESOLVED (A-006); mechanisms -&gt; IDR</td></tr><tr><td>F1 Kernel consensus/CAP</td><td>OPEN as IDR (expected)</td></tr></tbody></table></div>
+<p><strong>ARR RESULT: PASS  -  0 GAP, 0 CONFLICT. Only accepted IDRs remain open (F1 + F6 mechanisms).</strong></p>
+<h1 id="next-implementation-decision-records">Next - Implementation Decision Records</h1>
+<p>With ARR at PASS, the Implementation Era may begin with IDRs: IDR-001 Consensus, IDR-002 Replication, IDR-003 Membership, IDR-004 Leader Election, IDR-005 Storage. IDRs implement, but never change, the frozen specification.</p>
+<p><em>Final Definition  CCP Batch 1 = The First Amendment Cycle of ARVES, clearing the Architecture Readiness Review to PASS.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

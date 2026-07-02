@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES OS Volume 2 UltraCode Workflow v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_OS_Volume_2_UltraCode_Workflow_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engineering-operating-manual-volume-2-the-ultracode-wo">ARVES Engineering Operating Manual - Volume 2: The UltraCode Workflow</h1>
+<p>STATUS: OPERATING MANUAL (IMPLEMENTATION-ERA, NORMATIVE PROCESS). Specification Era FROZEN as of 2026-07-01. Implementation Era IN PROGRESS. This volume governs HOW engineering work is executed; it never alters the frozen specification.</p>
+<h1 id="part-1-purpose-scope-and-the-prime-directive">Part 1 - Purpose, Scope, and the Prime Directive</h1>
+<p>Volume 2 defines the UltraCode Workflow: the mandatory 15-phase process every engineering task follows from request to certified verdict. It is the operational counterpart to the frozen specification corpus. Where Volume 1 describes WHAT ARVES is, this volume describes HOW work is admitted, designed, built, proven, and certified without weakening the standard.</p>
+<p>ARVES is Universal Cognitive Infrastructure. UCS (Universal Cognitive Standard) is the standard; UCI is its reference implementation. The Specification Era is FROZEN. The Implementation Era is in progress. The purpose of implementation is to PROVE the specification, never to modify it.</p>
+<p>The Prime Directive of the UltraCode Workflow:</p>
+<ul><li>The dependency chain is one-directional and never reversed: Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation.</li></ul>
+<ul><li>Implementation proves the spec and never changes it. A workflow that would require changing the frozen spec MUST stop and raise a change instrument (CCP, Amendment, IDR, or next major version).</li></ul>
+<ul><li>The Kernel owns TRUTH. The Control Plane decides but owns no truth. The Kernel never becomes the Control Plane.</li></ul>
+<ul><li>No phase may be skipped, merged, or reordered. Fan-out parallelizes work WITHIN the discipline of the phases; it never removes a phase.</li></ul>
+<p>Scope of this volume: the 15 phases in full (purpose, inputs, outputs/artifact, exit criteria), the before-writing-code questions, how a milestone task is issued and driven, and how to fan work out across phases without shortcuts.</p>
+<h1 id="part-2-architectural-ground-truth-the-workflow-enforces">Part 2 - Architectural Ground Truth the Workflow Enforces</h1>
+<p>Every phase is anchored to the frozen architecture. The workflow is the mechanism by which these facts are checked on each task. The two planes and the layer stack are the non-negotiable frame.</p>
+<p>Two planes: the Control Plane DECIDES; the Data Plane CARRIES. The Kernel never becomes the Control Plane.</p>
+<p>Layers (downward-only dependencies, per LAYER-001): Reality -&gt; Information Platform -&gt; Kernel -&gt; Persistence -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution, plus the cross-cutting Control Plane.</p>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Owns</th><th>Reads/Writes</th><th>Cannot</th></tr></thead><tbody><tr><td>Kernel</td><td>TRUTH (commits)</td><td>Writes committed outcomes</td><td>Orchestrate / plan / execute</td></tr><tr><td>LCW</td><td>Working Memory / live state</td><td>Reads+writes live state (not truth)</td><td>Own truth</td></tr><tr><td>Query</td><td>Nothing (read-only projections)</td><td>Reads only; writes nothing</td><td>Write any state</td></tr><tr><td>Engine</td><td>Nothing persistent</td><td>Produces inference; proposes effects</td><td>Commit; only Kernel commits</td></tr><tr><td>Capability Fabric</td><td>Registry + bindings</td><td>Reads registry; binds</td><td>Own truth or persistent state</td></tr><tr><td>Control Plane</td><td>Plan / Engine Graph</td><td>Produces plans</td><td>Own truth or persistent state</td></tr></tbody></table></div>
+<p>The workflow treats these rows as invariants-in-practice. Any design that lets a non-owner write an owned state, or lets the Control Plane hold persistent state, fails at Contract Mapping or Critical Self-Review.</p>
+<h1 id="part-3-the-normative-vocabulary-invariants-principles-decisi">Part 3 - The Normative Vocabulary: Invariants, Principles, Decisions</h1>
+<p>The workflow distinguishes three tiers of statement. Confusing them is itself a defect. Reviewers enforce the tier labels.</p>
+<p>REGISTERED invariants (normative; may be cited as binding):</p>
+<ul><li>ORCH-001 - Control Plane owns no truth; only the Kernel owns truth.</li></ul>
+<ul><li>ORCH-002 - Control Plane produces plans, never persistent state.</li></ul>
+<ul><li>ORCH-003 - Execution is replayable from the recorded decision trace, NOT by recomputation.</li></ul>
+<ul><li>ORCH-004 - Every engine/capability invocation is idempotent and content-addressable.</li></ul>
+<ul><li>OWN-001 - Every state has exactly one owner.</li></ul>
+<ul><li>LAYER-001 - Downward-only dependencies; no lateral coupling; cross-cutting via Control Plane / Event Fabric.</li></ul>
+<ul><li>SHARD-001 - Partition by tenant/workspace; the partition key is immutable.</li></ul>
+<p>Ontology DESIGN PRINCIPLES O-001..O-007 (definitional, NOT runtime-provable invariants): everything is a cognitive entity; every entity has identity; every observation has provenance; truth emerges from validated evidence; derivation is not inheritance; every type is versioned+registered; ontology defines meaning not storage. These guide modeling but are never cited as runtime invariants in Conformance.</p>
+<p>PROPOSED invariants (INFORMATIVE only - must always be marked "proposed, pending CCP"; never presented as registered/normative): G-001, QUERY-001, LCW-001, PERSIST-001, CAP-001..CAP-009, ENG-001..ENG-005. A task may rely on a proposed invariant only as design intent, and must record the pending-CCP dependency in its Gap Analysis.</p>
+<p>IDR reference implementation decisions IDR-001..IDR-005 (non-normative but binding on the reference runtime UCI): all distributed design is grounded here (see Part 6 and Part 17).</p>
+<h1 id="part-4-the-ultracode-workflow-at-a-glance-15-phases">Part 4 - The UltraCode Workflow at a Glance (15 Phases)</h1>
+<p>Every engineering task - from a one-line fix to a milestone slice - passes through all fifteen phases in order. The phases divide into four movements: Admit (1), Understand (2-8), Build (9-12), Prove (13-15).</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Phase</th><th>Movement</th><th>Primary Artifact</th></tr></thead><tbody><tr><td>1</td><td>ARR - Acceptance / Readiness Review</td><td>Admit</td><td>Admission Record</td></tr><tr><td>2</td><td>Affected UCI Node Analysis</td><td>Understand</td><td>Node Impact Map</td></tr><tr><td>3</td><td>Specification Mapping</td><td>Understand</td><td>Spec Trace</td></tr><tr><td>4</td><td>Contract Mapping</td><td>Understand</td><td>Contract Delta</td></tr><tr><td>5</td><td>Invariant Mapping</td><td>Understand</td><td>Invariant Obligation Set</td></tr><tr><td>6</td><td>Ownership Analysis</td><td>Understand</td><td>Ownership Ledger</td></tr><tr><td>7</td><td>IDR Mapping</td><td>Understand</td><td>IDR Binding Sheet</td></tr><tr><td>8</td><td>Gap Analysis</td><td>Understand</td><td>Gap Register</td></tr><tr><td>9</td><td>Engineering Design</td><td>Build</td><td>Design Dossier</td></tr><tr><td>10</td><td>Critical Self-Review</td><td>Build</td><td>Self-Review Log</td></tr><tr><td>11</td><td>Implementation</td><td>Build</td><td>Code + Decision Trace</td></tr><tr><td>12</td><td>Testing</td><td>Build</td><td>Test Suite + Results</td></tr><tr><td>13</td><td>Conformance</td><td>Prove</td><td>Conformance Verdict</td></tr><tr><td>14</td><td>Independent Architecture Review</td><td>Prove</td><td>IAR Sign-off</td></tr><tr><td>15</td><td>Certification Verdict</td><td>Prove</td><td>Certification Record</td></tr></tbody></table></div>
+<p>The Understand movement (phases 2-8) is where most defects are prevented. The workflow deliberately front-loads analysis: no code is written until phase 11, and phase 11 cannot start until phase 10 passes.</p>
+<h1 id="part-5-phase-1-arr-acceptance-readiness-review">Part 5 - Phase 1: ARR (Acceptance / Readiness Review)</h1>
+<p>Purpose: admit a task into the workflow. ARR is the entry gate that confirms the task belongs in the Implementation Era, does not require changing the frozen spec, and has a clear certifiable outcome.</p>
+<p>Inputs:</p>
+<ul><li>Task request (from a milestone slice I1..I6, a defect, or an approved change instrument).</li></ul>
+<ul><li>The frozen specification corpus and the registered invariant registry.</li></ul>
+<ul><li>Current milestone context and the Master Backlog entry, if any.</li></ul>
+<p>Outputs / Artifact: the Admission Record - task id, milestone linkage, one-sentence outcome, and an explicit statement that no frozen-spec change is required (or a pointer to the CCP/Amendment/IDR that authorizes it).</p>
+<p>Exit criteria:</p>
+<ul><li>Task maps to exactly one milestone (I1..I6) or an approved change instrument.</li></ul>
+<ul><li>The outcome is certifiable (there exists at least one conformance axis it will exercise).</li></ul>
+<ul><li>No spec change is implied; if one is, the task is rejected back to the change-instrument process (CCP-GATE applies).</li></ul>
+<ul><li>An owner and a target certification level (L1..L4 or Certified Product) are recorded.</li></ul>
+<h1 id="part-6-the-before-writing-code-questions">Part 6 - The Before-Writing-Code Questions</h1>
+<p>Before any implementation begins (i.e., before phase 11 is entered), the engineer must be able to answer every question below in writing. Unanswered questions block the task at Critical Self-Review. These questions are the compression of phases 2-10 into a checklist.</p>
+<ul><li>Which UCI nodes are affected, and does the change respect downward-only dependencies (LAYER-001)?</li></ul>
+<ul><li>Which frozen specification clauses does this task realize? (Spec Trace exists.)</li></ul>
+<ul><li>Which contracts change, and are the changes additive/compatible or breaking?</li></ul>
+<ul><li>Which registered invariants (ORCH-001..004, OWN-001, LAYER-001, SHARD-001) does this task have an obligation to preserve?</li></ul>
+<ul><li>For every state touched, who is the single owner (OWN-001)? Does any non-owner attempt to write it?</li></ul>
+<ul><li>Does the Control Plane remain truth-free and state-free (ORCH-001, ORCH-002)?</li></ul>
+<ul><li>Is every engine/capability invocation idempotent and content-addressable (ORCH-004)?</li></ul>
+<ul><li>Is the outcome replayable from the recorded decision trace and NOT from recomputation (ORCH-003)?</li></ul>
+<ul><li>Is the partition key by tenant/workspace, and is it immutable (SHARD-001)?</li></ul>
+<ul><li>Which IDR (IDR-001..005) governs the distributed behaviour, and is the design consistent with per-shard Raft, replicated committed outcomes, and saga-based cross-shard flow?</li></ul>
+<ul><li>Which proposed invariants (G-001, QUERY-001, LCW-001, PERSIST-001, CAP-<em>, ENG-</em>) does the design lean on, and are they flagged as proposed (pending CCP)?</li></ul>
+<ul><li>What is the failure behaviour: partial execution rolled back by NOT committing; committed effects compensated saga-style (Amendment-006)? Is cancellation cooperative + idempotent with no partial truth (Amendment-005)?</li></ul>
+<ul><li>Which conformance axes and reference scenarios will prove this task, and what is the target certification level?</li></ul>
+<p>If any answer is "unknown", the task returns to the relevant Understand-movement phase. Guessing is a workflow violation.</p>
+<h1 id="part-7-phase-2-affected-uci-node-analysis">Part 7 - Phase 2: Affected UCI Node Analysis</h1>
+<p>Purpose: identify every node of the UCI reference implementation the task touches, and confirm the change stays within the layer stack and its downward-only dependency rule.</p>
+<p>Inputs: Admission Record; the layer stack (Reality -&gt; Information Platform -&gt; Kernel -&gt; Persistence -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution + Control Plane); the Layer Responsibility Matrix.</p>
+<p>Outputs / Artifact: the Node Impact Map - the set of affected nodes, the layer of each, and the dependency edges the task uses.</p>
+<p>Exit criteria:</p>
+<ul><li>Every affected node is placed in exactly one layer.</li></ul>
+<ul><li>All dependency edges point downward only; no lateral coupling is introduced (LAYER-001). Cross-cutting concerns route via Control Plane or Event Fabric.</li></ul>
+<ul><li>The Kernel is not asked to orchestrate/plan/execute, and the Control Plane is not asked to carry data.</li></ul>
+<h1 id="part-8-phase-3-specification-mapping">Part 8 - Phase 3: Specification Mapping</h1>
+<p>Purpose: trace the task to the frozen specification it realizes, proving the task proves the spec rather than inventing behaviour.</p>
+<p>Inputs: Node Impact Map; frozen specification corpus; Reference Lifecycle stage of each touched concept.</p>
+<p>Outputs / Artifact: the Spec Trace - a table mapping each unit of work to the specific frozen clause it implements.</p>
+<p>Exit criteria:</p>
+<ul><li>Every unit of work maps to a frozen, Ratified-or-Frozen spec clause.</li></ul>
+<ul><li>No unit of work exists that has no spec basis (such work is out of scope and returns to the change-instrument process).</li></ul>
+<ul><li>No mapping implies editing the spec; direction is Specification -&gt; Implementation only.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Work Unit</th><th>Frozen Clause Realized</th><th>Lifecycle Maturity</th></tr></thead><tbody><tr><td>Commit path</td><td>Kernel owns truth; commit semantics</td><td>Frozen</td></tr><tr><td>Plan production</td><td>Control Plane produces plans (ORCH-002)</td><td>Ratified</td></tr><tr><td>Read projection</td><td>Query is read-only</td><td>Frozen</td></tr></tbody></table></div>
+<h1 id="part-9-phase-4-contract-mapping">Part 9 - Phase 4: Contract Mapping</h1>
+<p>Purpose: determine which contracts (service, event, data, API, agent) the task changes and classify each change as additive/compatible or breaking. Contracts sit above Behaviour in the dependency chain (Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation).</p>
+<p>Inputs: Spec Trace; the Service/Event/Data/API/Agent catalogs; existing contract versions.</p>
+<p>Outputs / Artifact: the Contract Delta - per contract, the change type, version bump, and compatibility statement.</p>
+<p>Exit criteria:</p>
+<ul><li>Every contract touched has a declared version change and compatibility class.</li></ul>
+<ul><li>Breaking changes are justified against a change instrument; silent breaks are forbidden.</li></ul>
+<ul><li>Contracts remain the interface the Behaviour and Conformance layers depend on; Implementation conforms to them, not the reverse.</li></ul>
+<h1 id="part-10-phase-5-invariant-mapping">Part 10 - Phase 5: Invariant Mapping</h1>
+<p>Purpose: enumerate the registered invariants the task is obligated to preserve, and record how each will be checked. Proposed invariants are listed separately and always flagged.</p>
+<p>Inputs: Node Impact Map; Contract Delta; the invariant registry.</p>
+<p>Outputs / Artifact: the Invariant Obligation Set - each obligation with an enforcement point and a conformance hook.</p>
+<p>Exit criteria:</p>
+<ul><li>Every registered invariant relevant to the touched nodes appears with a concrete enforcement point.</li></ul>
+<ul><li>Proposed invariants used by the design are listed and marked "proposed (pending CCP)".</li></ul>
+<ul><li>Each obligation names the conformance probe/property that will verify it (invariant/property based, not golden-output).</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Invariant</th><th>Obligation on This Task</th><th>Enforcement / Probe</th></tr></thead><tbody><tr><td>ORCH-001</td><td>Control Plane holds no truth</td><td>Static: CP has no commit path; probe asserts truth only via Kernel</td></tr><tr><td>ORCH-003</td><td>Replay from decision trace</td><td>Property: replay(trace) == observed outcome; no recompute</td></tr><tr><td>ORCH-004</td><td>Idempotent + content-addressable calls</td><td>Property: f(x) keyed by content; repeat yields same id</td></tr><tr><td>OWN-001</td><td>Single owner per state</td><td>Static ownership check + write-authority probe</td></tr><tr><td>SHARD-001</td><td>Immutable tenant/workspace key</td><td>Property: partition key rejects mutation</td></tr><tr><td>G-001 (proposed, pending CCP)</td><td>Design intent only</td><td>Recorded as pending-CCP dependency</td></tr></tbody></table></div>
+<h1 id="part-11-phase-6-ownership-analysis">Part 11 - Phase 6: Ownership Analysis</h1>
+<p>Purpose: prove OWN-001 for every state the task reads or writes - exactly one owner per state - and that write authority is respected across the layer matrix.</p>
+<p>Inputs: Node Impact Map; Layer Responsibility Matrix; Invariant Obligation Set.</p>
+<p>Outputs / Artifact: the Ownership Ledger - per state: owner, readers, writers, and the layer that commits it.</p>
+<p>Exit criteria:</p>
+<ul><li>Every state has exactly one declared owner (OWN-001).</li></ul>
+<ul><li>Truth is owned only by the Kernel; live/working state only by LCW; Query writes nothing; Engine owns nothing persistent and only proposes effects; Capability Fabric owns registry+bindings only; Control Plane owns Plan/Engine Graph and no persistent state.</li></ul>
+<ul><li>No non-owner writes an owned state; proposed effects from engines are committed only by the Kernel.</li></ul>
+<h1 id="part-12-phase-7-idr-mapping">Part 12 - Phase 7: IDR Mapping</h1>
+<p>Purpose: bind the distributed aspects of the task to the reference implementation decisions IDR-001..IDR-005, which are non-normative but authoritative for the UCI reference runtime.</p>
+<p>Inputs: Node Impact Map; Ownership Ledger; the IDR set; read-consistency tiers.</p>
+<p>Outputs / Artifact: the IDR Binding Sheet - which IDR governs each distributed concern and how the design conforms.</p>
+<p>Exit criteria (all distributed content grounded in IDR-001..005):</p>
+<ul><li>Kernel-as-Control-Plane distribution uses per-shard Raft: one Raft group per tenant/workspace shard (IDR-001).</li></ul>
+<ul><li>Committed OUTCOMES are replicated, NOT engine invocations; engines run anywhere, only the commit goes through the shard leader (IDR-001).</li></ul>
+<ul><li>The Raft log = WAL = decision trace (IDR-001, IDR-005); append-only WAL + snapshots (IDR-005).</li></ul>
+<ul><li>No cross-shard atomic commit in v1; cross-shard flows use sagas (IDR-001).</li></ul>
+<ul><li>Replication is leader -&gt; followers with snapshots + WAL (IDR-002); membership via Raft joint consensus (IDR-003); per-shard leader election (IDR-004).</li></ul>
+<ul><li>Truth path = CP (the CAP consistency class, served via the Kernel / shard leader - NOT the ARVES Control Plane, which owns no truth per ORCH-001); observability (metrics/logs/tracing/presence) = AP path. Read tier chosen from: linearizable (through leader), bounded-staleness (follower), eventual (replica).</li></ul>
+<h1 id="part-13-phase-8-gap-analysis">Part 13 - Phase 8: Gap Analysis</h1>
+<p>Purpose: surface everything the task needs that does not yet exist or is not yet ratified - missing contracts, pending-CCP invariants, absent conformance scenarios, or IDR ambiguities - before design begins.</p>
+<p>Inputs: all Understand-movement artifacts (phases 2-7).</p>
+<p>Outputs / Artifact: the Gap Register - each gap with type, blocking/non-blocking status, and resolution path (change instrument or in-task).</p>
+<p>Exit criteria:</p>
+<ul><li>Every dependency on a proposed invariant is recorded as a pending-CCP gap.</li></ul>
+<ul><li>Every behaviour to be ratified has (or schedules) a conformance scenario - CCP-GATE: no behaviour ratified without a conformance scenario.</li></ul>
+<ul><li>Blocking gaps are resolved or routed to a change instrument (CCP / Amendment / IDR / next major version) before phase 9.</li></ul>
+<h1 id="part-14-phase-9-engineering-design">Part 14 - Phase 9: Engineering Design</h1>
+<p>Purpose: produce the design that satisfies the spec, contracts, invariants, ownership, and IDR bindings established upstream. Design is the first place solutions are chosen; it may not reopen frozen decisions.</p>
+<p>Inputs: all Understand-movement artifacts plus the resolved Gap Register.</p>
+<p>Outputs / Artifact: the Design Dossier - component design, data/effect flow, plan/engine-graph shape, failure and cancellation handling, and the mapping from design elements to invariant obligations.</p>
+<p>Exit criteria:</p>
+<ul><li>Design realizes the Spec Trace and honors the Contract Delta.</li></ul>
+<ul><li>Design shows the Control Plane producing plans only, and the Kernel committing outcomes only (ORCH-001, ORCH-002).</li></ul>
+<ul><li>Design records decision traces sufficient for replay (ORCH-003) and makes every invocation idempotent + content-addressable (ORCH-004).</li></ul>
+<ul><li>Failure model is explicit: partial execution rolled back by NOT committing; committed effects compensated saga-style (Amendment-006). Cancellation is cooperative + idempotent, no partial truth; priority/preemption uses checkpoint -&gt; replay (Amendment-005).</li></ul>
+<ul><li>Every design element traces to an invariant obligation or a spec clause; nothing is unmotivated.</li></ul>
+<h1 id="part-15-phase-10-critical-self-review">Part 15 - Phase 10: Critical Self-Review</h1>
+<p>Purpose: the engineer adversarially reviews their own design against the before-writing-code questions and the invariant obligations, BEFORE any code is written. This is the last gate of the Build movement entry.</p>
+<p>Inputs: Design Dossier; the before-writing-code checklist (Part 6); Invariant Obligation Set.</p>
+<p>Outputs / Artifact: the Self-Review Log - each checklist item marked pass/fail with evidence, and every fail resolved or escalated.</p>
+<p>Exit criteria:</p>
+<ul><li>All before-writing-code questions are answered in writing with no "unknown".</li></ul>
+<ul><li>No registered invariant obligation is left without an enforcement point.</li></ul>
+<ul><li>No frozen-spec change is implied; if discovered now, the task halts and returns to ARR / change instrument.</li></ul>
+<ul><li>Only after a clean Self-Review Log may Implementation (phase 11) begin.</li></ul>
+<h1 id="part-16-phase-11-implementation">Part 16 - Phase 11: Implementation</h1>
+<p>Purpose: write the code that realizes the approved design. Implementation proves the spec; it is the LAST link in the dependency chain and never feeds back into it.</p>
+<p>Inputs: Design Dossier; clean Self-Review Log; Contract Delta.</p>
+<p>Outputs / Artifact: source code plus a recorded decision trace (Raft log = WAL = decision trace, per IDR-001/005).</p>
+<p>Exit criteria:</p>
+<ul><li>Code conforms to the frozen contracts (Implementation conforms to Contracts, never the reverse).</li></ul>
+<ul><li>Commits go only through the Kernel / shard leader; engines produce inference and propose effects only.</li></ul>
+<ul><li>Every invocation is idempotent and content-addressable; outcomes are replayable from the trace, not recomputed.</li></ul>
+<ul><li>No spec, contract, or invariant was silently altered to make code pass; such a change is a defect.</li></ul>
+<h1 id="part-17-phase-12-testing">Part 17 - Phase 12: Testing</h1>
+<p>Purpose: verify the implementation behaves as designed under normal, failure, and concurrency conditions, including the distributed mechanisms from the IDR bindings.</p>
+<p>Inputs: code + decision trace; Invariant Obligation Set; failure/cancellation model.</p>
+<p>Outputs / Artifact: the Test Suite + Results - unit, property, failure-injection, and replay tests.</p>
+<p>Exit criteria:</p>
+<ul><li>Property tests assert each registered-invariant obligation (idempotence, single-owner writes, immutable partition key, replay equals observed).</li></ul>
+<ul><li>Failure-injection tests confirm partial execution is rolled back by NOT committing and committed effects are compensated saga-style.</li></ul>
+<ul><li>Distributed tests exercise leader election, follower replication, snapshots + WAL, joint-consensus membership, and cross-shard sagas (IDR-001..005).</li></ul>
+<ul><li>Cancellation tests confirm cooperative + idempotent cancellation with no partial truth, and checkpoint -&gt; replay for preemption.</li></ul>
+<h1 id="part-18-phase-13-conformance">Part 18 - Phase 13: Conformance</h1>
+<p>Purpose: prove the task against the conformance framework - reference scenarios and node probes producing an invariant/property-based verdict, NOT a golden-output comparison.</p>
+<p>Inputs: Test Suite + Results; the conformance axes; reference scenarios; node probes.</p>
+<p>Outputs / Artifact: the Conformance Verdict - PASS / PARTIAL / FAIL per exercised axis, with probe evidence.</p>
+<p>The 12 conformance axes: information-intensive, event-driven, human-collaboration, multi-step planning, long-running, physical-world, safety-critical, high-volume streaming, multi-agent, policy-heavy, autonomous, recovery/replay.</p>
+<p>Exit criteria:</p>
+<ul><li>Each behaviour ratified by the task is backed by a conformance scenario (CCP-GATE).</li></ul>
+<ul><li>Verdict is invariant/property based; no golden-output pass is accepted.</li></ul>
+<ul><li>PARTIAL/FAIL results are triaged: either the code is fixed (return to phase 11) or a gap is escalated to a change instrument.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Axis (sample)</th><th>Reference Scenario Probes</th><th>Verdict Basis</th></tr></thead><tbody><tr><td>recovery/replay</td><td>Replay from WAL/decision trace</td><td>ORCH-003 property holds</td></tr><tr><td>multi-agent</td><td>Concurrent agents, saga cross-shard</td><td>OWN-001 + saga compensation</td></tr><tr><td>long-running</td><td>Checkpoint -&gt; preempt -&gt; replay</td><td>Amendment-005 cancellation</td></tr></tbody></table></div>
+<h1 id="part-19-phase-14-independent-architecture-review-iar">Part 19 - Phase 14: Independent Architecture Review (IAR)</h1>
+<p>Purpose: an engineer NOT on the task independently reviews the architecture-level correctness: layer discipline, ownership, plane separation, and IDR grounding. This mirrors the corpus ARR discipline at task scope.</p>
+<p>Inputs: Design Dossier; Conformance Verdict; all Understand-movement artifacts.</p>
+<p>Outputs / Artifact: the IAR Sign-off - independent findings and a go/no-go on architecture.</p>
+<p>Exit criteria:</p>
+<ul><li>Independent confirmation that dependencies are downward-only (LAYER-001) and no lateral coupling was introduced.</li></ul>
+<ul><li>Independent confirmation the Control Plane owns no truth and no persistent state (ORCH-001, ORCH-002), and the Kernel did not become the Control Plane.</li></ul>
+<ul><li>Independent confirmation distributed design matches IDR-001..005 and the chosen read-consistency tier is justified.</li></ul>
+<ul><li>All findings are resolved or explicitly accepted with rationale before certification.</li></ul>
+<h1 id="part-20-phase-15-certification-verdict">Part 20 - Phase 15: Certification Verdict</h1>
+<p>Purpose: issue the final, recorded verdict that the task meets its target certification level and may be integrated. Certification is invariant/property based and tied to the reference-lifecycle stage.</p>
+<p>Inputs: Conformance Verdict; IAR Sign-off; Invariant Obligation Set; target level from ARR.</p>
+<p>Outputs / Artifact: the Certification Record - level achieved, evidence links, and any accepted gaps.</p>
+<p>Certification levels: L1 Core Runtime, L2 Cognitive Control, L3 Distributed, L4 Multi-Agent, and Certified Product.</p>
+<p>Exit criteria:</p>
+<ul><li>All registered-invariant obligations verified; all pending-CCP dependencies recorded, none masquerading as normative.</li></ul>
+<ul><li>Conformance verdict is PASS for the target axes; PARTIAL is admissible only with an escalated, tracked gap.</li></ul>
+<ul><li>IAR Sign-off is go; the target certification level (L1..L4 / Certified Product) is justified by evidence.</li></ul>
+<ul><li>No frozen-spec change occurred; the task demonstrably proves the spec.</li></ul>
+<h1 id="part-21-how-a-milestone-task-is-issued-and-driven">Part 21 - How a Milestone Task Is Issued and Driven</h1>
+<p>Milestones are frozen (Baseline Part 5) and are used EXACTLY as named: I1 Distributed Runtime, I2 Cluster Kernel, I3 Distributed Query, I4 Capability Scheduling, I5 Multi-Agent Runtime, I6 Reference Products. No other milestone names exist.</p>
+<p>Issuing a milestone task:</p>
+<ul><li>A milestone is sliced into tasks; each slice becomes one Admission Record at ARR and links back to its milestone id (I1..I6).</li></ul>
+<ul><li>Each task carries a target certification level appropriate to its milestone (e.g., distributed slices target L3; multi-agent slices target L4).</li></ul>
+<ul><li>The slice states its outcome and the conformance axes it will exercise before admission.</li></ul>
+<p>Driving a milestone task through the 15 phases:</p>
+<ul><li>Understand movement (phases 2-8) produces the Node Impact Map, Spec Trace, Contract Delta, Invariant Obligation Set, Ownership Ledger, IDR Binding Sheet, and Gap Register for the slice.</li></ul>
+<ul><li>Build movement (phases 9-12) designs, self-reviews, implements, and tests, recording the decision trace for replay.</li></ul>
+<ul><li>Prove movement (phases 13-15) certifies via conformance, independent architecture review, and the certification verdict.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Typical Target Level</th><th>Dominant IDR / Axis Emphasis</th></tr></thead><tbody><tr><td>I1 Distributed Runtime</td><td>L3 Distributed</td><td>IDR-001/002/005; recovery/replay</td></tr><tr><td>I2 Cluster Kernel</td><td>L3 Distributed</td><td>IDR-001/003/004; safety-critical, replay</td></tr><tr><td>I3 Distributed Query</td><td>L3 Distributed</td><td>Read tiers; high-volume streaming (read-only)</td></tr><tr><td>I4 Capability Scheduling</td><td>L2 -&gt; L3</td><td>ORCH-004; policy-heavy, multi-step planning</td></tr><tr><td>I5 Multi-Agent Runtime</td><td>L4 Multi-Agent</td><td>sagas, OWN-001; multi-agent, autonomous</td></tr><tr><td>I6 Reference Products</td><td>Certified Product</td><td>end-to-end axes; independent runtimes A and B</td></tr></tbody></table></div>
+<h1 id="part-22-fanning-work-out-across-phases-without-shortcuts">Part 22 - Fanning Work Out Across Phases Without Shortcuts</h1>
+<p>Parallelism is allowed and encouraged, but only within the discipline of the phases. Fan-out never removes, merges, or reorders a phase; it distributes work while preserving every gate.</p>
+<p>Rules of disciplined fan-out:</p>
+<ul><li>Phase order is a happens-before constraint: an artifact cannot be produced before its inputs exist. Phases 2-7 can proceed in parallel across independent nodes, but all must complete before Gap Analysis (phase 8) closes.</li></ul>
+<ul><li>The Understand movement must fully complete before the Build movement begins for a given slice; no slice starts Implementation on partial understanding.</li></ul>
+<ul><li>Independent slices of one milestone may run their own 15-phase pipelines concurrently; shared contracts are coordinated via the Contract Delta so no two slices break the same interface silently.</li></ul>
+<ul><li>Critical Self-Review (phase 10) and Independent Architecture Review (phase 14) are never performed by the same person for the same slice; independence is structural.</li></ul>
+<ul><li>Cross-slice truth conflicts are prevented by SHARD-001 (partition by tenant/workspace) and OWN-001 (single owner); cross-shard interaction is saga-based (IDR-001), never a shortcut atomic commit.</li></ul>
+<ul><li>A green test or a passing demo is NOT a substitute for Conformance; only an invariant/property-based verdict certifies.</li></ul>
+<p>Anti-shortcut guardrails (any one of these halts the pipeline):</p>
+<ul><li>Skipping a phase, or producing a downstream artifact without its upstream inputs.</li></ul>
+<ul><li>Citing a proposed invariant (G-001, QUERY-001, LCW-001, PERSIST-001, CAP-<em>, ENG-</em>) as if registered/normative.</li></ul>
+<ul><li>Editing the frozen spec, a contract, or a registered invariant to make code pass.</li></ul>
+<ul><li>Letting the Control Plane hold truth or persistent state, or the Kernel orchestrate/plan/execute.</li></ul>
+<ul><li>Inventing a milestone name, layer, invariant, or IDR beyond the frozen set.</li></ul>
+<h1 id="part-23-phase-to-artifact-to-gate-ledger">Part 23 - Phase-to-Artifact-to-Gate Ledger</h1>
+<p>A single reference for auditors: each phase, its artifact, and the gate condition that lets the task advance.</p>
+<div class="table-wrap"><table><thead><tr><th>Phase</th><th>Artifact</th><th>Gate to Advance</th></tr></thead><tbody><tr><td>1 ARR</td><td>Admission Record</td><td>Maps to I1..I6 or change instrument; no spec change</td></tr><tr><td>2 Node Analysis</td><td>Node Impact Map</td><td>Downward-only deps confirmed (LAYER-001)</td></tr><tr><td>3 Spec Mapping</td><td>Spec Trace</td><td>Every work unit maps to a frozen clause</td></tr><tr><td>4 Contract Mapping</td><td>Contract Delta</td><td>All contract changes classified + versioned</td></tr><tr><td>5 Invariant Mapping</td><td>Invariant Obligation Set</td><td>Registered obligations have enforcement points</td></tr><tr><td>6 Ownership</td><td>Ownership Ledger</td><td>Exactly one owner per state (OWN-001)</td></tr><tr><td>7 IDR Mapping</td><td>IDR Binding Sheet</td><td>Distributed design grounded in IDR-001..005</td></tr><tr><td>8 Gap Analysis</td><td>Gap Register</td><td>Blocking gaps resolved or escalated</td></tr><tr><td>9 Design</td><td>Design Dossier</td><td>Realizes spec/contracts; failure model explicit</td></tr><tr><td>10 Self-Review</td><td>Self-Review Log</td><td>All before-code questions answered, no unknowns</td></tr><tr><td>11 Implementation</td><td>Code + Decision Trace</td><td>Conforms to contracts; commit via Kernel only</td></tr><tr><td>12 Testing</td><td>Test Suite + Results</td><td>Invariant/failure/distributed tests pass</td></tr><tr><td>13 Conformance</td><td>Conformance Verdict</td><td>PASS on target axes; property-based</td></tr><tr><td>14 IAR</td><td>IAR Sign-off</td><td>Independent architecture go</td></tr><tr><td>15 Certification</td><td>Certification Record</td><td>Target level (L1..L4/Product) achieved</td></tr></tbody></table></div>
+<h1 id="part-24-change-instruments-and-the-reference-lifecycle-in-th">Part 24 - Change Instruments and the Reference Lifecycle in the Workflow</h1>
+<p>When a task cannot proceed without changing something frozen, it does not proceed - it raises a change instrument. The workflow routes to exactly four instruments: CCP (Cognitive Change Proposal), Amendment, IDR, or next major version.</p>
+<p>Reference Lifecycle (13 stages) governs maturity: Idea -&gt; Research -&gt; Theory -&gt; Formalization -&gt; Specification -&gt; Ontology -&gt; Contract -&gt; Reference Behaviour -&gt; Conformance -&gt; Reference Runtime -&gt; Certification -&gt; Reference Product -&gt; Reference Ecosystem. Maturity states: Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen -&gt; Deprecated -&gt; Superseded.</p>
+<p>CCP-GATE binds the whole workflow: no behaviour is ratified without a conformance scenario. A task that would ratify behaviour must carry (or schedule) that scenario in its Gap Register before design.</p>
+<p>Ecosystem endpoint the workflow serves: a production distributed runtime, a complete conformance suite, Independent Runtime A and Independent Runtime B both passing certification, third-party certification, an enterprise runtime, SDKs, a marketplace, cloud, and real products built on ARVES without modifying the standard.</p>
+<p><em>Final Definition  The UltraCode Workflow is the 15-phase discipline by which implementation PROVES the frozen ARVES specification - never changes it - fanning work out across phases without ever skipping a gate.</em></p>
+<h1 id="reconciliation-note-milestone-to-level-mapping">Reconciliation Note - Milestone-to-Level Mapping</h1>
+<p>Any milestone-to-certification-level pairing in this volume is illustrative only. The CANONICAL milestone-to-level mapping is defined in Volume 6 (Certification &amp; Review Manual), Part 8; on any conflict, Volume 6 governs.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why ARVES · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html" class="active">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-a-cognitive-computing-platform">ARVES — a cognitive computing platform</h1>
+<pre><code>ARVES · Version 1.0 · Status: BUILD COMPLETE (SEALED)
+Governance: Foundation · Development Model: Growth Program
+Runtime / Specification / Standard: FROZEN · changes: RCR only</code></pre>
+<p><strong>ARVES is to cognitive applications what the Linux kernel is to operating systems, or Kubernetes is to containers:</strong> a frozen, certified runtime that turns AI reasoning into <em>truth</em> — deterministic, content-addressed, replayable, and auditable — with an ecosystem of products and third-party capabilities built on top of it.</p>
+<blockquote><p><strong>Status: BUILD PROGRAM SEALED → GROWTH.</strong> The core is built, <strong>independently audited</strong> (a 16-pillar adversarial closure audit, 3 rounds), frozen (<code>runtime-v1.0</code> = <strong>single-node I1</strong>), and sealed — see <a href="closure.html">ARVES_BUILD_PROGRAM_CLOSURE.md</a>. The distributed milestones (I2–I6) and a genuine <strong>third-party</strong> runtime certification (independence grade <strong>G2</strong>) are the Growth Program, not done yet. What remains is adoption. See <a href="foundation.html">FOUNDATION.md</a>.</p></blockquote>
+<h2 id="why-arves-why-not-just-a-chatgpt-langgraph-n8n-autogen-wrapp">Why ARVES? (why not just a ChatGPT / LangGraph / n8n / AutoGen wrapper)</h2>
+<p>A wrapper gives you a chain of prompts and side effects you <strong>cannot reproduce, audit, or defend</strong>. ARVES gives you cognition as <em>truth</em>:</p>
+<div class="table-wrap"><table><thead><tr><th>You get…</th><th>Because…</th><th>A wrapper can't</th></tr></thead><tbody><tr><td><strong>One identity across systems</strong></td><td>identity is a content address (ACS-001)</td><td>double-counts the same fact from 3 sources</td></tr><tr><td><strong>Reproducible reasoning</strong></td><td>every step is content-addressed truth in a Kernel</td><td>answers differently each run</td></tr><tr><td><strong>Full audit + replay</strong></td><td>append-only, content-addressed WAL = a deterministic decision trace (ORCH-003)</td><td>no reproducible, replayable record</td></tr><tr><td><strong>Decision-aware memory</strong></td><td>prior decisions are addressable truths</td><td>no persistent, provable history</td></tr><tr><td><strong>Governed multi-agent</strong></td><td>policy enforced as truth; compliance ledger</td><td>no shared enforced truth</td></tr></tbody></table></div>
+<p>If a product could be built cheaply with a wrapper, it doesn't need ARVES. ARVES is for the products that <strong>can't</strong> be — see the Personal &amp; Enterprise Cognitive OS demos below.</p>
+<h2 id="10-minutes-to-your-first-arves-app">10 minutes to your first ARVES app</h2>
+<pre><code class="lang-bash">cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml   # the frozen Runtime API (once)
+
+# A personal cognitive OS: 6 systems → one truth → a reproducible, audited daily briefing
+node products/arves-personal-os/examples/my-day.mjs
+
+# An enterprise cognitive OS: policy enforced as truth, compliance ledger, multi-agent
+node products/arves-enterprise-os/examples/enterprise-day.mjs
+
+# Author + certify your OWN capability (no runtime source needed)
+node products/arves-ecosystem-sdk/bin/arves.mjs certify \
+  products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs</code></pre>
+<p>Full path: <strong><a href="quickstart.html">QUICKSTART.md</a></strong>.</p>
+<h2 id="architecture">Architecture</h2>
+<pre><code>Products      Personal OS · Enterprise OS · (your product)          products/
+Ecosystem     Authoring Kit · Marketplace · Certification           products/arves-{ecosystem-sdk,marketplace}
+Runtime v1.0  SDK · Bridge · Engine · Capability · Kernel · Truth    runtime/  (FROZEN · single-node I1)
+Standard      ACS-001..005 · conformance vectors                     standard/ (the contract)
+Foundation    spec · certification · registry · governance          FOUNDATION.md</code></pre>
+<p>The <strong>runtime is frozen</strong>: products are <em>customers</em> of a stable API, never co-authors. A needed runtime change is a Runtime Change Request, not an edit (<a href="runtime.html">runtime/RUNTIME_FREEZE_v1.0.md</a>). v1.0 is the <strong>single-node I1</strong> runtime; the distributed path (I2–I6, per-shard Raft per IDR-001..005) is future work.</p>
+<h2 id="what-s-proven-evidence-not-claims">What's proven (evidence, not claims)</h2>
+<p>Every bullet below is backed by a command you can run; independence is <strong>graded</strong> (G1 = same-process/in-program, G2 = a genuine outside party with no help) and stated honestly.</p>
+<ul><li><strong>Interoperability</strong> — 3 independent codec implementations (Rust / Python / TypeScript) agree on the golden conformance vectors; the <strong>Rust↔Python</strong> pair is differentially fuzzed (13,807 inputs, 0 divergences). A 3-way fuzz including TypeScript is on the v1.1 track.</li><li><strong>Independent runtimes</strong> — 2 runtimes (Rust + Python) certified against <code>standard/</code> alone by a maintainer-independent harness (<code>python verification/certification/certify_runtime.py</code>) — at grade <strong>G1 (same-process)</strong>. A genuine third-party (G2) runtime is the Growth Program's open exit gate.</li><li><strong>Robustness</strong> — a whole-system destroy pass hardened the stack; the product robustness suite is <strong>40/40</strong>, and the Rust workspace is <strong>65/65</strong> green.</li><li><strong>Ecosystem</strong> — a cold, fresh-context developer (grade <strong>G1</strong>, same-process) authored + certified a capability from the Authoring Kit alone; a genuine external third party (G2) is pending.</li><li>The living evidence ledger: <a href="evidence.html">verification/evidence/EVIDENCE_LEDGER.md</a>.</li></ul>
+<h2 id="build-on-arves">Build on ARVES</h2>
+<ul><li><strong>Use it</strong> → <a href="quickstart.html">QUICKSTART.md</a></li><li><strong>Publish a capability</strong> → <a href="authoring-kit.html">products/arves-ecosystem-sdk/</a></li><li><strong>Contribute / extend</strong> → <a href="contributing.html">CONTRIBUTING.md</a></li><li><strong>Govern / certify</strong> → <a href="foundation.html">FOUNDATION.md</a></li></ul>
+<h2 id="license">License</h2>
+<p>ARVES is released under the <strong>Apache License 2.0</strong> — see <a href="LICENSE">LICENSE</a>.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

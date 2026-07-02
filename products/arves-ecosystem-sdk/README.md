@@ -66,8 +66,8 @@ export default { capability, testInputs, source };
 ```
 
 ```
-node bin/arves.mjs init my.capability                    # scaffold a green capability file
-node bin/arves.mjs doctor my.capability.capability.mjs   # HEALTHY, or every fix you need
+node bin/arves.mjs init hospital.incident                    # scaffold a green capability file
+node bin/arves.mjs doctor hospital.incident.capability.mjs   # HEALTHY, or every fix you need
 node bin/arves.mjs certify examples/invoice-ocr.capability.mjs   # → CERTIFIED
 node bin/arves.mjs package examples/invoice-ocr.capability.mjs   # → signed artifact id
 node examples/third-party-capability.mjs                         # author→…→truth (exits 0)

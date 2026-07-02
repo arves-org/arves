@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Volume 10 Engineering Bible v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Volume_10_Engineering_Bible_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-volume-10-engineering-bible-v1-0">ARVES Volume-10: Engineering Bible v1.0</h1>
+<p>STATUS: ENGINEERING CONSTITUTION (FROZEN AFTER APPROVAL)</p>
+<h1 id="part-1-purpose">Part 1 — Purpose</h1>
+<p>Transform Architecture into a Production-Grade System.</p>
+<h1 id="part-2-engineering-philosophy">Part 2 — Engineering Philosophy</h1>
+<p>ARVES is a production-grade intelligence platform, not a research prototype.</p>
+<h1 id="part-3-architecture-style">Part 3 — Architecture Style</h1>
+<p>Modular Monolith First, Event-Driven Internally, Service Extraction Later.</p>
+<h1 id="part-4-repository-strategy">Part 4 — Repository Strategy</h1>
+<p>Monorepo-first strategy with platform, services, SDKs, clients, infrastructure and documentation.</p>
+<h1 id="part-5-domain-driven-design">Part 5 — Domain Driven Design</h1>
+<p>Each core is treated as a bounded context.</p>
+<h1 id="part-6-service-boundaries">Part 6 — Service Boundaries</h1>
+<p>Services communicate through APIs and events while respecting core boundaries.</p>
+<h1 id="part-7-api-standards">Part 7 — API Standards</h1>
+<p>REST First, gRPC Optional, GraphQL Selective.</p>
+<h1 id="part-8-event-standards">Part 8 — Event Standards</h1>
+<p>Events must be versioned, traceable and auditable.</p>
+<h1 id="part-9-data-standards">Part 9 — Data Standards</h1>
+<p>Data is tenant-scoped, versioned and immutable where possible.</p>
+<h1 id="part-10-storage-architecture">Part 10 — Storage Architecture</h1>
+<p>PostgreSQL, Neo4j, Redis, Object Storage and Vector Stores.</p>
+<h1 id="part-11-model-architecture">Part 11 — Model Architecture</h1>
+<p>Model-agnostic architecture supporting cloud and local AI models.</p>
+<h1 id="part-12-model-routing">Part 12 — Model Routing</h1>
+<p>Select the best model for the best task.</p>
+<h1 id="part-13-local-llm-strategy">Part 13 — Local LLM Strategy</h1>
+<p>Support Ollama, vLLM, LM Studio and custom local runtimes.</p>
+<h1 id="part-14-cloud-llm-strategy">Part 14 — Cloud LLM Strategy</h1>
+<p>Support OpenAI, Anthropic, Google and Azure-hosted AI services.</p>
+<h1 id="part-15-agent-engineering">Part 15 — Agent Engineering</h1>
+<p>Agents are defined by identity, memory, tools, policies and goals.</p>
+<h1 id="part-16-testing-constitution">Part 16 — Testing Constitution</h1>
+<p>Unit, Integration, Contract, Scenario and Load testing.</p>
+<h1 id="part-17-security-engineering">Part 17 — Security Engineering</h1>
+<p>Zero Trust, Least Privilege, Encryption and Auditability.</p>
+<h1 id="part-18-observability">Part 18 — Observability</h1>
+<p>Collect logs, metrics, traces and events.</p>
+<h1 id="part-19-ci-cd">Part 19 — CI/CD</h1>
+<p>Build → Test → Scan → Package → Deploy → Verify.</p>
+<h1 id="part-20-deployment-model">Part 20 — Deployment Model</h1>
+<p>Support single node, enterprise cluster, cloud-native and hybrid deployments.</p>
+<h1 id="part-21-kubernetes-strategy">Part 21 — Kubernetes Strategy</h1>
+<p>Kubernetes-first deployment model.</p>
+<h1 id="part-22-scalability">Part 22 — Scalability</h1>
+<p>Scale users, agents, events, knowledge and models.</p>
+<h1 id="part-23-disaster-recovery">Part 23 — Disaster Recovery</h1>
+<p>Backup, restore, replication and failover strategies.</p>
+<h1 id="part-24-sre-constitution">Part 24 — SRE Constitution</h1>
+<p>Measure availability, latency, error rate, SLOs and SLAs.</p>
+<h1 id="part-25-documentation">Part 25 — Documentation</h1>
+<p>Documentation must be versioned, searchable and traceable.</p>
+<h1 id="part-26-engineering-ownership">Part 26 — Engineering Ownership</h1>
+<p>Owns standards, practices, deployment, operations and quality.</p>
+<h1 id="part-27-success-criteria">Part 27 — Success Criteria</h1>
+<p>Architecture must be transformed into a sustainable production system.</p>
+<h1 id="part-28-final-definition">Part 28 — Final Definition</h1>
+<p>Engineering Bible = ARVES Production Constitution.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

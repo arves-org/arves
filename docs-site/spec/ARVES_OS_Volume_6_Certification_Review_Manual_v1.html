@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES OS Volume 6 Certification Review Manual v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_OS_Volume_6_Certification_Review_Manual_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-os-volume-6-certification-review-manual-v1-0">ARVES OS Volume 6 - Certification &amp; Review Manual v1.0</h1>
+<p>STATUS: CERTIFICATION CONSTITUTION (INDEPENDENT VERDICT ON CORRECTNESS AND READINESS)</p>
+<p>SCOPE: Scenario Conformance Framework in depth; certification levels L1-L4 + Certified Product; the Independent Architecture Review process; conformance / performance / enterprise-readiness checklists; Independent Runtime A/B goals; certified ecosystem and product goals; versioning of conformance suites against spec versions.</p>
+<p>SPECIFICATION ERA: FROZEN as of 2026-07-01. IMPLEMENTATION ERA: IN PROGRESS. This volume certifies implementations against the frozen standard; it never modifies the standard.</p>
+<h1 id="part-1-purpose-and-position-in-the-dependency-chain">Part 1 - Purpose and Position in the Dependency Chain</h1>
+<p>Volume 6 is the certification and review authority of the ARVES corpus. Where earlier volumes DEFINE (Theory, Specification, Contracts, Behaviour) and the Scenario Conformance Framework DECLARES what correctness means, this volume answers a single question: has a given implementation earned the right to call itself an ARVES runtime? It does so through two independent instruments - the Scenario Conformance Framework (mechanical, property-based verdicts) and the Independent Architecture Review (adversarial, human-judged verdicts).</p>
+<p>The dependency chain is never reversed:</p>
+<ul><li>Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation.</li></ul>
+<p>Certification sits at the Conformance -&gt; Implementation boundary. An implementation PROVES the specification; it never changes it. A failed certification is a defect in the implementation (or, at most, a discovered gap that must be routed through a CCP), never a licence to edit the frozen spec.</p>
+<p>ARVES is Universal Cognitive Infrastructure. UCS (Universal Cognitive Standard) is the standard; UCI is its reference implementation. This manual certifies UCI and any Independent Runtime against UCS.</p>
+<div class="table-wrap"><table><thead><tr><th>Instrument</th><th>Nature</th><th>Verdict Space</th><th>Authority</th></tr></thead><tbody><tr><td>Scenario Conformance Framework</td><td>Mechanical, executable, property-based</td><td>PASS / PARTIAL / FAIL per scenario</td><td>Automated harness + probes</td></tr><tr><td>Independent Architecture Review</td><td>Adversarial, human-judged</td><td>PASS / PARTIAL / FAIL per dimension</td><td>Review board (arms-length)</td></tr><tr><td>Certification Levels L1-L4</td><td>Composite gate over both</td><td>Level granted / withheld</td><td>Certification authority</td></tr><tr><td>Certified Product</td><td>Product-grade attestation</td><td>Granted / withheld</td><td>Certification authority</td></tr></tbody></table></div>
+<h1 id="part-2-principles-of-arves-certification">Part 2 - Principles of ARVES Certification</h1>
+<p>Certification is governed by principles that make the verdict independent, reproducible, and honest.</p>
+<ul><li>Property-based, not golden-output. A verdict is a statement about invariants and properties holding across a trace, NOT a byte-comparison against a recorded expected output. Cognitive systems are non-deterministic at the inference layer; correctness is defined at the invariant layer.</li></ul>
+<ul><li>Independence. The reviewer evaluates a submission as if a rival company built it. Familiarity with the reference implementation must not soften the verdict.</li></ul>
+<ul><li>Reproducibility. Every verdict is replayable from a recorded decision trace (see ORCH-003), not by recomputing engine inference.</li></ul>
+<ul><li>Traceability. Every scenario maps to at least one axis and every node probe maps to a contract clause.</li></ul>
+<ul><li>No behaviour without a scenario. CCP-GATE forbids ratifying any behaviour that lacks a conformance scenario.</li></ul>
+<ul><li>Certification never edits the spec. Discovered gaps route through CCP, Amendment, IDR, or next major version.</li></ul>
+<ul><li>Two planes are respected in every verdict. Truth verdicts are evaluated against the Control Plane / Kernel boundary; observability data (metrics, logs, tracing, presence) is AP and never treated as truth.</li></ul>
+<h1 id="part-3-the-scenario-conformance-framework-three-layer-model">Part 3 - The Scenario Conformance Framework - Three-Layer Model</h1>
+<p>Conformance is defined in three separated layers plus a verdict. This separation lets a single axis be exercised by many scenarios, and a single scenario to be observed by many node probes.</p>
+<ul><li>AXIS - a capability dimension the architecture is stressed on (12 defined, see Part 4).</li></ul>
+<ul><li>REFERENCE SCENARIO - a concrete, versioned instantiation combining several axes into an executable narrative.</li></ul>
+<ul><li>NODE PROBE - an observation point bound to a contract clause; it records what an engine/capability/kernel node did, so an invariant or property can be evaluated.</li></ul>
+<ul><li>VERDICT - PASS / PARTIAL / FAIL, computed from invariant and property checks over the recorded trace.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Answers</th><th>Bound To</th><th>Versioned Against</th></tr></thead><tbody><tr><td>Axis</td><td>Which dimension of capability is stressed</td><td>Architecture stress model</td><td>UCS major version</td></tr><tr><td>Reference Scenario</td><td>What concrete workload is run</td><td>One or more axes</td><td>Conformance suite version</td></tr><tr><td>Node Probe</td><td>What a specific node actually did</td><td>A contract clause</td><td>Contract version</td></tr><tr><td>Verdict</td><td>Did the invariants/properties hold</td><td>Registered invariants + properties</td><td>Both suite and spec version</td></tr></tbody></table></div>
+<h1 id="part-4-the-twelve-conformance-axes">Part 4 - The Twelve Conformance Axes</h1>
+<p>The twelve axes are the fixed capability dimensions along which any ARVES runtime is stressed. They are frozen with the specification; new axes require a new UCS major version.</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Axis</th><th>What It Stresses</th><th>Primary Invariant Focus</th></tr></thead><tbody><tr><td>1</td><td>Information-intensive</td><td>Large ontology graphs, dense entity/observation load</td><td>OWN-001, provenance (O-003)</td></tr><tr><td>2</td><td>Event-driven</td><td>Reactive flows over the Event Fabric</td><td>LAYER-001 cross-cutting via Event Fabric</td></tr><tr><td>3</td><td>Human-collaboration</td><td>Human-in-the-loop decisions, approvals, handoff</td><td>ORCH-001 (truth only in Kernel)</td></tr><tr><td>4</td><td>Multi-step planning</td><td>Plan/Engine Graph over many steps</td><td>ORCH-002 (plans, not persistent state)</td></tr><tr><td>5</td><td>Long-running</td><td>Durable state across time, checkpoints</td><td>ORCH-003 (replay from trace)</td></tr><tr><td>6</td><td>Physical-world</td><td>Actuation, sensing, irreversible effects</td><td>ORCH-004 (idempotent + content-addressable)</td></tr><tr><td>7</td><td>Safety-critical</td><td>Fail-closed behaviour, no partial truth</td><td>Amendment-006 failure model</td></tr><tr><td>8</td><td>High-volume streaming</td><td>Sustained throughput, backpressure</td><td>SHARD-001 partitioning</td></tr><tr><td>9</td><td>Multi-agent</td><td>Many agents coordinating over shared truth</td><td>ORCH-001..004 under concurrency</td></tr><tr><td>10</td><td>Policy-heavy</td><td>Dense governance/authorization constraints</td><td>ORCH-001, OWN-001</td></tr><tr><td>11</td><td>Autonomous</td><td>Self-directed goal pursuit, minimal human input</td><td>ORCH-002, ORCH-003</td></tr><tr><td>12</td><td>Recovery/replay</td><td>Crash, partition, split-brain recovery</td><td>ORCH-003, IDR-001..005</td></tr></tbody></table></div>
+<p>Note on invariants: ORCH-001..004, OWN-001, LAYER-001, SHARD-001 are REGISTERED (normative). Ontology principles O-001..007 are DESIGN PRINCIPLES (definitional, not runtime-provable) and are used to shape scenarios, not to pass/fail a node. Proposed invariants (G-001, QUERY-001, LCW-001, PERSIST-001, CAP-<em>, ENG-</em>) are INFORMATIVE only and marked proposed (pending CCP) wherever they appear.</p>
+<h1 id="part-5-reference-scenarios">Part 5 - Reference Scenarios</h1>
+<p>A reference scenario is a concrete, versioned workload combining several axes. Each scenario declares its axis coverage, its entry conditions, the node probes it activates, and the invariants/properties its verdict evaluates. Scenarios are illustrative reference workloads, not an exhaustive catalog; the suite grows through CCP-gated additions.</p>
+<div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Axes Combined</th><th>Verdict Properties (examples)</th></tr></thead><tbody><tr><td>Ingest-and-Derive</td><td>1 Information-intensive, 2 Event-driven</td><td>Every observation carries provenance; only Kernel commits truth (ORCH-001); derivation != inheritance</td></tr><tr><td>Plan-and-Act</td><td>4 Multi-step planning, 6 Physical-world</td><td>Plans are not persistent state (ORCH-002); every capability invocation idempotent + content-addressable (ORCH-004)</td></tr><tr><td>Human-Gated Approval</td><td>3 Human-collaboration, 10 Policy-heavy</td><td>No effect committed without gate; single owner per state (OWN-001)</td></tr><tr><td>Long-Run Saga</td><td>5 Long-running, 7 Safety-critical</td><td>Partial execution rolled back by NOT committing; committed effects compensated saga-style (Amendment-006)</td></tr><tr><td>Stream-Under-Load</td><td>8 High-volume streaming, 2 Event-driven</td><td>Partition key immutable (SHARD-001); bounded-staleness reads remain within bound</td></tr><tr><td>Swarm-Coordinate</td><td>9 Multi-agent, 11 Autonomous</td><td>Concurrent agents never produce conflicting committed truth; execution replayable (ORCH-003)</td></tr><tr><td>Crash-and-Replay</td><td>12 Recovery/replay, 5 Long-running</td><td>Replay reconstructs from recorded decision trace, NOT recomputation (ORCH-003); WAL = decision trace (IDR-001)</td></tr></tbody></table></div>
+<h1 id="part-6-node-probes-and-verdict-computation">Part 6 - Node Probes and Verdict Computation</h1>
+<p>A node probe is an observation point bound to a contract clause. It records structured evidence about a node - an engine invocation, a capability binding, a Kernel commit, a Query read - so a property can be evaluated after the fact. Probes are passive: they observe, they do not steer.</p>
+<p>Verdict computation proceeds in three stages:</p>
+<ul><li>Collect. Run the scenario; probes append evidence to the recorded decision trace (the WAL / Raft log under IDR-001).</li></ul>
+<ul><li>Evaluate. For each declared invariant and property, evaluate a predicate over the collected trace. Predicates are property-based (e.g. "for all committed effects, exactly one owner") not golden-output comparisons.</li></ul>
+<ul><li>Aggregate. Combine per-property results into a scenario verdict.</li></ul>
+<div class="table-wrap"><table><thead><tr><th>Verdict</th><th>Meaning</th><th>Gate Effect</th></tr></thead><tbody><tr><td>PASS</td><td>All declared invariants and properties held across the trace</td><td>Counts toward level certification</td></tr><tr><td>PARTIAL</td><td>Core invariants held; one or more non-blocking properties failed or were unproven</td><td>Level withheld until resolved; documented as known limitation</td></tr><tr><td>FAIL</td><td>A registered invariant was violated</td><td>Blocks certification; defect in implementation</td></tr></tbody></table></div>
+<p>A registered-invariant violation is always FAIL. A proposed-invariant expectation (G-001/QUERY-001/LCW-001/PERSIST-001/CAP-<em>/ENG-</em>, all proposed pending CCP) can at most produce PARTIAL, never FAIL, because it is not yet normative.</p>
+<h1 id="part-7-the-conformance-artifact">Part 7 - The Conformance Artifact</h1>
+<p>Every certification run emits a single immutable conformance artifact. It is the evidence package a third party can independently replay. Because ORCH-003 requires replay from the recorded decision trace and not recomputation, the artifact is self-sufficient: given the artifact, a verifier reconstructs the verdict without re-running engines.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Content</th><th>Source</th></tr></thead><tbody><tr><td>Suite version</td><td>Conformance suite version identifier</td><td>Suite registry</td></tr><tr><td>Spec version</td><td>UCS version under test (frozen 2026-07-01 for v1)</td><td>Specification Freeze Record</td></tr><tr><td>Runtime identity</td><td>Implementation name + build (UCI or Independent Runtime A/B)</td><td>Submission</td></tr><tr><td>Axis coverage</td><td>Which of the 12 axes were exercised</td><td>Scenario declarations</td></tr><tr><td>Scenario results</td><td>Per-scenario PASS/PARTIAL/FAIL</td><td>Verdict computation</td></tr><tr><td>Decision trace</td><td>Recorded WAL / Raft log enabling replay (ORCH-003, IDR-001/005)</td><td>Runtime under test</td></tr><tr><td>Invariant matrix</td><td>Per registered invariant: held / violated</td><td>Property evaluation</td></tr><tr><td>Proposed-invariant notes</td><td>Informative results for proposed invariants, flagged pending CCP</td><td>Property evaluation</td></tr><tr><td>Level attestation</td><td>Which of L1-L4 / Certified Product is supported</td><td>Aggregation</td></tr></tbody></table></div>
+<h1 id="part-8-certification-levels-l1-l4-and-certified-product">Part 8 - Certification Levels L1-L4 and Certified Product</h1>
+<p>Certification levels are cumulative. A runtime must hold every lower level before a higher level is granted. Levels map to the frozen milestones I1..I6 and to the layer/plane responsibilities.</p>
+<div class="table-wrap"><table><thead><tr><th>Level</th><th>Name</th><th>What It Certifies</th><th>Milestone Alignment</th></tr></thead><tbody><tr><td>L1</td><td>Core Runtime</td><td>Single-node truth: Kernel owns TRUTH and commits; Engine pure/stateless produces only proposed effects; Query READ-ONLY; OWN-001 holds</td><td>I1 Distributed Runtime (single-node baseline)</td></tr><tr><td>L2</td><td>Cognitive Control</td><td>Control Plane owns Plan/Engine Graph; ORCH-001/002 hold (no truth, no persistent state in CP); LCW owns working memory not truth</td><td>I1 -&gt; I2</td></tr><tr><td>L3</td><td>Distributed</td><td>Cluster Kernel: per-shard Raft (IDR-001), replicate committed OUTCOMES not invocations, WAL = decision trace, sagas for cross-shard; SHARD-001 immutable partition key; consistency tiers honored</td><td>I2 Cluster Kernel, I3 Distributed Query, I4 Capability Scheduling</td></tr><tr><td>L4</td><td>Multi-Agent</td><td>Multi-agent runtime: many agents coordinate over shared committed truth without conflict; ORCH-003/004 under concurrency; recovery/replay axis passes</td><td>I5 Multi-Agent Runtime</td></tr><tr><td>Certified Product</td><td>Product-grade</td><td>Enterprise-readiness met; real product built on ARVES without modifying the standard; all lower levels held</td><td>I6 Reference Products</td></tr></tbody></table></div>
+<p>Kernel-never-Control-Plane rule: at every level, the Kernel commits truth but never becomes the Control Plane. A submission where the Kernel orchestrates, plans, or executes FAILS regardless of other results.</p>
+<h1 id="part-9-the-independent-architecture-review-process">Part 9 - The Independent Architecture Review Process</h1>
+<p>The Independent Architecture Review is the human, adversarial counterpart to the mechanical conformance suite. The reviewer evaluates the submission as if a competing company had built and submitted it - no benefit of the doubt, no reliance on shared authorship with the reference implementation.</p>
+<p>Each dimension receives an independent verdict of PASS, PARTIAL, or FAIL.</p>
+<div class="table-wrap"><table><thead><tr><th>Review Dimension</th><th>Question Asked</th><th>FAIL Trigger</th></tr></thead><tbody><tr><td>Layering</td><td>Are dependencies downward-only with no lateral coupling (LAYER-001)?</td><td>Any lateral or upward dependency</td></tr><tr><td>Ownership</td><td>Does every state have exactly one owner (OWN-001)?</td><td>Any shared or ownerless state</td></tr><tr><td>Plane separation</td><td>Is Control Plane strictly decide, Data Plane strictly carry?</td><td>Kernel acting as Control Plane; CP holding truth (ORCH-001)</td></tr><tr><td>Truth discipline</td><td>Does only the Kernel commit truth; are engine writes proposed effects only?</td><td>Engine or Query writing committed truth</td></tr><tr><td>Orchestration</td><td>Plans not persistent state (ORCH-002); replay from trace (ORCH-003); idempotent + content-addressable (ORCH-004)?</td><td>Replay by recomputation; non-idempotent invocation</td></tr><tr><td>Distribution</td><td>Does it follow IDR-001..005 (per-shard Raft, replicate outcomes, sagas, no cross-shard atomic commit in v1)?</td><td>Cross-shard atomic commit claimed in v1</td></tr><tr><td>Consistency</td><td>Are linearizable / bounded-staleness / eventual tiers correctly implemented?</td><td>Stale read presented as linearizable</td></tr><tr><td>Failure handling</td><td>Partial rollback by NOT committing; saga compensation; cooperative idempotent cancellation (Amendments 005/006)?</td><td>Partial truth left committed after failure</td></tr><tr><td>Ontology fidelity</td><td>Do types honor O-001..007 design principles (identity, provenance, versioned+registered)?</td><td>Unversioned/unregistered types; derivation used as inheritance</td></tr><tr><td>Conformance integrity</td><td>Do scenarios and probes trace to axes and contract clauses; CCP-GATE respected?</td><td>Behaviour claimed without a conformance scenario</td></tr></tbody></table></div>
+<p>Review procedure:</p>
+<ul><li>Intake - receive submission, runtime identity, and conformance artifact.</li></ul>
+<ul><li>Blind pass - reviewer reconstructs the architecture from artifacts alone, without designer narration.</li></ul>
+<ul><li>Adversarial probing - reviewer attempts to construct a scenario that violates a registered invariant.</li></ul>
+<ul><li>Dimension scoring - assign PASS/PARTIAL/FAIL per dimension with cited evidence.</li></ul>
+<ul><li>Disposition - overall PASS requires all dimensions PASS; any FAIL blocks; PARTIALs are documented as conditions.</li></ul>
+<ul><li>Routing - genuine spec gaps discovered during review are routed to CCP / Amendment / IDR, never patched into the spec.</li></ul>
+<h1 id="part-10-conformance-checklist">Part 10 - Conformance Checklist</h1>
+<p>Use this checklist to gate a runtime before submitting for level certification. Every item must be demonstrable from the conformance artifact.</p>
+<ul><li>All 12 axes have at least one reference scenario exercised for the target level.</li></ul>
+<ul><li>Every scenario verdict is PASS or an explicitly documented PARTIAL; no unexplained FAIL.</li></ul>
+<ul><li>OWN-001: every state in the trace resolves to exactly one owner.</li></ul>
+<ul><li>ORCH-001: no truth committed outside the Kernel; Control Plane holds no truth.</li></ul>
+<ul><li>ORCH-002: no persistent state produced by the Control Plane; only plans.</li></ul>
+<ul><li>ORCH-003: verdict replayable from recorded decision trace, not recomputation.</li></ul>
+<ul><li>ORCH-004: every engine/capability invocation idempotent and content-addressable.</li></ul>
+<ul><li>LAYER-001: dependency graph is downward-only; cross-cutting via Control Plane / Event Fabric only.</li></ul>
+<ul><li>SHARD-001: partition by tenant/workspace; partition key immutable across the trace.</li></ul>
+<ul><li>Query nodes wrote nothing (READ-ONLY).</li></ul>
+<ul><li>Engine nodes are pure/stateless; all writes appear as proposed effects the Kernel later commits.</li></ul>
+<ul><li>Proposed invariants (G-001/QUERY-001/LCW-001/PERSIST-001/CAP-<em>/ENG-</em>) reported as informative only, flagged pending CCP.</li></ul>
+<ul><li>Conformance artifact is complete, immutable, and independently replayable.</li></ul>
+<ul><li>Suite version and spec version recorded and compatible (see Part 14).</li></ul>
+<h1 id="part-11-performance-and-benchmark-checklist">Part 11 - Performance and Benchmark Checklist</h1>
+<p>Performance is measured as properties over the same recorded traces, never as truth. Benchmarks stress the high-volume streaming, long-running, and distributed axes.</p>
+<div class="table-wrap"><table><thead><tr><th>Metric</th><th>Axis Stressed</th><th>Property Checked</th></tr></thead><tbody><tr><td>Commit latency (leader)</td><td>Safety-critical, Distributed</td><td>Linearizable commit through shard leader within target</td></tr><tr><td>Bounded-staleness read</td><td>High-volume streaming</td><td>Follower reads within declared staleness bound</td></tr><tr><td>Eventual read convergence</td><td>Event-driven</td><td>Replica converges within target window</td></tr><tr><td>Throughput under backpressure</td><td>High-volume streaming</td><td>No dropped commits; backpressure applied, not silent loss</td></tr><tr><td>Replay time</td><td>Recovery/replay</td><td>Trace replays without re-running engines (ORCH-003)</td></tr><tr><td>Recovery after crash</td><td>Recovery/replay</td><td>Leader re-election + WAL replay restores truth (IDR-001/004/005)</td></tr><tr><td>Saga compensation time</td><td>Long-running, Safety-critical</td><td>Committed effects compensated within target (Amendment-006)</td></tr></tbody></table></div>
+<p>Benchmark checklist:</p>
+<ul><li>Observability data (metrics/logs/tracing/presence) is treated as AP, never as committed truth.</li></ul>
+<ul><li>Every benchmark run emits its own decision trace so results are replayable.</li></ul>
+<ul><li>Load is partitioned by immutable partition key (SHARD-001); cross-shard work uses sagas, not atomic commit.</li></ul>
+<ul><li>Latency is reported per consistency tier (linearizable / bounded-staleness / eventual), never conflated.</li></ul>
+<ul><li>No benchmark relies on golden-output comparison; all pass/fail is property-based.</li></ul>
+<h1 id="part-12-enterprise-readiness-checklist">Part 12 - Enterprise-Readiness Checklist</h1>
+<p>Enterprise readiness is a precondition for the Certified Product attestation. It certifies that a runtime is operable, governable, and safe in production, on top of holding L1-L4.</p>
+<ul><li>Multi-tenant isolation enforced by immutable partition key (SHARD-001); no cross-tenant truth leakage.</li></ul>
+<ul><li>Read consistency tiers exposed and documented (linearizable through leader, bounded-staleness follower, eventual replica).</li></ul>
+<ul><li>Failure model implemented: partial execution rolled back by NOT committing; committed effects compensated saga-style (Amendment-006).</li></ul>
+<ul><li>Cancellation is cooperative and idempotent; no partial truth; priority/preemption via checkpoint -&gt; replay (Amendment-005).</li></ul>
+<ul><li>Cluster membership managed via Raft joint consensus (IDR-003); per-shard leader election (IDR-004).</li></ul>
+<ul><li>Append-only WAL + snapshots for durability and replay (IDR-005); WAL doubles as decision trace.</li></ul>
+<ul><li>Governance/policy constraints enforced at the Control Plane decision boundary, never bypassed by the Data Plane.</li></ul>
+<ul><li>Every type is versioned and registered (O-006); ontology defines meaning, not storage (O-007).</li></ul>
+<ul><li>Observability stack (AP) deployed and separated from truth (CP).</li></ul>
+<ul><li>Upgrade path preserves conformance: new build re-passes the compatible conformance suite before promotion.</li></ul>
+<ul><li>SDK and API surface do not permit clients to write committed truth directly (only through Kernel commit path).</li></ul>
+<h1 id="part-13-independent-runtime-a-b-goals">Part 13 - Independent Runtime A/B Goals</h1>
+<p>A core certification goal is that ARVES is not a single-vendor artifact. Two independent runtimes - Independent Runtime A and Independent Runtime B - must each pass certification against the same frozen UCS, proving the standard is implementable by more than its authors.</p>
+<div class="table-wrap"><table><thead><tr><th>Runtime</th><th>Goal</th><th>Success Criterion</th></tr></thead><tbody><tr><td>UCI (reference)</td><td>Prove the specification is implementable</td><td>Holds L1-L4 + Certified Product</td></tr><tr><td>Independent Runtime A</td><td>Prove standard is vendor-independent</td><td>Passes certification independently against same spec version</td></tr><tr><td>Independent Runtime B</td><td>Prove interoperability of the standard</td><td>Passes certification; produces artifacts replayable by A and UCI verifiers</td></tr></tbody></table></div>
+<p>A/B parity properties:</p>
+<ul><li>Both runtimes accept the same conformance suite version against the same UCS version.</li></ul>
+<ul><li>Both emit conformance artifacts that are cross-verifiable (a verifier built for one can replay the other via the recorded trace).</li></ul>
+<ul><li>Neither runtime requires modification of the frozen standard to pass; any gap routes through CCP.</li></ul>
+<ul><li>Distributed behaviour of both grounds in IDR-001..005 (per-shard Raft, replicate outcomes, sagas), even if engine internals differ.</li></ul>
+<h1 id="part-14-versioning-conformance-suites-against-spec-versions">Part 14 - Versioning Conformance Suites Against Spec Versions</h1>
+<p>A verdict is only meaningful when the suite version and the spec version are compatible. The Specification Era is frozen as of 2026-07-01; the conformance suite evolves under CCP-GATE without ever mutating the frozen spec.</p>
+<div class="table-wrap"><table><thead><tr><th>Artifact</th><th>Maturity Lifecycle</th><th>Change Instrument</th></tr></thead><tbody><tr><td>UCS specification</td><td>Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen -&gt; Deprecated -&gt; Superseded</td><td>CCP / Amendment / IDR / next major version</td></tr><tr><td>Conformance suite</td><td>Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen</td><td>CCP (CCP-GATE: no behaviour ratified without a scenario)</td></tr><tr><td>Contract (probe binding)</td><td>Draft -&gt; Candidate -&gt; Ratified -&gt; Frozen</td><td>CCP / Amendment</td></tr><tr><td>Certification artifact</td><td>Immutable once emitted</td><td>Re-run produces a new artifact</td></tr></tbody></table></div>
+<p>Versioning rules:</p>
+<ul><li>A conformance suite declares the exact UCS version it certifies against; certifying across incompatible versions is invalid.</li></ul>
+<ul><li>Adding a scenario or probe is a suite minor version; it never changes the spec.</li></ul>
+<ul><li>Adding or removing an axis requires a new UCS major version (the 12 axes are frozen for v1).</li></ul>
+<ul><li>Promoting a proposed invariant (G-001/QUERY-001/LCW-001/PERSIST-001/CAP-<em>/ENG-</em>) to normative requires a ratified CCP; only then may a related expectation escalate from PARTIAL to FAIL.</li></ul>
+<ul><li>Reference Lifecycle context: Conformance (stage) precedes Reference Runtime, Certification, Reference Product, and Reference Ecosystem; certification cannot outrun the lifecycle stage it depends on.</li></ul>
+<h1 id="part-15-certified-ecosystem-and-product-goals">Part 15 - Certified Ecosystem and Product Goals</h1>
+<p>The terminal goal of certification is a living ecosystem: multiple certified runtimes, real products, and a marketplace, all built on ARVES without modifying the standard. These are the frozen ecosystem goals.</p>
+<ul><li>Production distributed runtime certified at L3+.</li></ul>
+<ul><li>Complete conformance suite covering all 12 axes.</li></ul>
+<ul><li>Independent Runtime A and Independent Runtime B both pass certification.</li></ul>
+<ul><li>Third-party certification available (arms-length review board, not the reference authors).</li></ul>
+<ul><li>Enterprise runtime meeting the enterprise-readiness checklist and Certified Product bar.</li></ul>
+<ul><li>SDKs that cannot bypass the Kernel commit path.</li></ul>
+<ul><li>Marketplace of certified capabilities and products.</li></ul>
+<ul><li>Cloud offering exposing documented consistency tiers.</li></ul>
+<ul><li>Real products built on ARVES without modifying the standard (I6 Reference Products).</li></ul>
+<p>These goals align to the frozen milestones I1 Distributed Runtime, I2 Cluster Kernel, I3 Distributed Query, I4 Capability Scheduling, I5 Multi-Agent Runtime, I6 Reference Products - and to no others.</p>
+<h1 id="part-16-certification-decision-matrix-and-sign-off">Part 16 - Certification Decision Matrix and Sign-Off</h1>
+<p>The final certification decision composes the mechanical conformance verdict with the Independent Architecture Review verdict. Both must be satisfied for a level to be granted.</p>
+<div class="table-wrap"><table><thead><tr><th>Conformance Result</th><th>Architecture Review</th><th>Decision</th></tr></thead><tbody><tr><td>All target-level scenarios PASS</td><td>All dimensions PASS</td><td>Level GRANTED</td></tr><tr><td>Some PARTIAL (documented, non-blocking)</td><td>All dimensions PASS</td><td>Level GRANTED with documented conditions</td></tr><tr><td>Any registered-invariant FAIL</td><td>Any</td><td>Level WITHHELD (implementation defect)</td></tr><tr><td>All PASS</td><td>Any dimension FAIL</td><td>Level WITHHELD (architecture defect)</td></tr><tr><td>Any</td><td>Spec gap discovered</td><td>Route to CCP; do NOT edit spec; re-certify after resolution</td></tr></tbody></table></div>
+<p>Sign-off record fields:</p>
+<ul><li>Runtime identity and build; UCS version; conformance suite version.</li></ul>
+<ul><li>Level attested (L1 / L2 / L3 / L4 / Certified Product).</li></ul>
+<ul><li>Conformance artifact reference (immutable, replayable).</li></ul>
+<ul><li>Architecture review dimension scores with cited evidence.</li></ul>
+<ul><li>Documented PARTIAL conditions and their remediation owners.</li></ul>
+<ul><li>Any CCP routed as a result of the review.</li></ul>
+<p><em>Final Definition  Certification is the independent, replayable proof that an implementation earns the ARVES name - PASS/PARTIAL/FAIL verdicts drawn from invariants and properties, never golden output - and it proves the frozen standard without ever changing it.</em></p>
+<h1 id="reconciliation-note-canonical-milestone-to-level-mapping">Reconciliation Note - Canonical Milestone-to-Level Mapping</h1>
+<p>The milestone-to-certification-level mapping in this volume (Part 8) is the CANONICAL source. Volumes 2, 4 and 5 defer to it; any milestone/level table elsewhere is illustrative and, on conflict, this volume governs.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

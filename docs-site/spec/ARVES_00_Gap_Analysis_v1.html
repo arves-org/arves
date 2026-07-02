@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES 00 Gap Analysis v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_00_Gap_Analysis_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-gap-analysis-v1-0">ARVES Gap Analysis v1.0</h1>
+<p>STATUS: GAP ANALYSIS (WHAT IS MISSING ACROSS THE CORPUS)</p>
+<h1 id="executive-summary">Executive Summary</h1>
+<p>The ARVES corpus (26 documents) is a strong, internally consistent VISION and framework: the Information -&gt; Cognitive -&gt; Strategic -&gt; Experience -&gt; Evolution (+ Embodied) spine is applied uniformly, ownership and tenancy principles are sound, and the catalog structure is the right shape. However it is NOT yet an implementable specification. Almost every entry is a heading plus a one-line restatement; the concrete design layer (schemas, contracts, diagrams, examples, numbers) is absent. This document registers exactly what is missing, grouped into six areas, with impact and recommended action for each.</p>
+<p>Maturity today: roughly 90% "naming &amp; structure", 10% "content". The single highest-value next step is to deepen one vertical slice end-to-end and reconcile the conflicting canonical models, rather than adding more headings.</p>
+<h1 id="gap-register">Gap Register</h1>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Missing Item</th><th>Impact</th><th>Recommended Action</th><th>Source Doc</th></tr></thead><tbody><tr><td>Content depth</td><td>Real entity schemas (field types, required, cardinality)</td><td>High</td><td>Replace copy-paste definitions with typed schemas per entity</td><td>ARVES-19, Vol 3, Vol 13</td></tr><tr><td>Content depth</td><td>Example payloads / sample data</td><td>High</td><td>Add one concrete JSON example per entity, event, API</td><td>ARVES-19/21/22/24</td></tr><tr><td>Content depth</td><td>API signatures (paths, verbs, params, errors)</td><td>High</td><td>Specify endpoints, request/response bodies, status &amp; error models</td><td>ARVES-24</td></tr><tr><td>Content depth</td><td>Event payload schemas &amp; versioning examples</td><td>High</td><td>Define payload schema + sample message per event</td><td>ARVES-21</td></tr><tr><td>Content depth</td><td>Storage design (tables, indexes, tenant isolation)</td><td>High</td><td>Add physical data model + isolation mechanics</td><td>ARVES-22</td></tr><tr><td>Visuals</td><td>Architecture / C4 / sequence / ER / deployment diagrams</td><td>High</td><td>Add at least layer, ER and one runtime sequence diagram</td><td>Vol 16, Vol 9</td></tr><tr><td>Visuals</td><td>Dependency graphs (service, capability, event producer/consumer)</td><td>Medium</td><td>Fill the catalog templates with actual dependency links</td><td>ARVES-20/21, Vol 11</td></tr><tr><td>Engineering realism</td><td>Committed vs. aspirational split (AGI/robotics)</td><td>High</td><td>Tag near-term vs north-star; sequence the roadmap</td><td>Blueprint, Vol 8/11, ARVES-26</td></tr><tr><td>Engineering realism</td><td>Concrete non-functional targets (SLO/SLA, scale)</td><td>Medium</td><td>Set p99 latency, uptime %, throughput, capacity numbers</td><td>Vol 10, Vol 18</td></tr><tr><td>Engineering realism</td><td>FinOps / budget policy (token, compute)</td><td>Medium</td><td>Define concrete cost budgets &amp; routing cost policy</td><td>Vol 18, Vol 10</td></tr><tr><td>Consistency</td><td>Conflicting canonical entity/relationship models</td><td>High</td><td>Make ARVES-19 the single source of truth; others reference it</td><td>Vol 3, Vol 13, ARVES-19</td></tr><tr><td>Consistency</td><td>Numbering gap (document 25 missing)</td><td>Low</td><td>Assign #25 or renumber; record decision</td><td>Corpus-wide</td></tr><tr><td>Consistency</td><td>Version drift (v2 vs v1, no changelog)</td><td>Low</td><td>Add changelog to v2 docs; confirm v1 alignment</td><td>Blueprint, Vol 1, Vol 2</td></tr><tr><td>Consistency</td><td>No traceability matrix (backlog-&gt;capability-&gt;service-&gt;event-&gt;API)</td><td>Medium</td><td>Build a trace matrix linking every backlog item</td><td>ARVES-26</td></tr><tr><td>Product layer</td><td>Personas, user stories, acceptance criteria</td><td>Medium</td><td>Add personas and end-to-end user scenarios</td><td>Vol 15, ARVES-26</td></tr><tr><td>Product layer</td><td>Wireframes / UX flows</td><td>Medium</td><td>Add at least one end-to-end UX flow</td><td>Vol 15</td></tr><tr><td>Governance/Ops</td><td>RACI / ownership matrix (team -&gt; core/service)</td><td>Medium</td><td>Define who owns each core and service</td><td>Vol 2, ARVES-20</td></tr><tr><td>Governance/Ops</td><td>Concrete test strategy (coverage targets, examples)</td><td>Medium</td><td>Set coverage goals and example test cases</td><td>Vol 10</td></tr><tr><td>Governance/Ops</td><td>Compliance control mapping (GDPR/SOC2/ISO -&gt; mechanism)</td><td>Medium</td><td>Map each control to a concrete platform mechanism</td><td>Vol 17</td></tr><tr><td>Governance/Ops</td><td>Glossary / terminology dictionary</td><td>Low</td><td>Define all specialized terms in one place</td><td>Corpus-wide</td></tr></tbody></table></div>
+<h1 id="1-content-depth-most-critical">1. Content Depth (most critical)</h1>
+<ul><li>No real schemas: no field types, requiredness, length, format, or cardinality anywhere. In ARVES-19 all 16 entities share the identical definition, which cannot be correct.</li></ul>
+<ul><li>No example payloads or sample data: not a single JSON event, API request/response body, or example record exists.</li></ul>
+<ul><li>No API signatures: ARVES-24 lists API names only - no paths, HTTP verbs, parameters, status codes, or error models.</li></ul>
+<ul><li>No event schemas: ARVES-21 lists envelope fields but no per-event payload schema, versioning example, or sample message.</li></ul>
+<ul><li>No storage design: ARVES-22 says which data lives in which store but gives no table/collection design, indexes, or partition/tenant isolation mechanics.</li></ul>
+<h1 id="2-visual-structural-assets">2. Visual &amp; Structural Assets</h1>
+<ul><li>Not a single diagram exists - no architecture/layer, C4, sequence, ER, data-flow, deployment topology, or event-flow diagram.</li></ul>
+<ul><li>No dependency maps: service-to-service, capability-to-capability, or event producer/consumer graphs. The catalogs define templates but leave them unfilled.</li></ul>
+<h1 id="3-engineering-realism">3. Engineering Realism</h1>
+<ul><li>No committed-vs-aspirational split: SaaS identity and L4 AGI / robotics / drones carry the same "FROZEN/approved" weight. The roadmap has no timing, sequencing, dependencies, or team/effort estimates.</li></ul>
+<ul><li>Non-functional requirements are not concrete: SLO/SLA is "measured" but no real targets (p99 latency, uptime %, throughput). No capacity/scale numbers.</li></ul>
+<ul><li>No cost/FinOps model: model routing says "manage cost" but there is no concrete token/compute budget policy.</li></ul>
+<h1 id="4-consistency-governance-gaps">4. Consistency / Governance Gaps</h1>
+<ul><li>Single-source-of-truth conflict: Docs 3, 13 and 19 each present a different "canonical" entity/relationship model (Workspace/Document/Location, SUPPORTS/USES, Email/Meeting differences).</li></ul>
+<ul><li>Numbering gap: document 25 is missing (24 jumps to 26).</li></ul>
+<ul><li>Version drift: Blueprint/Vol1/Vol2 = v2, the rest v1, with no changelog.</li></ul>
+<ul><li>No traceability: the Backlog (26) says every item must trace to a capability/service/event, but no actual trace matrix (backlog -&gt; capability -&gt; service -&gt; event -&gt; API) exists.</li></ul>
+<h1 id="5-product-user-layer">5. Product / User Layer</h1>
+<ul><li>No personas, user scenarios, user stories, or acceptance criteria. The Product Atlas (15) lists surfaces but describes no single end-to-end flow (e.g. user creates a goal -&gt; agent assigned -&gt; result returned).</li></ul>
+<ul><li>No wireframes or UX flows.</li></ul>
+<h1 id="6-governance-operations-detail">6. Governance / Operations Detail</h1>
+<ul><li>No RACI / ownership matrix (which team owns which core/service).</li></ul>
+<ul><li>Test strategy is not concrete: Vol 10 lists test types but gives no coverage target or example.</li></ul>
+<ul><li>No compliance control mapping: GDPR/SOC2/ISO27001 are named, but controls are not mapped to mechanisms.</li></ul>
+<ul><li>No glossary / terminology dictionary despite many specialized terms.</li></ul>
+<h1 id="recommended-closure-order">Recommended Closure Order</h1>
+<ul><li>Reconcile the canonical model: make ARVES-19 authoritative; update Vol 3 and Vol 13 to reference it. (Removes the most damaging inconsistency.)</li></ul>
+<ul><li>Deepen one vertical slice end-to-end (e.g. Person): entity schema -&gt; Data Contract -&gt; Service -&gt; Events -&gt; API, with real field types and one example payload. This becomes the template for all others and proves the catalog templates work.</li></ul>
+<ul><li>Add core diagrams: layer architecture, ER for the canonical entities, and one runtime sequence (goal -&gt; plan -&gt; agent -&gt; execution -&gt; result).</li></ul>
+<ul><li>Split committed vs. aspirational and sequence the roadmap with dependencies and rough effort.</li></ul>
+<ul><li>Set concrete non-functional targets and a traceability matrix.</li></ul>
+<ul><li>Fill the remaining governance/product gaps: RACI, personas/stories, compliance mapping, glossary.</li></ul>
+<p><em>Final Definition  Gap Analysis = The Register of What the ARVES Corpus Must Add to Become Buildable.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

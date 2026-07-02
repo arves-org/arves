@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES AEOS Master Index v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_AEOS_Master_Index_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engineering-operating-system-aeos-master-index-v1-0">ARVES Engineering Operating System (AEOS) - Master Index v1.0</h1>
+<p>STATUS: OPERATING SYSTEM MASTER INDEX (NORMATIVE) - The single entry point to how ARVES is engineered</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>AEOS is not a prompt collection; it is the official working system for any engineer or AI operating on ARVES. It organizes the corpus into four layers and defines the standard task format and operating loop for the Implementation Era.</p>
+<h1 id="part-2-the-four-layers">Part 2 - The Four Layers</h1>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Contains</th><th>Role</th></tr></thead><tbody><tr><td>Constitution</td><td>OS Vol 1 (Engineering Constitution); CLAUDE.md; Invariant Registry; IDR Batch 1; Baseline; Freeze Record; Amendments; ARR</td><td>Governing law + frozen decisions</td></tr><tr><td>Workflow</td><td>OS Vol 2 (UltraCode Workflow); Vol 3 (Engineering Playbook); Vol 4 (Implementation Playbook); Vol 5 (Distributed Systems Playbook); Vol 6 (Certification &amp; Review Manual); + Engineering Handbook (non-normative)</td><td>How work is done, reviewed, tested, certified</td></tr><tr><td>Specification</td><td>Frozen UCS/UCI v1.0: Ontology, Engine Graph ABI, Scenario Conformance, Reference Lifecycle, Cognitive Control Plane v2, and the original corpus (Vol 1-18, Catalogs)</td><td>WHAT is true (frozen, unchanged)</td></tr><tr><td>Runtime</td><td>Source code (per milestone I1..I6) - not yet written</td><td>The reference implementation (UCI)</td></tr></tbody></table></div>
+<h1 id="part-3-standard-task-template">Part 3 - Standard Task Template</h1>
+<p>From AEOS onward every milestone task uses this format; the constitution supplies the discipline, the task supplies only milestone + objective + criteria.</p>
+<p>ARVES Engineering Operating System Current Baseline: UCS/UCI v1.0 Current Era: Implementation Era Current Milestone: I&lt;n&gt; - &lt;frozen Baseline name&gt;</p>
+<p>Objective: Advance the implementation while preserving the frozen specification.</p>
+<p>Success Criteria: Architecture PASS; Conformance PASS; Certification PASS; Independent Review PASS.</p>
+<p>Constraints: The frozen specification SHALL NOT be modified. Any specification change requires CCP. Any implementation decision requires IDR.</p>
+<p>Expected Deliverables: 1 Architecture Readiness Check; 2 Gap Analysis; 3 Engineering Design; 4 Critical Review; 5 Implementation; 6 Tests; 7 Conformance Report; 8 Independent Architecture Review.</p>
+<p>Definition of Done: the milestone is complete only when every deliverable receives PASS.</p>
+<h1 id="part-4-the-operating-loop">Part 4 - The Operating Loop</h1>
+<p>AEOS (Frozen) -&gt; Task Prompt -&gt; Architecture Review -&gt; Engineering -&gt; Tests -&gt; Conformance -&gt; Independent Review -&gt; PASS -&gt; Next Milestone.</p>
+<p>The frozen Baseline milestone set (single source of truth): I1 Distributed Runtime -&gt; I2 Cluster Kernel -&gt; I3 Distributed Query -&gt; I4 Capability Scheduling -&gt; I5 Multi-Agent Runtime -&gt; I6 Reference Products. New milestone names require CCP -&gt; Review -&gt; Amendment -&gt; Ratification -&gt; Baseline v2.</p>
+<h1 id="part-5-verification-status-aeos-volumes">Part 5 - Verification Status (AEOS volumes)</h1>
+<p>The 6 volumes were adversarially verified. Results:</p>
+<div class="table-wrap"><table><thead><tr><th>Check</th><th>Verdict</th></tr></thead><tbody><tr><td>Spec-drift / phantom invariants / milestones (per volume)</td><td>PASS (6/6)</td></tr><tr><td>Cross-document consistency</td><td>PASS (3 high findings fixed: Vol 3 sibling naming, Vol 2/Vol 3 CP-vs-Control-Plane overload, milestone-&gt;level reconciled to Vol 6)</td></tr><tr><td>Specification traceability</td><td>PASS</td></tr><tr><td>Circular dependency</td><td>PASS</td></tr><tr><td>Architecture ownership</td><td>PASS</td></tr><tr><td>Future extensibility</td><td>PASS</td></tr></tbody></table></div>
+<h1 id="part-6-sealing">Part 6 - Sealing</h1>
+<p>With AEOS complete and verified, no further specification documents, constitutions or playbooks are authored. Subsequent output is code, IDRs, conformance/benchmark/certification reports. The focus is I1 Distributed Runtime. Specification is frozen; implementation proves it.</p>
+<p><em>Final Definition  AEOS = The Operating System of ARVES Engineering - Constitution, Workflow, Specification, Runtime.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

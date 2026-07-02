@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quickstart (10 min) · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html" class="active">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-quickstart-your-first-cognitive-app-in-10-minutes">ARVES Quickstart — your first cognitive app in ~10 minutes</h1>
+<p>Everything below runs on the <strong>frozen Runtime v1.0</strong> and is verified. Prerequisites: <strong>Rust</strong> (cargo) for the runtime bridge, <strong>Node ≥18</strong> for the SDK and products. No network or third-party packages are required.</p>
+<h2 id="1-build-the-runtime-api-once-1-2-min">1. Build the Runtime API (once, ~1–2 min)</h2>
+<pre><code class="lang-bash">cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml</code></pre>
+<p>This builds the bridge — the seam through which products commit truth to the real Kernel.</p>
+<h2 id="2-see-arves-do-something-impossible-for-a-chatbot-1-min">2. See ARVES do something impossible for a chatbot (~1 min)</h2>
+<blockquote><p>These demos use the Runtime API from step 1. If you see <code>arves-bridge unavailable</code>, run the <code>cargo build</code> above first. (Authoring a capability in step 4 needs only Node — no runtime build.)</p></blockquote>
+<pre><code class="lang-bash">node products/arves-personal-os/examples/my-day.mjs</code></pre>
+<p>Six systems (email/calendar/slack/github/finance/health) collapse into <strong>one truth base</strong>; the daily briefing is <strong>byte-reproducible and audited</strong>, cites its evidence, and <strong>catches a contradiction with a prior decision</strong>. Run it twice — identical.</p>
+<pre><code class="lang-bash">node products/arves-enterprise-os/examples/enterprise-day.mjs</code></pre>
+<p>Policy enforced <em>as truth</em>: a $150k spend is blocked, allowed after legal approval, then a cross-department cancel is blocked — every step a replayable compliance event.</p>
+<h2 id="3-use-the-sdk-directly-2-min">3. Use the SDK directly (~2 min)</h2>
+<pre><code class="lang-js">// hello-arves.mjs
+import { Arves, FactStore } from './products/arves-sdk-ts/src/arves.mjs';
+const arves = new Arves();
+const store = new FactStore();
+
+const id = store.commit({ type: 'uci.fact', claim: 'sky-is-blue',
+  confidence: arves.float(0.5), observed_at: 1730000000000000000n });
+// Commit the same fact with keys reordered → same id → store stays size 1 (idempotent).
+console.log(id, store.size);</code></pre>
+<pre><code class="lang-bash">node hello-arves.mjs</code></pre>
+<p>Integers are <code>BigInt</code>, floats are <code>arves.float(x)</code> — ARVES refuses ambiguous/lossy numbers so a content address can never silently drift.</p>
+<h2 id="4-author-certify-your-own-capability-3-min">4. Author + certify your own capability (~3 min)</h2>
+<p>Copy <code>products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs</code>, change the logic, then:</p>
+<pre><code class="lang-bash">cd products/arves-ecosystem-sdk
+node bin/arves.mjs certify examples/invoice-ocr.capability.mjs   # → CERTIFIED
+node bin/arves.mjs package examples/invoice-ocr.capability.mjs   # → a signed artifact id
+node examples/third-party-capability.mjs                         # author → … → truth</code></pre>
+<p>Rules for a capability <code>value</code> are the ARVES value model (see the ecosystem-sdk README).</p>
+<h2 id="5-certify-a-runtime-1-min">5. Certify a runtime (~1 min)</h2>
+<pre><code class="lang-bash">python verification/certification/certify_runtime.py</code></pre>
+<p>Certifies runtimes against <code>standard/</code> alone — no maintainer required. Two runtimes (Rust + Python) pass under one conformance — at grade <strong>G1</strong> (same-process); a genuine third-party (G2) runtime is the open goal.</p>
+<h2 id="where-next">Where next</h2>
+<ul><li>Publish to the Marketplace → <code>products/arves-marketplace/</code></li><li>The full contract → <code>standard/</code> · Why it's a platform → <a href="foundation.html">FOUNDATION.md</a></li><li>Contribute → <a href="contributing.html">CONTRIBUTING.md</a></li></ul>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

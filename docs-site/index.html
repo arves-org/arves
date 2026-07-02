@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html" class="active">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content">
+<section class="hero">
+  <h1>ARVES</h1>
+  <p class="tagline">A cognitive computing platform: a frozen, certified runtime that turns AI reasoning into <em>truth</em> — deterministic, content-addressed, replayable, auditable — with an ecosystem of products and third-party capabilities on top.</p>
+  <div class="cta">
+    <a class="btn primary" href="quickstart.html">Get started</a>
+    <a class="btn" href="why-arves.html">Why ARVES?</a>
+    <a class="btn" href="foundation.html">Foundation</a>
+  </div>
+</section>
+
+<section class="fivemin">
+  <h2>5 minutes to your first capability</h2>
+  <p>Author, self-check, and certify a capability with the <code>arves</code> CLI — <strong>Node ≥18, no runtime build required</strong>; the platform does the heavy lifting:</p>
+  <pre><code>node products/arves-ecosystem-sdk/bin/arves.mjs init hospital.incident
+node products/arves-ecosystem-sdk/bin/arves.mjs doctor hospital.incident.capability.mjs   # HEALTHY, or every fix you need
+node products/arves-ecosystem-sdk/bin/arves.mjs certify hospital.incident.capability.mjs  # -> CERTIFIED
+node products/arves-ecosystem-sdk/bin/arves.mjs package hospital.incident.capability.mjs  # -> signed artifact id</code></pre>
+  <p class="muted">To also run the runtime demos (Personal / Enterprise Cognitive OS), first build the Runtime API — see <a href="quickstart.html">Quickstart</a>: <code>cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml</code>.</p>
+</section>
+
+<section class="cards">
+  <a class="card" href="quickstart.html"><h3>Getting Started →</h3><p>Build the runtime, run the demos, ship a capability.</p></a>
+  <a class="card" href="runtime.html"><h3>Runtime v1.0 →</h3><p>The frozen substrate: Kernel, Persistence, Bridge, ACS. Changes via RCR only.</p></a>
+  <a class="card" href="standard.html"><h3>The Standard →</h3><p>ACS-001..005 + conformance vectors — the contract any runtime implements.</p></a>
+  <a class="card" href="sdk.html"><h3>SDK &amp; Authoring Kit →</h3><p>Content-addressing in a few lines; author + certify + publish capabilities.</p></a>
+  <a class="card" href="products.html"><h3>Products →</h3><p>Personal &amp; Enterprise Cognitive OS — impossible for a chatbot wrapper.</p></a>
+  <a class="card" href="certification.html"><h3>Certification →</h3><p>Certify any runtime from <code>standard/</code> alone. Independence is graded (G1→G2).</p></a>
+  <a class="card" href="marketplace.html"><h3>Marketplace →</h3><p>Publish once, install anywhere. Certified &amp; signed; the gate is enforced.</p></a>
+  <a class="card" href="foundation.html"><h3>Foundation →</h3><p>Governance + survivability: ARVES designed to outlive its makers.</p></a>
+</section>
+
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

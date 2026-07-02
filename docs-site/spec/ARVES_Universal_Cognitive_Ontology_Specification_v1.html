@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Universal Cognitive Ontology Specification v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Universal_Cognitive_Ontology_Specification_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-universal-cognitive-ontology-specification-v1-0">ARVES Universal Cognitive Ontology Specification v1.0</h1>
+<p>STATUS: SEMANTIC CONSTITUTION (MASTER TYPE SYSTEM OF THE UNIVERSAL COGNITIVE STANDARD)</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>Define the universal cognitive concepts ARVES recognizes and the type system every other standard derives from. This is the semantic constitution of the Universal Cognitive Standard (UCS). It answers: which cognitive concepts exist, how they relate, and how a runtime names their types.</p>
+<h1 id="part-2-position-authority">Part 2 - Position &amp; Authority</h1>
+<p>This document is the ROOT of UCS. It is the normative dependency that closes the Engine Graph ABI (Reads/Writes/Produces resolve to types defined here). It SUPERSEDES the entity and relationship lists in Volume 3, Volume 13 and ARVES-19, which become non-normative once this registry is frozen. UCS (Ontology, Contracts, Engine ABI, Conformance, Certification) is the standard; UCI (Information Platform, Kernel, LCW, Persistence, Query, Runtime) is its reference implementation.</p>
+<h1 id="part-3-design-principles">Part 3 - Design Principles</h1>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Principle</th></tr></thead><tbody><tr><td>O-001</td><td>Everything is a Cognitive Entity.</td></tr><tr><td>O-002</td><td>Every Entity has Identity.</td></tr><tr><td>O-003</td><td>Every Observation has Provenance.</td></tr><tr><td>O-004</td><td>Truth emerges from validated Evidence.</td></tr><tr><td>O-005</td><td>Derivation is not Inheritance (lineage edges are relations, not subtypes).</td></tr><tr><td>O-006</td><td>Every type is versioned and registered.</td></tr><tr><td>O-007</td><td>The Ontology defines meaning, not storage; truth is owned by the Kernel (ORCH-001).</td></tr></tbody></table></div>
+<h1 id="part-4-cross-cutting-aspects-mandatory-mixins">Part 4 - Cross-Cutting Aspects (mandatory mixins)</h1>
+<p>Shared attributes are defined ONCE as aspects and attached to every type - not copied per entity. This makes O-002 and O-003 mechanical and removes attribute duplication.</p>
+<div class="table-wrap"><table><thead><tr><th>Aspect</th><th>Provides</th></tr></thead><tbody><tr><td>Identity</td><td>Stable identifier and type urn</td></tr><tr><td>Provenance</td><td>Source, collector, transformation, timestamps</td></tr><tr><td>Trust</td><td>Trust score and verification status</td></tr><tr><td>Temporal</td><td>Valid From, Valid To, Observed At (Vol 13 temporal model)</td></tr><tr><td>Tenant Scope</td><td>Tenant/workspace boundary (no scope, no meaning)</td></tr></tbody></table></div>
+<h1 id="part-5-root-type-lattice-the-only-inheritance-graph">Part 5 - Root Type Lattice (the ONLY inheritance graph)</h1>
+<p>Inheritance (is-a) is reserved for genuine subtyping. The lattice is shallow: CognitiveEntity is the root (O-001); the root types below are its subtypes; domain entities (Part 8) subtype these. Derivation and decomposition are NOT part of this graph (see Part 7).</p>
+<h1 id="part-6-root-types">Part 6 - Root Types</h1>
+<div class="table-wrap"><table><thead><tr><th>URN</th><th>Type</th><th>Meaning</th></tr></thead><tbody><tr><td>uci.entity</td><td>Entity</td><td>A thing with identity in the cognitive world</td></tr><tr><td>uci.observation</td><td>Observation</td><td>A raw sensed/received input with provenance</td></tr><tr><td>uci.event</td><td>Event</td><td>Something that happened, with time and consequence</td></tr><tr><td>uci.signal</td><td>Signal</td><td>A low-level indication feeding observation</td></tr><tr><td>uci.fact</td><td>Fact</td><td>A validated truth claim</td></tr><tr><td>uci.evidence</td><td>Evidence</td><td>Support for or against a claim</td></tr><tr><td>uci.relationship</td><td>Relationship</td><td>A typed semantic link between entities</td></tr><tr><td>uci.knowledge</td><td>Knowledge</td><td>Structured, reusable meaning</td></tr><tr><td>uci.memory</td><td>Memory</td><td>Persisted cognitive recall</td></tr><tr><td>uci.goal</td><td>Goal</td><td>A desired future state</td></tr><tr><td>uci.intent</td><td>Intent</td><td>A committed direction toward a goal</td></tr><tr><td>uci.decision</td><td>Decision</td><td>A selected course of action</td></tr><tr><td>uci.policy</td><td>Policy</td><td>A governance rule</td></tr><tr><td>uci.constraint</td><td>Constraint</td><td>A limit on plans/actions</td></tr><tr><td>uci.capability</td><td>Capability</td><td>A functional ability that can be bound</td></tr><tr><td>uci.resource</td><td>Resource</td><td>A usable asset (document, API, model, tool)</td></tr><tr><td>uci.execution</td><td>Execution</td><td>A performed unit of action</td></tr><tr><td>uci.outcome</td><td>Outcome</td><td>The observed result of execution</td></tr></tbody></table></div>
+<h1 id="part-7-semantic-relations-not-inheritance">Part 7 - Semantic Relations (NOT inheritance)</h1>
+<p>Lineage, decomposition and support are first-class RELATIONS, not subtype edges (O-005). This resolves the common error of modeling Observation-&gt;Fact or Goal-&gt;Task as inheritance.</p>
+<div class="table-wrap"><table><thead><tr><th>Relation</th><th>From -&gt; To</th><th>Semantics</th></tr></thead><tbody><tr><td>supports</td><td>Observation -&gt; Fact</td><td>Observation provides support for a fact (not is-a)</td></tr><tr><td>derived_from</td><td>Fact -&gt; Evidence</td><td>A fact is derived from validated evidence</td></tr><tr><td>belongs_to</td><td>Fact -&gt; Knowledge</td><td>A fact is part of a knowledge body</td></tr><tr><td>decomposes_into</td><td>Goal -&gt; Plan -&gt; Task -&gt; Execution</td><td>Refinement, not subtyping</td></tr><tr><td>produces</td><td>Execution -&gt; Outcome</td><td>Execution yields an outcome</td></tr><tr><td>causes</td><td>Event -&gt; Event</td><td>Causal linkage between events</td></tr><tr><td>governs</td><td>Policy -&gt; Execution</td><td>Policy constrains/authorizes execution</td></tr><tr><td>constrains</td><td>Constraint -&gt; Plan</td><td>Constraint limits a plan</td></tr></tbody></table></div>
+<h1 id="part-8-domain-subtype-mapping-reconciles-vol-3-13-19">Part 8 - Domain Subtype Mapping (reconciles Vol 3 / 13 / 19)</h1>
+<p>Corpus vocabulary is preserved by mapping each domain term onto a root type via is-a. Nothing is lost; there is now ONE hierarchy.</p>
+<div class="table-wrap"><table><thead><tr><th>Corpus term</th><th>Root type (is-a)</th></tr></thead><tbody><tr><td>Person, Organization, Team, Agent, Device</td><td>uci.entity</td></tr><tr><td>Workspace, Project, Conversation, Document, Location</td><td>uci.entity</td></tr><tr><td>Knowledge Object, Insight, Hypothesis, Lesson</td><td>uci.knowledge / uci.fact</td></tr><tr><td>Strategy, Plan</td><td>uci.goal (via decomposes_into)</td></tr><tr><td>Task</td><td>uci.execution (executable unit)</td></tr><tr><td>Provider data, raw input</td><td>uci.observation / uci.signal</td></tr></tbody></table></div>
+<h1 id="part-9-type-registry">Part 9 - Type Registry</h1>
+<p>Every type is registered and versioned. This registry is the single source of truth for cognitive types and the schema layer the corpus previously lacked.</p>
+<ul><li>Naming: uci.&lt;type&gt;@&lt;version&gt; (e.g. uci.fact@1).</li></ul>
+<ul><li>Registry entry: { urn, version, aspects, schema, relations }.</li></ul>
+<ul><li>Versioning: backward-compatible = minor; breaking = major + new urn version.</li></ul>
+<ul><li>Governance: single owner, changelog; a runtime states which registry version it targets.</li></ul>
+<h1 id="part-10-relationship-to-the-engine-graph-abi">Part 10 - Relationship to the Engine Graph ABI</h1>
+<p>The ABI loop now closes: Engine Manifest -&gt; Input Type -&gt; Ontology Registry -&gt; Output Type. Engine Reads/Produces/Writes reference uci.* urns; any conformant runtime resolves types through this registry.</p>
+<h1 id="part-11-independent-implementability-test">Part 11 - Independent-Implementability Test</h1>
+<p>Acceptance bar: an independent team, given only this specification, can build a type system that interoperates with any conformant ARVES runtime - same types, same relations, same aspects. If not, the document is descriptive and must be made more normative.</p>
+<h1 id="part-12-success-criteria">Part 12 - Success Criteria</h1>
+<p>ARVES has one versioned, registered, provenance-aware cognitive type system that all standards derive from and every runtime shares.</p>
+<p><em>Final Definition  Universal Cognitive Ontology = The Shared Meaning System and Master Type Registry of ARVES.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

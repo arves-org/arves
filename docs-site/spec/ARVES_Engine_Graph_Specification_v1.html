@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Engine Graph Specification v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Engine_Graph_Specification_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engine-graph-specification-v1-0">ARVES Engine Graph Specification v1.0</h1>
+<p>STATUS: EXECUTION STANDARD (ENGINE ABI + GRAPH MODEL)</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>Define the Engine ABI: how an engine is described so that ANY conformant ARVES runtime can execute it, without knowing the engine internals. The question is not "how do engines flow" but "how is an engine defined for portable execution". Precedent: OCI Image Specification and Kubernetes Pod Spec.</p>
+<h1 id="part-2-position-normative-dependencies">Part 2 - Position &amp; Normative Dependencies</h1>
+<p>This standard consumes the Cognitive Control Plane invariants (Vol 9, ORCH-001..004) and is VALIDATED BY the Scenario Conformance Framework (its reference scenarios are the acceptance criteria). It has one hard normative dependency:</p>
+<ul><li>Universal Cognitive Ontology (Type Registry) - the type system for Reads/Produces/Writes. An ABI is only as well-defined as its types; this registry is a prerequisite and must be frozen for engine manifests to be interoperable.</li></ul>
+<h1 id="part-3-the-engine-node-contract-the-abi">Part 3 - The Engine Node Contract (the ABI)</h1>
+<p>Every engine node declares a manifest with the following normative fields.</p>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Meaning</th><th>Group</th></tr></thead><tbody><tr><td>Name</td><td>Stable engine identifier</td><td>Identity</td></tr><tr><td>Version</td><td>Semantic version of the engine contract</td><td>Identity</td></tr><tr><td>Inputs</td><td>Declared input parameters</td><td>Type contract</td></tr><tr><td>Preconditions</td><td>Conditions that must hold before invocation</td><td>Type contract</td></tr><tr><td>Reads</td><td>Ontology types consumed from state (Kernel/LCW/Query)</td><td>Type contract</td></tr><tr><td>Writes</td><td>PROPOSED state effects to be committed by Kernel (never direct truth)</td><td>Type contract</td></tr><tr><td>Produces</td><td>Inference/ontology artifacts emitted as output</td><td>Type contract</td></tr><tr><td>Capabilities Required</td><td>Capabilities the runtime must bind</td><td>Type contract</td></tr><tr><td>Determinism</td><td>Deterministic \</td><td>Seeded \</td><td>Nondeterministic</td><td>Execution</td></tr><tr><td>Idempotency Key</td><td>Content-addressable key for safe retry (ORCH-004)</td><td>Execution</td></tr><tr><td>Failure Policy</td><td>Behaviour on failure (fail, degrade, escalate)</td><td>Execution</td></tr><tr><td>Retry Policy</td><td>Retry count, backoff, recovery</td><td>Execution</td></tr><tr><td>Timeout</td><td>Max execution bound</td><td>Execution</td></tr><tr><td>Confidence</td><td>Declared/estimated output confidence</td><td>Planning metadata</td></tr><tr><td>Cost</td><td>Declared/estimated cost (token/compute)</td><td>Planning metadata</td></tr><tr><td>Latency</td><td>Declared/estimated latency</td><td>Planning metadata</td></tr></tbody></table></div>
+<h1 id="part-4-engine-purity-consistency-with-vol-9">Part 4 - Engine Purity (consistency with Vol 9)</h1>
+<p>An engine is Data Plane pure compute. It READS state and PRODUCES inference; its WRITES are PROPOSED effects that only the Kernel may commit as truth. No engine mutates cognitive truth directly (ORCH-001). This keeps engines reusable and side-effect-honest.</p>
+<h1 id="part-5-engine-graph-model">Part 5 - Engine Graph Model</h1>
+<p>A goal produces a non-linear (DAG) Engine Graph of engine nodes. Edges are data/ordering dependencies. The graph is dynamically expanded (engines may emit sub-goals) under a bounded termination policy (Vol 9 Part 6-7). Join nodes perform arbitration; arbitration output is a plan artifact, never truth.</p>
+<h1 id="part-6-determinism-replay">Part 6 - Determinism &amp; Replay</h1>
+<p>The Determinism field drives replay semantics. Deterministic/Seeded engines can be recomputed; Nondeterministic engines are REPLAYED from the recorded decision trace, not recomputed (ORCH-003). The Runtime Fingerprint (engine versions, model routing, bindings) is captured per run.</p>
+<h1 id="part-7-failure-retry-idempotency">Part 7 - Failure, Retry &amp; Idempotency</h1>
+<p>Failure Policy and Retry Policy are declared per node. Because every invocation carries an Idempotency Key and is content-addressable (ORCH-004), retries and future distribution are safe by construction.</p>
+<h1 id="part-8-planning-metadata">Part 8 - Planning Metadata</h1>
+<p>Confidence, Cost and Latency are machine-readable, not prose. The Control Plane uses them for engine selection, scheduling and arbitration (e.g. confidence-weighted merge at join nodes).</p>
+<h1 id="part-9-engine-manifest-serialized-form">Part 9 - Engine Manifest (serialized form)</h1>
+<p>The manifest is the portable, serializable descriptor - the analogue of an OCI image manifest. A runtime needs only the manifest (not the source) to schedule and execute a node. Manifests are content-addressable and versioned.</p>
+<h1 id="part-10-runtime-contract-portability-guarantee">Part 10 - Runtime Contract (portability guarantee)</h1>
+<p>A conformant runtime executing an engine node MUST:</p>
+<ul><li>Verify Preconditions before invocation and provide the declared Reads.</li></ul>
+<ul><li>Capture Produces and route proposed Writes to the Kernel for commitment (never commit truth inside the engine).</li></ul>
+<ul><li>Enforce Idempotency Key, Retry Policy, Failure Policy and Timeout.</li></ul>
+<ul><li>Record the invocation into the decision trace with correlation_id and Runtime Fingerprint.</li></ul>
+<ul><li>Honour Capabilities Required via the Capability Fabric.</li></ul>
+<h1 id="part-11-versioning-compatibility">Part 11 - Versioning &amp; Compatibility</h1>
+<p>Engine contracts are semantically versioned. Backward-compatible changes bump minor; breaking changes bump major and require a new manifest. A graph pins engine versions so runs remain replayable and conformance results stay meaningful across spec versions.</p>
+<h1 id="part-12-conformance">Part 12 - Conformance</h1>
+<p>This specification is accepted only when the Scenario Conformance Framework reference scenarios (e.g. Warehouse Robot Dispatch: safety gate blocks unsafe plan, Engine Graph produced, execution idempotent) PASS against a runtime executing manifests defined here. Scenarios are the acceptance criteria; the spec is accountable to them.</p>
+<h1 id="part-13-independent-implementability-test">Part 13 - Independent-Implementability Test</h1>
+<p>Acceptance bar: an engineer outside the ARVES team, given only this specification and the Ontology Type Registry, can build a runtime that executes any conformant engine manifest and produces conformant behaviour. If not, the document is still descriptive and must be made more normative.</p>
+<h1 id="part-14-open-dependency-callout">Part 14 - Open Dependency Callout</h1>
+<p>The Reads/Writes/Produces type vocabulary is UNRESOLVED until the Universal Cognitive Ontology Specification is written and frozen. Until then, this ABI references ontology types by name only. Recommended immediate next document: Universal Cognitive Ontology Specification.</p>
+<h1 id="part-15-success-criteria">Part 15 - Success Criteria</h1>
+<p>An engine becomes a portable, versioned, replayable, side-effect-honest unit that any conformant runtime can execute from its manifest alone.</p>
+<p><em>Final Definition  Engine Graph Specification = The Portable Execution ABI of ARVES Cognition.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

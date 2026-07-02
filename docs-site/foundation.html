@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foundation · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html" class="active">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-foundation-governance-survivability-p8">ARVES Foundation — governance &amp; survivability (P8)</h1>
+<pre><code>=====================================================
+  Could every original maintainer disappear tomorrow,
+  and ARVES continue?
+  BY DESIGN: yes — the mechanism is in this repo and
+  runs today at grade G1. The PROOF that closes it —
+  a genuine outside party doing it with no help (G2) —
+  is the Foundation's open exit gate.
+=====================================================</code></pre>
+<p>The ARVES Foundation is the long-term, <strong>maintainer-independent</strong> home of the standard. This record defines what it owns and — the decisive property — shows that the <strong>mechanism</strong> for building, certifying, publishing, and operating on ARVES <strong>without the original team</strong> exists and is executable today. Independence is <em>graded</em>, and we report the grade honestly (this is the discipline that separates ARVES from a demo):</p>
+<ul><li><strong>G1</strong> — done inside this program / same-process (real signal, not proof).</li><li><strong>G2</strong> — a genuinely unrelated team/process, using only this repo, with no help and no reference access (the real thing).</li></ul>
+<p><strong>Everything below runs today at G1. No claim here is G2 yet.</strong> The authoritative grading gate is <code>verification/evidence/CERTIFICATION_PROGRAM.md</code>, which forbids reporting any claim as <em>fully</em> independent until a G2 result exists; <code>evidence_probe.py</code> prints, on every run, that the G2 third-party exit gate is <strong>NOT YET MET</strong>. This document does not contradict that.</p>
+<h2 id="what-the-foundation-owns">What the Foundation owns</h2>
+<div class="table-wrap"><table><thead><tr><th>Asset</th><th>Where</th><th>Change instrument</th></tr></thead><tbody><tr><td><strong>Specification</strong> (frozen corpus + ACS-001..005 draft set)</td><td><code>standard/</code>, frozen <code>.docx</code></td><td>CCP / Amendment / IDR (never a silent edit, ED-001)</td></tr><tr><td><strong>Certification</strong> (vectors + harnesses)</td><td><code>standard/vectors/</code>, <code>verification/certification/</code>, Authoring Kit <code>certify</code></td><td>vectors are versioned; new checks via CCP</td></tr><tr><td><strong>Registries</strong> (domain tags, hash codes, reason codes)</td><td>ACS-001 §4.1, <code>conformance/CONFORMANCE.md</code></td><td>Specification-Required allocation (ACS-001 §4.1)</td></tr><tr><td><strong>Runtime</strong> (frozen reference, single-node I1)</td><td><code>runtime/</code>, tag <code>runtime-v1.0</code></td><td>Runtime Change Request → v1.1 / v2.0</td></tr><tr><td><strong>Marketplace governance</strong></td><td><code>products/arves-marketplace/</code></td><td>certified (re-verified) + signed artifacts only</td></tr></tbody></table></div>
+<h2 id="the-three-certification-chains-all-standard-driven-no-mainta">The three certification chains (all standard-driven, no maintainer)</h2>
+<ul><li><strong>Certified Runtime</strong> — <code>verification/certification/certify_runtime.py</code>: certifies ANY runtime against <code>standard/</code> alone (reproduce every golden ContentId + reject every core negative). <strong>Demonstrated today at grade G1: 2 runtimes (Rust reference + independent Python) certified under ONE conformance</strong> — the seed of an Independent Runtime Alliance. (Both were authored in-repo; a G2 runtime by an outside team is the open goal.)</li><li><strong>Certified Capability</strong> — <code>arves certify</code> (P6.5 Authoring Kit): conformance + integrity, <strong>re-verified at publish and install</strong> (the gate re-runs certification, it does not trust a caller-supplied flag). <strong>Demonstrated at G1: a cold, fresh-context (same-process) author certified a new capability with no help.</strong></li><li><strong>Certified Product</strong> — conformance + the product's own destroy pass (ED-006). Demonstrated: P4/P5 on the frozen runtime; product robustness suite 40/40.</li></ul>
+<h2 id="the-survivability-mechanism-why-this-is-a-standard-not-a-pro">The survivability mechanism (why this is a standard, not a project)</h2>
+<p>If the founding team vanished, an unrelated party could, using only this repository, run each of these <strong>today</strong> (the commands exist and pass); the remaining gap is that the party doing them has so far been us (G1), not a stranger (G2):</p>
+<ol><li><strong>Certify a runtime</strong> — run <code>certify_runtime.py</code> against <code>standard/</code> (needs no one).</li><li><strong>Write &amp; certify capabilities</strong> — the Authoring Kit + <code>arves certify</code>.</li><li><strong>Publish &amp; install</strong> — the Marketplace (certified — re-verified — and signed).</li><li><strong>Build products</strong> — on the frozen Runtime v1.0 API (two products prove it carries them unchanged).</li><li><strong>Evolve the standard</strong> — via the recorded instruments (CCP/IDR/RCR).</li></ol>
+<p>The authority is the <strong>standard + the executable certification</strong>, not a person. That is the definition of a durable technology standard (HTTP/SQL/OCI/POSIX/Linux). <strong>Closing it to a real standard requires the G2 event</strong> — which is exactly why the Foundation exists: to make that event possible without us. Known scope: the standard-driven certification today covers the <strong>ACS interoperability/identity layer</strong>; the full cognitive runtime (Kernel/LCW/Query/ Engine/Capability) is reference-source today, and higher (L2–L4) certification axes are populated as the runtime milestones (I2–I6) land.</p>
+<h2 id="kpis-for-the-foundation-era-arves-2-0">KPIs for the Foundation era (ARVES 2.0)</h2>
+<p>Not features/LOC/commits/tests, but: <strong>certified runtimes · certified capabilities · certified vendors · marketplace installs · independent (G2) certifications · real organizations in production.</strong></p>
+<h2 id="roadmap-post-p7">Roadmap (post-P7)</h2>
+<p><strong>P8 Foundation</strong> (this record) → P9 Certified Vendors → P10 Independent Runtime Alliance (seeded at G1: 2 runtimes) → P11 Academic Consortium → P12 Global Registry → P13 Cloud → P14 Ecosystem. The remaining proofs are <em>external</em> (real third parties, real vendors, real runtimes by other teams — the G2 events) — the Foundation exists to make them possible without us.</p>
+<hr>
+<p><em>Ratified during ARVES 2.0. Recorded in the living repository (ED-001); the frozen corpus is unchanged. Claude's role is now: prove ARVES can live independently of its makers — honestly graded, G1 today, G2 the goal.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

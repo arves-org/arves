@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES Scenario Conformance Framework v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_Scenario_Conformance_Framework_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-scenario-conformance-framework-v1-0">ARVES Scenario Conformance Framework v1.0</h1>
+<p>STATUS: CONFORMANCE CONSTITUTION (EXECUTABLE DEFINITION OF CORRECTNESS)</p>
+<h1 id="part-1-purpose">Part 1 - Purpose</h1>
+<p>ARVES has now defined all core components of the Universal Cognitive Infrastructure. This document marks the shift from PRODUCING architecture to PROVING it. It is the executable definition of correctness - the ARVES conformance suite - by analogy to Certified Kubernetes (Sonobuoy) and the W3C test-suite + implementation-report model.</p>
+<h1 id="part-2-position-in-the-methodology">Part 2 - Position in the Methodology</h1>
+<p>Until now the corpus produced Definition -&gt; Contract -&gt; Behaviour. This framework introduces the missing layer: Definition -&gt; Contract -&gt; Behaviour -&gt; CONFORMANCE -&gt; Implementation. Conformance is the fitness function; every future spec (including the Engine Graph) is accountable to it.</p>
+<h1 id="part-3-bootstrapping-honest-scope">Part 3 - Bootstrapping (honest scope)</h1>
+<p>Executable PASS/FAIL requires precise node contracts. Many node contracts in the corpus are still one-line. Therefore: the FRAMEWORK (harness, axes, artifact schema, verdict semantics) is defined now; the POPULATED assertion suite grows as node contracts are sharpened. The framework is the forcing function that makes those thin contracts accountable.</p>
+<h1 id="part-4-three-layer-model">Part 4 - Three-Layer Model</h1>
+<p>Conformance is defined in three separated layers plus a verdict.</p>
+<ul><li>AXIS - a capability dimension the architecture is stressed on (12 defined).</li></ul>
+<ul><li>REFERENCE SCENARIO - a concrete instantiation combining several axes.</li></ul>
+<ul><li>NODE PROBE - per-node evidence emitted along the pipeline (we test nodes, not features).</li></ul>
+<ul><li>VERDICT - PASS / PARTIAL / FAIL derived from invariant and property checks.</li></ul>
+<h1 id="part-5-conformance-axes-12">Part 5 - Conformance Axes (12)</h1>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Axis</th><th>What it stresses</th></tr></thead><tbody><tr><td>1</td><td>Information-intensive</td><td>Ingestion, canonicalization, provenance/trust (Knowledge Assistant)</td></tr><tr><td>2</td><td>Event-driven</td><td>Reactive flow from event to state (Incident Response)</td></tr><tr><td>3</td><td>Human Collaboration</td><td>Approval gates and human-in-the-loop hand-off</td></tr><tr><td>4</td><td>Multi-step Planning</td><td>Goal decomposition and Engine Graph expansion</td></tr><tr><td>5</td><td>Long-running Workflow</td><td>Durable state, pause/resume, timeouts</td></tr><tr><td>6</td><td>Physical World</td><td>Robot/IoT sensing and actuation (Embodied)</td></tr><tr><td>7</td><td>Safety-critical</td><td>Hard policy gates that must block unsafe plans</td></tr><tr><td>8</td><td>High-volume Streaming</td><td>Throughput, backpressure, tenant isolation at scale</td></tr><tr><td>9</td><td>Multi-agent Coordination</td><td>Delegation, arbitration across agents</td></tr><tr><td>10</td><td>Policy-heavy Governance</td><td>Dense policy evaluation and audit</td></tr><tr><td>11</td><td>Autonomous Decision</td><td>Unattended decision within risk/confidence limits</td></tr><tr><td>12</td><td>Recovery &amp; Replay</td><td>Deterministic replay from decision trace (ORCH-003)</td></tr></tbody></table></div>
+<h1 id="part-6-reference-scenarios-axis-combinations">Part 6 - Reference Scenarios (axis combinations)</h1>
+<p>A scenario is a point in axis-space, not a feature. Each declares its axes and key assertions.</p>
+<div class="table-wrap"><table><thead><tr><th>Reference Scenario</th><th>Axis combination</th><th>Key assertions</th></tr></thead><tbody><tr><td>Incident Response War-Room</td><td>2 + 3 + 10 + 12</td><td>Event -&gt; Kernel state; HITL gate fired; run replayable from trace</td></tr><tr><td>Warehouse Robot Dispatch</td><td>6 + 7 + 11 + 4</td><td>Safety gate blocks unsafe plan; Engine Graph produced; execution idempotent (ORCH-004)</td></tr><tr><td>Enterprise Knowledge Query</td><td>1 + 8 + 9</td><td>Tenant isolation held; provenance/trust attached; control plane owns no truth (ORCH-001)</td></tr><tr><td>Long Compliance Review</td><td>5 + 10 + 3</td><td>Durable pause/resume; policy audit complete; approval recorded</td></tr></tbody></table></div>
+<h1 id="part-7-node-probe-model">Part 7 - Node Probe Model</h1>
+<p>Each scenario traverses the pipeline; every node emits evidence. Conformance is the sum of node proofs, end to end: Reality -&gt; Information Platform -&gt; Kernel -&gt; LCW -&gt; Query -&gt; Engine -&gt; Capability -&gt; Execution -&gt; Reality.</p>
+<div class="table-wrap"><table><thead><tr><th>Node</th><th>Evidence it must emit</th></tr></thead><tbody><tr><td>Information Platform</td><td>Source normalized to canonical model with provenance</td></tr><tr><td>Kernel</td><td>State transition recorded; Kernel is sole truth owner</td></tr><tr><td>Living Cognitive World</td><td>Consistent world/state view for the scenario</td></tr><tr><td>Query</td><td>Correct, tenant-scoped read of state</td></tr><tr><td>Engine (Fabric)</td><td>Pure invocation; output is inference, not persisted truth</td></tr><tr><td>Control Plane</td><td>Engine Graph expanded; ORCH-001..004 upheld; no truth produced</td></tr><tr><td>Capability</td><td>Capability selected and bound per plan</td></tr><tr><td>Execution</td><td>Idempotent, addressable action with correlation_id</td></tr></tbody></table></div>
+<h1 id="part-8-conformance-semantics-the-central-rule">Part 8 - Conformance Semantics (the central rule)</h1>
+<p>Conformance is STRUCTURAL, PROPERTY-BASED and INVARIANT-BASED - NOT golden-output. Because cognitive engines are non-deterministic, a run does not assert a single correct answer; it asserts that invariants and properties held.</p>
+<ul><li>Invariants asserted: ORCH-001 (control plane owns no truth), ORCH-002 (no persistent state in control plane), ORCH-003 (replayable from trace), ORCH-004 (idempotent, addressable calls).</li></ul>
+<ul><li>Properties asserted: tenant/workspace isolation, provenance/trust present, policy gates fired when required, safety gates blocked unsafe plans, plan replay reproduces the decision trace.</li></ul>
+<ul><li>Verdict: PASS (all required invariants + properties hold), PARTIAL (non-critical property failed), FAIL (any invariant or critical safety/isolation property failed).</li></ul>
+<h1 id="part-9-conformance-artifact">Part 9 - Conformance Artifact</h1>
+<p>Every run emits a machine-readable artifact (the Vol 9 Part 14 hook): scenario id + axes, the expanded Engine Graph, per-node evidence, invariants checked, arbitration choices, policy gates, Runtime Fingerprint, and the verdict. This artifact is both the certificate and the regression record.</p>
+<h1 id="part-10-scoring-levels-profiles">Part 10 - Scoring, Levels &amp; Profiles</h1>
+<p>A bare percentage is meaningless without a level and a version. Conformance is reported as a level against a suite version.</p>
+<div class="table-wrap"><table><thead><tr><th>Level</th><th>Meaning</th></tr></thead><tbody><tr><td>L1 Core Runtime</td><td>Information -&gt; Kernel -&gt; Query nodes conformant</td></tr><tr><td>L2 Cognitive Control</td><td>Engine Fabric + Control Plane invariants (ORCH-001..004) conformant</td></tr><tr><td>L3 Distributed</td><td>Conformance preserved across distributed deployment</td></tr><tr><td>L4 Multi-Agent</td><td>Conformance preserved under multi-agent coordination</td></tr><tr><td>Certified Product</td><td>A product built on a certified runtime passing its scenario set</td></tr></tbody></table></div>
+<h1 id="part-11-versioning-governance">Part 11 - Versioning &amp; Governance</h1>
+<p>The suite is versioned against the spec version. A result is always stated as "N% at Level Lx against Framework vA / Spec vB". This also resolves corpus version drift: conformance pins which spec version a runtime was tested against. The suite has a single owner and changelog.</p>
+<h1 id="part-12-relationship-to-the-engine-graph-specification">Part 12 - Relationship to the Engine Graph Specification</h1>
+<p>The Engine Graph is validated BY this framework, not the reverse. Order is Scenario -&gt; Engine Graph -&gt; Conformance. The Engine Graph Specification (next document) must satisfy the Part 6 reference scenarios and the Part 8 invariants; scenarios are its acceptance criteria.</p>
+<h1 id="part-13-certification-path">Part 13 - Certification Path</h1>
+<p>PASS thresholds at a level advance a runtime along the (forthcoming) ARVES Reference Lifecycle: Reference Runtime -&gt; Certified Runtime -&gt; Certified Product. Independent teams claiming "we built ARVES" are judged by scenario results, not by code inspection.</p>
+<h1 id="part-14-success-criteria">Part 14 - Success Criteria</h1>
+<p>ARVES becomes a standard that independent teams can implement, test and certify - proven by reproducible scenario conformance, not by architecture prose.</p>
+<p><em>Final Definition  Scenario Conformance Framework = The Executable Definition of a Correct ARVES.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

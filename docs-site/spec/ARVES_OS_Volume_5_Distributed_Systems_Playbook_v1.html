@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARVES OS Volume 5 Distributed Systems Playbook v1 · ARVES</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="../index.html">Home</a><a href="../quickstart.html">Quickstart (10 min)</a><a href="../why-arves.html">Why ARVES</a><a href="../contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="../runtime.html">Runtime v1.0 (Frozen)</a><a href="../standard.html">The Standard</a><a href="../certification.html">Certification Program</a><a href="../evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="../sdk.html">Developer SDK</a><a href="../authoring-kit.html">Authoring Kit (arves CLI)</a><a href="../marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="../products.html">Products Overview</a><a href="../personal-os.html">Personal Cognitive OS</a><a href="../enterprise-os.html">Enterprise Cognitive OS</a><a href="../cognitive-memory.html">Cognitive Memory</a><a href="../agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="../foundation.html">Foundation</a><a href="../closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="../spec.html" class="active">Specification Corpus</a></nav>
+  <main class="content"><blockquote><p><strong>Rendered from <code>ARVES_OS_Volume_5_Distributed_Systems_Playbook_v1.docx</code></strong> — a faithful Markdown mirror of the FROZEN specification corpus (authoritative source of record: the <code>.docx</code>). Format conversion only; content unchanged. <strong>Do not hand-edit</strong> — regenerate via <code>python tools/docx_to_markdown.py</code>. Spec changes go through CCP/Amendment.</p></blockquote>
+<h1 id="arves-engineering-operating-manual-volume-5-distributed-syst">ARVES Engineering Operating Manual Volume 5: Distributed Systems Playbook v1.0</h1>
+<p><strong>STATUS: ENGINEERING OPERATING MANUAL (IMPLEMENTATION-ERA PLAYBOOK; GROUNDED IN IDR-001..005; NON-NORMATIVE WHERE MARKED)</strong></p>
+<p>Specification Era is FROZEN as of 2026-07-01. This volume is Implementation-Era guidance. It does not change the specification. Implementation proves the spec and never alters it. Dependency chain (never reversed): Theory -&gt; Specification -&gt; Contracts -&gt; Behaviour -&gt; Conformance -&gt; Implementation.</p>
+<p>Normative authority in this volume comes ONLY from REGISTERED invariants (ORCH-001..004, OWN-001, LAYER-001, SHARD-001). All IDR-001..005 material is a reference implementation decision (non-normative). Any invariant marked "proposed (pending CCP)" is INFORMATIVE only and MUST NOT be treated as ratified.</p>
+<h1 id="part-1-purpose-scope-and-reading-order">Part 1 - Purpose, Scope, and Reading Order</h1>
+<p>This playbook tells ARVES engineers how to build, operate, and scale the distributed runtime that carries ARVES truth across a cluster of up to ~10,000 nodes, without ever contradicting the frozen Universal Cognitive Standard (UCS). UCI is the reference implementation of UCS.</p>
+<p>Scope is deliberately narrow: distributed engineering grounded strictly in the reference implementation decisions IDR-001 through IDR-005, plus the failure model (Amendment-006) and cancellation/preemption model (Amendment-005). Everything here serves one purpose: keep TRUTH correct and single-owned while the system is physically distributed.</p>
+<h2 id="1-1-what-this-volume-covers">1.1 What this volume covers</h2>
+<ul><li>Per-shard Raft: one Raft group per tenant/workspace shard (IDR-001, SHARD-001).</li></ul>
+<ul><li>The commit path: engine-anywhere -&gt; shard leader commit -&gt; follower apply of committed outcomes (never recompute).</li></ul>
+<ul><li>Replication: leader/followers/snapshot/WAL (IDR-002, IDR-005).</li></ul>
+<ul><li>Membership changes via Raft joint consensus (IDR-003).</li></ul>
+<ul><li>Per-shard leader election (IDR-004).</li></ul>
+<ul><li>Storage: append-only WAL as the decision trace (IDR-005, ORCH-003).</li></ul>
+<ul><li>The CP/AP boundary: truth is CP, observability is AP.</li></ul>
+<ul><li>Read-consistency tiers: linearizable, bounded-staleness, eventual.</li></ul>
+<ul><li>Failure taxonomy and saga compensation (Amendment-006).</li></ul>
+<ul><li>Cancellation, priority, and preemption (Amendment-005).</li></ul>
+<ul><li>Distribution-readiness rules (ORCH-002, ORCH-004, SHARD-001) and scaling to ~10,000 nodes.</li></ul>
+<h2 id="1-2-what-this-volume-must-not-do">1.2 What this volume must NOT do</h2>
+<ul><li>It must not invent new layers, invariants, milestones, or architecture.</li></ul>
+<ul><li>It must not present proposed invariants (G-001, QUERY-001, LCW-001, PERSIST-001, CAP-<em>, ENG-</em>) as normative.</li></ul>
+<ul><li>It must not introduce a cross-shard atomic commit; v1 has none, sagas are used instead.</li></ul>
+<ul><li>It must not let the Control Plane own truth or persistent state (ORCH-001, ORCH-002).</li></ul>
+<h2 id="1-3-reading-order">1.3 Reading order</h2>
+<div class="table-wrap"><table><thead><tr><th>Reader</th><th>Start at</th><th>Then</th></tr></thead><tbody><tr><td>Runtime engineer</td><td>Parts 2-6</td><td>Parts 9-12</td></tr><tr><td>SRE / operator</td><td>Parts 7-8, 13</td><td>Parts 14-16</td></tr><tr><td>Reviewer / architect</td><td>Parts 2-3, 17</td><td>Part 18 checklists</td></tr><tr><td>Conformance engineer</td><td>Parts 16-18</td><td>Milestones map Part 15</td></tr></tbody></table></div>
+<h1 id="part-2-architectural-ground-truth-for-distribution">Part 2 - Architectural Ground Truth for Distribution</h1>
+<p>Distribution changes physics, not ownership. The layer model (LAYER-001, downward-only dependencies) and the Layer Responsibility Matrix are unchanged when the runtime is spread across many nodes.</p>
+<h2 id="2-1-two-planes">2.1 Two planes</h2>
+<p>Control Plane decides; Data Plane carries. The Kernel never becomes the Control Plane. In the reference implementation the Kernel is the component that runs the Raft consensus for commits (IDR-001), but consensus is a mechanism for owning TRUTH, not for planning or orchestration.</p>
+<div class="table-wrap"><table><thead><tr><th>Plane</th><th>Owns</th><th>Consistency class</th><th>Distribution mechanism</th></tr></thead><tbody><tr><td>Control Plane</td><td>Plans / Engine Graph (never truth, never persistent state)</td><td>Not truth</td><td>Stateless, replan-safe</td></tr><tr><td>Kernel (Data/Truth)</td><td>TRUTH (commits)</td><td>CP (per-shard Raft)</td><td>Leader commit + follower apply</td></tr><tr><td>Observability</td><td>Metrics, logs, tracing, presence</td><td>AP</td><td>Gossip / eventual</td></tr></tbody></table></div>
+<h2 id="2-2-layer-responsibility-matrix-under-distribution">2.2 Layer Responsibility Matrix under distribution</h2>
+<div class="table-wrap"><table><thead><tr><th>Layer</th><th>Owns</th><th>Reads</th><th>Writes</th><th>Cannot</th></tr></thead><tbody><tr><td>Kernel</td><td>TRUTH (commits)</td><td>Committed state, WAL</td><td>WAL entries (committed outcomes)</td><td>Orchestrate / plan / execute</td></tr><tr><td>LCW</td><td>Working Memory / live state</td><td>Kernel truth</td><td>Working memory (not truth)</td><td>Own truth</td></tr><tr><td>Query</td><td>Nothing</td><td>Committed + working state</td><td>Nothing (READ-ONLY)</td><td>Mutate any state</td></tr><tr><td>Engine</td><td>Nothing persistent</td><td>Inputs (content-addressed)</td><td>Proposed effects only</td><td>Commit; hold durable state</td></tr><tr><td>Capability Fabric</td><td>Registry + bindings</td><td>Registry</td><td>Bindings</td><td>Own truth</td></tr><tr><td>Control Plane</td><td>Plan / Engine Graph</td><td>Everything to plan</td><td>Plans (non-persistent)</td><td>Own truth or persistent state</td></tr></tbody></table></div>
+<p>Registered invariants enforced here: ORCH-001 (only Kernel owns truth), OWN-001 (every state has exactly one owner), LAYER-001 (downward-only deps).</p>
+<h2 id="2-3-the-one-owner-rule-survives-sharding">2.3 The one-owner rule survives sharding</h2>
+<p>OWN-001 requires every state to have exactly one owner. SHARD-001 partitions state by tenant/workspace with an immutable partition key. Therefore each unit of truth has exactly one owning shard, and within that shard exactly one Raft leader may commit it. Sharding refines ownership; it never splits ownership of a single state across shards.</p>
+<h1 id="part-3-idr-001-005-the-reference-implementation-decisions">Part 3 - IDR-001..005: The Reference Implementation Decisions</h1>
+<p>The following table restates the reference implementation decisions verbatim in intent. They are non-normative: they are the reference way to satisfy the registered invariants, not new invariants themselves.</p>
+<div class="table-wrap"><table><thead><tr><th>IDR</th><th>Decision</th><th>Registered invariants it serves</th></tr></thead><tbody><tr><td>IDR-001</td><td>Kernel is the Control-Plane-of-commit using per-shard Raft: one Raft group per tenant/workspace shard; replicate committed OUTCOMES not engine invocations; engines run anywhere, only commit goes through the shard leader; Raft log = WAL = decision trace; no cross-shard atomic commit in v1 (use sagas).</td><td>ORCH-001, ORCH-003, OWN-001, SHARD-001</td></tr><tr><td>IDR-002</td><td>Replication: leader -&gt; followers + snapshots + WAL.</td><td>ORCH-003</td></tr><tr><td>IDR-003</td><td>Membership via Raft joint consensus.</td><td>OWN-001, SHARD-001</td></tr><tr><td>IDR-004</td><td>Per-shard leader election.</td><td>OWN-001</td></tr><tr><td>IDR-005</td><td>Append-only WAL + snapshots. Truth = CP; observability = AP.</td><td>ORCH-003</td></tr></tbody></table></div>
+<p>Wording note: "Kernel is CP" in IDR-001 refers to the CAP-theorem consistency class (Consistent + Partition-tolerant) of the truth path, not the ARVES Control Plane. The ARVES Control Plane still owns no truth (ORCH-001).</p>
+<h1 id="part-4-sharding-model-one-raft-group-per-tenant-workspace">Part 4 - Sharding Model: One Raft Group per Tenant/Workspace</h1>
+<p>SHARD-001 (registered) partitions by tenant/workspace and fixes the partition key as immutable. IDR-001 maps each shard to exactly one Raft group. This is the backbone of horizontal scale.</p>
+<h2 id="4-1-shard-identity-rules">4.1 Shard identity rules</h2>
+<ul><li>The partition key is (tenant, workspace) and is immutable for the life of the data (SHARD-001).</li></ul>
+<ul><li>Exactly one Raft group serves one shard; one shard is served by exactly one Raft group.</li></ul>
+<ul><li>A commit for shard S is ordered only by the Raft leader of S (IDR-004).</li></ul>
+<ul><li>No operation atomically spans two shards (no cross-shard atomic commit, IDR-001).</li></ul>
+<h2 id="4-2-shard-sizing-and-placement">4.2 Shard sizing and placement</h2>
+<div class="table-wrap"><table><thead><tr><th>Concern</th><th>Reference guidance</th><th>Rationale</th></tr></thead><tbody><tr><td>Group size</td><td>3 or 5 voting replicas per shard</td><td>Tolerate 1 or 2 replica failures</td></tr><tr><td>Placement</td><td>Replicas across fault domains (host/rack/zone)</td><td>Avoid correlated loss of quorum</td></tr><tr><td>Leadership spread</td><td>Balance leaders across nodes</td><td>Avoid hot leader nodes</td></tr><tr><td>Shard count</td><td>Grow shards with tenants/workspaces</td><td>Scale-out unit is the shard</td></tr></tbody></table></div>
+<h2 id="4-3-shard-sizing-checklist">4.3 Shard sizing checklist</h2>
+<ul><li>Confirm partition key is immutable and derivable at ingress (SHARD-001).</li></ul>
+<ul><li>Confirm each shard maps to exactly one Raft group (IDR-001).</li></ul>
+<ul><li>Confirm replica set spans independent fault domains.</li></ul>
+<ul><li>Confirm no request path assumes two shards commit atomically.</li></ul>
+<ul><li>Confirm leader placement is balanced and observable.</li></ul>
+<h1 id="part-5-the-commit-path-engine-anywhere-leader-commit-followe">Part 5 - The Commit Path: Engine-Anywhere -&gt; Leader Commit -&gt; Follower Apply</h1>
+<p>This is the most important flow in the volume. It is the mechanism by which ORCH-003 (execution replayable from recorded decision trace, NOT recomputation) and ORCH-001 (only Kernel owns truth) are honored under distribution.</p>
+<h2 id="5-1-the-canonical-sequence">5.1 The canonical sequence</h2>
+<div class="table-wrap"><table><thead><tr><th>Step</th><th>Where</th><th>What happens</th><th>Invariant</th></tr></thead><tbody><tr><td>1. Plan</td><td>Control Plane (any node)</td><td>Produces a plan / engine graph; owns no truth</td><td>ORCH-001, ORCH-002</td></tr><tr><td>2. Invoke engine</td><td>Any node (engine-anywhere)</td><td>Engine runs pure/stateless; content-addressable + idempotent</td><td>ORCH-004</td></tr><tr><td>3. Produce outcome</td><td>Any node</td><td>Engine emits a PROPOSED effect (an outcome), not a commit</td><td>ORCH-001</td></tr><tr><td>4. Route to leader</td><td>Client / router</td><td>Outcome routed to the leader of the owning shard</td><td>SHARD-001, IDR-004</td></tr><tr><td>5. Commit</td><td>Shard leader</td><td>Leader appends committed OUTCOME to Raft log (WAL)</td><td>IDR-001, IDR-005</td></tr><tr><td>6. Replicate</td><td>Leader -&gt; followers</td><td>Followers receive the committed outcome</td><td>IDR-002</td></tr><tr><td>7. Apply</td><td>Followers</td><td>Followers APPLY the committed outcome; they never recompute it</td><td>ORCH-003, IDR-001</td></tr></tbody></table></div>
+<h2 id="5-2-why-followers-apply-never-recompute">5.2 Why followers apply, never recompute</h2>
+<p>The Raft log stores committed OUTCOMES, not engine invocations (IDR-001). A follower deterministically applies the recorded outcome. This is exactly ORCH-003: execution is replayable from the recorded decision trace, not by recomputation. Recomputing on a follower would (a) risk divergence if the engine is nondeterministic, and (b) violate the decision-trace model.</p>
+<h2 id="5-3-engine-anywhere-constraints-orch-004">5.3 Engine-anywhere constraints (ORCH-004)</h2>
+<ul><li>Every engine/capability invocation MUST be idempotent (ORCH-004).</li></ul>
+<ul><li>Every invocation MUST be content-addressable so the same inputs map to the same identity (ORCH-004).</li></ul>
+<ul><li>Engines are pure/stateless and own nothing persistent; they emit proposed effects only.</li></ul>
+<ul><li>Only the shard leader may turn a proposed effect into a committed outcome.</li></ul>
+<ul><li>A retried invocation on a different node must not create a second truth (idempotency).</li></ul>
+<h2 id="5-4-commit-path-review-checklist">5.4 Commit-path review checklist</h2>
+<ul><li>Does the write go to the leader of the OWNING shard (partition key) and nowhere else?</li></ul>
+<ul><li>Is what gets replicated the OUTCOME, not the invocation?</li></ul>
+<ul><li>Do followers APPLY (deterministic) rather than RECOMPUTE?</li></ul>
+<ul><li>Is the engine invocation idempotent and content-addressable (ORCH-004)?</li></ul>
+<ul><li>If two shards are touched, is it a saga, not an atomic commit?</li></ul>
+<ul><li>Is the WAL entry sufficient to replay the decision (ORCH-003)?</li></ul>
+<h1 id="part-6-replication-leader-followers-snapshots-and-wal-idr-00">Part 6 - Replication: Leader, Followers, Snapshots, and WAL (IDR-002, IDR-005)</h1>
+<p>Replication makes truth durable and available within a shard. It does not create new truth; it copies committed outcomes.</p>
+<h2 id="6-1-replication-components">6.1 Replication components</h2>
+<div class="table-wrap"><table><thead><tr><th>Component</th><th>Role</th><th>Notes</th></tr></thead><tbody><tr><td>Leader</td><td>Orders and commits outcomes for the shard</td><td>One per shard (IDR-004)</td></tr><tr><td>Followers</td><td>Receive and apply committed outcomes</td><td>Serve bounded-staleness reads</td></tr><tr><td>WAL (append-only)</td><td>The Raft log = decision trace</td><td>Never mutated in place (IDR-005)</td></tr><tr><td>Snapshot</td><td>Compacted state at a log index</td><td>Bounds WAL growth, speeds recovery</td></tr></tbody></table></div>
+<h2 id="6-2-wal-as-decision-trace">6.2 WAL as decision trace</h2>
+<p>IDR-005 makes the WAL append-only; IDR-001 equates the Raft log with the WAL and the decision trace. This single artifact serves consensus ordering, durability, and ORCH-003 replay. It is never edited; corrections are new appended outcomes or saga compensations, never in-place mutation.</p>
+<h2 id="6-3-snapshotting-rules">6.3 Snapshotting rules</h2>
+<ul><li>A snapshot captures applied state up to a committed log index.</li></ul>
+<ul><li>WAL entries at or below a durable snapshot index may be truncated (compaction), preserving replayability from the snapshot forward.</li></ul>
+<ul><li>A follower far behind may be caught up via snapshot install rather than full log replay.</li></ul>
+<ul><li>Snapshots are per shard; there is no global snapshot (no cross-shard atomicity).</li></ul>
+<h2 id="6-4-replication-health-checklist">6.4 Replication health checklist</h2>
+<ul><li>Quorum is reachable for each shard (majority of voters live).</li></ul>
+<ul><li>Follower apply lag is within the bounded-staleness budget.</li></ul>
+<ul><li>Snapshot cadence bounds WAL size and recovery time.</li></ul>
+<ul><li>WAL is append-only in storage config (no in-place rewrite).</li></ul>
+<ul><li>Snapshot + tail-WAL together fully reconstruct shard state.</li></ul>
+<h1 id="part-7-leader-election-per-shard-idr-004">Part 7 - Leader Election per Shard (IDR-004)</h1>
+<p>Each shard elects its own leader independently. There is no global leader; a cluster of 10,000 nodes has many shard leaders spread across nodes.</p>
+<h2 id="7-1-election-essentials">7.1 Election essentials</h2>
+<ul><li>Election is per shard (IDR-004); losing one shard leader does not affect other shards.</li></ul>
+<ul><li>A term increments on each election; a leader commits only entries of its own term until it has committed one entry of the current term.</li></ul>
+<ul><li>A candidate needs a quorum (majority of voters) to win.</li></ul>
+<ul><li>During an election the shard cannot commit new outcomes (write unavailability window); reads at eventual/bounded tiers may still be served by followers.</li></ul>
+<h2 id="7-2-election-and-the-cp-boundary">7.2 Election and the CP boundary</h2>
+<p>Because truth is CP, a shard that cannot form a quorum refuses new commits rather than accepting divergent truth. This is the deliberate CP choice from IDR-005: consistency over availability for the truth path.</p>
+<h2 id="7-3-election-tuning-table">7.3 Election tuning table</h2>
+<div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Effect if too low</th><th>Effect if too high</th></tr></thead><tbody><tr><td>Election timeout</td><td>Spurious elections, leader churn</td><td>Slow failover, longer write outage</td></tr><tr><td>Heartbeat interval</td><td>Network overhead</td><td>Late failure detection</td></tr><tr><td>Pre-vote</td><td>N/A (recommended on)</td><td>Avoids disruptive term inflation</td></tr></tbody></table></div>
+<h1 id="part-8-membership-changes-via-joint-consensus-idr-003">Part 8 - Membership Changes via Joint Consensus (IDR-003)</h1>
+<p>Adding, removing, or replacing replicas of a shard changes the voting set. IDR-003 uses Raft joint consensus so that the change itself is committed through the log and never creates two disjoint majorities.</p>
+<h2 id="8-1-joint-consensus-procedure">8.1 Joint consensus procedure</h2>
+<div class="table-wrap"><table><thead><tr><th>Phase</th><th>Configuration active</th><th>Quorum requirement</th></tr></thead><tbody><tr><td>Start</td><td>C(old)</td><td>Majority of C(old)</td></tr><tr><td>Joint</td><td>C(old) + C(new)</td><td>Majority of BOTH C(old) and C(new)</td></tr><tr><td>Finish</td><td>C(new)</td><td>Majority of C(new)</td></tr></tbody></table></div>
+<p>Because the joint phase requires a majority in both old and new configurations, no split-brain configuration can commit conflicting truth during reconfiguration.</p>
+<h2 id="8-2-membership-change-checklist">8.2 Membership change checklist</h2>
+<ul><li>Change one membership step at a time; let each commit before the next.</li></ul>
+<ul><li>Add a new replica as a non-voting learner first; promote after it catches up.</li></ul>
+<ul><li>Never remove a voter that would drop the remaining set below quorum.</li></ul>
+<ul><li>Verify the new replica set still spans independent fault domains.</li></ul>
+<ul><li>Confirm the reconfiguration entry itself is committed in the WAL.</li></ul>
+<h1 id="part-9-storage-append-only-wal-and-snapshots-idr-005">Part 9 - Storage: Append-Only WAL and Snapshots (IDR-005)</h1>
+<p>Storage is where the decision trace lives. The append-only WAL plus periodic snapshots is the reference persistence model for the truth path.</p>
+<h2 id="9-1-storage-layering">9.1 Storage layering</h2>
+<div class="table-wrap"><table><thead><tr><th>Artifact</th><th>Mutability</th><th>Purpose</th><th>Owner</th></tr></thead><tbody><tr><td>WAL</td><td>Append-only</td><td>Ordered committed outcomes = decision trace</td><td>Kernel</td></tr><tr><td>Snapshot</td><td>Immutable once written</td><td>Compacted applied state</td><td>Kernel</td></tr><tr><td>Working memory (LCW)</td><td>Mutable, non-truth</td><td>Live state</td><td>LCW</td></tr><tr><td>Query indexes</td><td>Derived, rebuildable</td><td>Read acceleration</td><td>Query (read-only)</td></tr></tbody></table></div>
+<p>Note: PERSIST-001 and LCW-001 are proposed (pending CCP) and are NOT relied upon as normative here; the durability guarantee used in this volume rests on IDR-005 and ORCH-003.</p>
+<h2 id="9-2-storage-durability-checklist">9.2 Storage durability checklist</h2>
+<ul><li>A commit is acknowledged only after the outcome is durable on a quorum of replicas.</li></ul>
+<ul><li>WAL fsync policy matches the required durability class.</li></ul>
+<ul><li>Snapshots are checksummed and self-describing (include the log index they cover).</li></ul>
+<ul><li>Recovery replays: load latest snapshot, then apply WAL tail.</li></ul>
+<ul><li>No process ever rewrites a committed WAL entry in place.</li></ul>
+<h1 id="part-10-the-cp-ap-boundary-truth-is-cp-observability-is-ap">Part 10 - The CP/AP Boundary: Truth is CP, Observability is AP</h1>
+<p>IDR-005 draws a hard line: the truth path is CP (consistent, partition-tolerant, sacrificing availability under partition), while observability (metrics, logs, tracing, presence) is AP (available, partition-tolerant, eventually consistent).</p>
+<h2 id="10-1-classifying-a-piece-of-state">10.1 Classifying a piece of state</h2>
+<div class="table-wrap"><table><thead><tr><th>State</th><th>Class</th><th>Behavior under partition</th></tr></thead><tbody><tr><td>Committed truth</td><td>CP</td><td>Refuse commit without quorum</td></tr><tr><td>Working memory / live state</td><td>Non-truth</td><td>May be stale; reconciles from truth</td></tr><tr><td>Metrics / logs / traces</td><td>AP</td><td>Continue collecting; converge later</td></tr><tr><td>Presence / liveness</td><td>AP</td><td>Best-effort, eventually consistent</td></tr></tbody></table></div>
+<h2 id="10-2-cp-ap-boundary-rules">10.2 CP/AP boundary rules</h2>
+<ul><li>Never promote AP observability data into a truth decision without committing through the shard leader.</li></ul>
+<ul><li>Never block the truth path waiting on AP subsystems (metrics must not gate commits).</li></ul>
+<ul><li>A partitioned minority may still emit observability but MUST NOT commit truth.</li></ul>
+<ul><li>Do not read presence/liveness as if it were committed truth.</li></ul>
+<h1 id="part-11-read-consistency-tiers">Part 11 - Read Consistency Tiers</h1>
+<p>Reads choose a tier by need. The Query layer is READ-ONLY (writes nothing); tier selection changes where and how fresh the read is, never whether it can mutate.</p>
+<div class="table-wrap"><table><thead><tr><th>Tier</th><th>Served by</th><th>Guarantee</th><th>Use when</th></tr></thead><tbody><tr><td>Linearizable</td><td>Shard leader</td><td>Sees latest committed outcome</td><td>Read-after-write, safety-critical checks</td></tr><tr><td>Bounded-staleness</td><td>Follower</td><td>At most a bounded lag behind leader</td><td>Dashboards with freshness SLA</td></tr><tr><td>Eventual</td><td>Any replica</td><td>Converges eventually</td><td>High-volume, tolerant reads</td></tr></tbody></table></div>
+<h2 id="11-1-read-tier-selection-checklist">11.1 Read-tier selection checklist</h2>
+<ul><li>Does the caller require read-after-its-own-write? -&gt; linearizable (leader).</li></ul>
+<ul><li>Can the caller tolerate a known lag bound? -&gt; bounded-staleness (follower).</li></ul>
+<ul><li>Is throughput more important than freshness? -&gt; eventual (replica).</li></ul>
+<ul><li>Never issue a write through any read tier (Query is READ-ONLY).</li></ul>
+<ul><li>Never assume eventual reads reflect the latest commit.</li></ul>
+<h1 id="part-12-no-cross-shard-atomic-commit-sagas-instead">Part 12 - No Cross-Shard Atomic Commit: Sagas Instead</h1>
+<p>IDR-001 states there is NO cross-shard atomic commit in v1. Any workflow spanning multiple shards is expressed as a saga: a sequence of per-shard committed steps, each with a compensating action, coordinated by the (stateless) Control Plane.</p>
+<h2 id="12-1-saga-structure">12.1 Saga structure</h2>
+<div class="table-wrap"><table><thead><tr><th>Element</th><th>Meaning</th><th>Ownership</th></tr></thead><tbody><tr><td>Forward step</td><td>A single-shard committed outcome</td><td>Owning shard leader</td></tr><tr><td>Compensation</td><td>An action that offsets a committed forward step</td><td>Owning shard leader</td></tr><tr><td>Coordinator</td><td>Sequences steps and triggers compensation</td><td>Control Plane (no truth)</td></tr><tr><td>Saga log</td><td>Progress record for replay</td><td>Per-shard WAL entries</td></tr></tbody></table></div>
+<h2 id="12-2-saga-design-rules">12.2 Saga design rules</h2>
+<ul><li>Each forward step commits atomically within ONE shard only.</li></ul>
+<ul><li>Every forward step MUST have a defined, idempotent compensation (ORCH-004).</li></ul>
+<ul><li>Compensations run in reverse order of committed forward steps.</li></ul>
+<ul><li>The coordinator holds no truth and no persistent state (ORCH-002); its progress is reconstructable from per-shard WAL entries (ORCH-003).</li></ul>
+<ul><li>There is no global lock and no two-phase atomic commit across shards.</li></ul>
+<h2 id="12-3-saga-checklist">12.3 Saga checklist</h2>
+<ul><li>Is every cross-shard workflow modeled as independent single-shard commits?</li></ul>
+<ul><li>Does each step have a tested compensating step?</li></ul>
+<ul><li>Are steps and compensations idempotent and content-addressable?</li></ul>
+<ul><li>Can the saga be replayed from recorded decision traces (ORCH-003)?</li></ul>
+<ul><li>Is partial progress safe if the coordinator crashes and restarts elsewhere?</li></ul>
+<h1 id="part-13-failure-taxonomy-and-compensation-amendment-006">Part 13 - Failure Taxonomy and Compensation (Amendment-006)</h1>
+<p>Amendment-006 defines the failure model. The core principle: partial execution is rolled back by NOT committing; anything already committed is compensated saga-style. Node crash, partition, and split-brain are handled by the IDR mechanisms above.</p>
+<h2 id="13-1-failure-taxonomy">13.1 Failure taxonomy</h2>
+<div class="table-wrap"><table><thead><tr><th>Failure</th><th>Reference response</th><th>Mechanism</th></tr></thead><tbody><tr><td>Partial execution (pre-commit)</td><td>Roll back by NOT committing</td><td>Nothing enters WAL</td></tr><tr><td>Committed effect must be undone</td><td>Saga compensation</td><td>Amendment-006 + Part 12</td></tr><tr><td>Node crash</td><td>Follower catches up via WAL/snapshot; re-elect if leader</td><td>IDR-002, IDR-004</td></tr><tr><td>Network partition</td><td>Minority refuses commits (CP); majority continues</td><td>IDR-005 CP boundary</td></tr><tr><td>Split-brain attempt</td><td>Prevented by quorum + joint consensus</td><td>IDR-003, IDR-004</td></tr><tr><td>Slow / laggy follower</td><td>Snapshot install; excluded from quorum until caught up</td><td>IDR-002, IDR-005</td></tr></tbody></table></div>
+<h2 id="13-2-key-rule-no-partial-truth">13.2 Key rule: no partial truth</h2>
+<p>There is never a half-committed truth. Either an outcome is committed (durable on a quorum, in the WAL) or it does not exist as truth. This is what makes "roll back by not committing" correct.</p>
+<h2 id="13-3-failure-handling-checklist">13.3 Failure-handling checklist</h2>
+<ul><li>Confirm pre-commit failures leave NO WAL entry (nothing to undo).</li></ul>
+<ul><li>Confirm every committed cross-shard effect has a compensation path.</li></ul>
+<ul><li>Confirm a partitioned minority cannot commit.</li></ul>
+<ul><li>Confirm a crashed leader triggers a clean per-shard re-election.</li></ul>
+<ul><li>Confirm recovery never recomputes committed outcomes (ORCH-003).</li></ul>
+<h1 id="part-14-cancellation-priority-and-preemption-amendment-005">Part 14 - Cancellation, Priority, and Preemption (Amendment-005)</h1>
+<p>Amendment-005 specifies cancellation as cooperative and idempotent, producing no partial truth, and priority/preemption via checkpoint -&gt; replay.</p>
+<h2 id="14-1-cancellation-model">14.1 Cancellation model</h2>
+<ul><li>Cancellation is cooperative: work observes a cancel signal at safe points.</li></ul>
+<ul><li>Cancellation is idempotent: repeating a cancel has the same effect (ORCH-004 alignment).</li></ul>
+<ul><li>Cancellation produces no partial truth: uncommitted work simply is not committed.</li></ul>
+<ul><li>Already-committed effects are removed via saga compensation, not by editing the WAL.</li></ul>
+<h2 id="14-2-priority-and-preemption">14.2 Priority and preemption</h2>
+<div class="table-wrap"><table><thead><tr><th>Concept</th><th>Behavior</th><th>Truth impact</th></tr></thead><tbody><tr><td>Priority</td><td>Higher-priority work may preempt lower</td><td>None until commit</td></tr><tr><td>Checkpoint</td><td>Capture resumable progress (non-truth)</td><td>Not a commit</td></tr><tr><td>Replay</td><td>Resume from checkpoint / decision trace</td><td>Deterministic (ORCH-003)</td></tr><tr><td>Preemption</td><td>Pause lower-priority work, resume later</td><td>No partial truth left behind</td></tr></tbody></table></div>
+<h2 id="14-3-cancellation-preemption-checklist">14.3 Cancellation/preemption checklist</h2>
+<ul><li>Does long-running work poll for cancellation at safe checkpoints?</li></ul>
+<ul><li>Is cancellation idempotent and side-effect-safe?</li></ul>
+<ul><li>Does preemption checkpoint resumable (non-truth) state only?</li></ul>
+<ul><li>Does resume rely on replay of the decision trace, not recomputation of committed truth?</li></ul>
+<ul><li>Is any committed effect undone only via compensation?</li></ul>
+<h1 id="part-15-distribution-readiness-rules-and-milestone-map">Part 15 - Distribution-Readiness Rules and Milestone Map</h1>
+<p>Distribution readiness is governed by the registered invariants ORCH-002, ORCH-004, and SHARD-001. A component is distribution-ready only if it satisfies all three.</p>
+<h2 id="15-1-distribution-readiness-rules">15.1 Distribution-readiness rules</h2>
+<div class="table-wrap"><table><thead><tr><th>Rule</th><th>Registered invariant</th><th>Test</th></tr></thead><tbody><tr><td>Control Plane holds no persistent state</td><td>ORCH-002</td><td>Can any Control Plane node be killed with no truth loss?</td></tr><tr><td>Invocations idempotent + content-addressable</td><td>ORCH-004</td><td>Does a replayed invocation create a second truth? (must be no)</td></tr><tr><td>Partitioned by immutable key</td><td>SHARD-001</td><td>Is the partition key fixed and derivable at ingress?</td></tr><tr><td>Replayable from decision trace</td><td>ORCH-003</td><td>Can state be rebuilt from WAL + snapshot without recompute?</td></tr><tr><td>Single owner per state</td><td>OWN-001</td><td>Does exactly one shard/leader own each datum?</td></tr></tbody></table></div>
+<h2 id="15-2-milestone-map-frozen-names-i1-i6">15.2 Milestone map (frozen names I1..I6)</h2>
+<div class="table-wrap"><table><thead><tr><th>Milestone</th><th>Scope in this playbook</th><th>Primary IDR/invariant coverage</th></tr></thead><tbody><tr><td>I1 Distributed Runtime</td><td>Engine-anywhere, commit routing, WAL basics</td><td>IDR-001, IDR-005, ORCH-004</td></tr><tr><td>I2 Cluster Kernel</td><td>Per-shard Raft, replication, election, membership</td><td>IDR-001..004, OWN-001, SHARD-001</td></tr><tr><td>I3 Distributed Query</td><td>Read tiers across leader/followers/replicas</td><td>Read tiers, Query READ-ONLY</td></tr><tr><td>I4 Capability Scheduling</td><td>Scheduling idempotent capability invocations</td><td>ORCH-004, ORCH-002</td></tr><tr><td>I5 Multi-Agent Runtime</td><td>Multi-agent workflows via sagas across shards</td><td>IDR-001 (no cross-shard atomic), Amendment-005/006</td></tr><tr><td>I6 Reference Products</td><td>Products on the distributed runtime, spec unchanged</td><td>All registered invariants</td></tr></tbody></table></div>
+<p>These six milestone names are used EXACTLY as frozen in Baseline Part 5. No other milestone names are introduced.</p>
+<h1 id="part-16-scaling-to-10-000-nodes">Part 16 - Scaling to ~10,000 Nodes</h1>
+<p>Scale in ARVES comes from many independent shards, not from one large consensus group. The scaling unit is the shard (SHARD-001); the consensus cost is bounded per shard, not per cluster.</p>
+<h2 id="16-1-why-per-shard-raft-scales">16.1 Why per-shard Raft scales</h2>
+<ul><li>Consensus cost is O(replicas per shard) - typically 3 or 5 - not O(cluster size).</li></ul>
+<ul><li>Shards are independent: a 10,000-node cluster runs thousands of small Raft groups.</li></ul>
+<ul><li>Leaders are spread across nodes; no single node orders all truth.</li></ul>
+<ul><li>Adding tenants/workspaces adds shards, which adds parallel commit capacity.</li></ul>
+<h2 id="16-2-scaling-limits-and-mitigations">16.2 Scaling limits and mitigations</h2>
+<div class="table-wrap"><table><thead><tr><th>Limit</th><th>Symptom</th><th>Mitigation</th></tr></thead><tbody><tr><td>Hot shard (one big tenant)</td><td>One Raft group saturates</td><td>Sub-partition within the tenant key policy (still immutable per SHARD-001)</td></tr><tr><td>Leader hotspot</td><td>One node hosts too many leaders</td><td>Leadership rebalancing</td></tr><tr><td>WAL growth</td><td>Disk pressure</td><td>Snapshot + compaction (IDR-005)</td></tr><tr><td>Cross-shard workflows</td><td>Saga latency</td><td>Minimize spans; parallelize independent steps</td></tr><tr><td>Membership churn</td><td>Reconfiguration storms</td><td>Learners + one-at-a-time joint consensus (IDR-003)</td></tr></tbody></table></div>
+<h2 id="16-3-scaling-readiness-checklist">16.3 Scaling readiness checklist</h2>
+<ul><li>Is the scale unit the shard, not a global group?</li></ul>
+<ul><li>Are Raft groups small (3 or 5 voters) and independent?</li></ul>
+<ul><li>Are leaders balanced across nodes at target node count?</li></ul>
+<ul><li>Is snapshot/compaction keeping WAL bounded per shard?</li></ul>
+<ul><li>Are cross-shard sagas rare and short relative to single-shard commits?</li></ul>
+<h1 id="part-17-anti-patterns-and-guardrails">Part 17 - Anti-Patterns and Guardrails</h1>
+<p>These are the ways engineers accidentally break the model. Each maps to a registered invariant or an explicit IDR prohibition.</p>
+<div class="table-wrap"><table><thead><tr><th>Anti-pattern</th><th>Why it is wrong</th><th>Rule violated</th></tr></thead><tbody><tr><td>Follower recomputes the outcome</td><td>Risks divergence; breaks decision-trace model</td><td>ORCH-003, IDR-001</td></tr><tr><td>Control Plane stores durable state</td><td>Control Plane must be stateless</td><td>ORCH-002</td></tr><tr><td>Two shards committed atomically</td><td>No cross-shard atomic commit in v1</td><td>IDR-001</td></tr><tr><td>Writing through a read tier</td><td>Query is READ-ONLY</td><td>Layer matrix (Query)</td></tr><tr><td>Editing a committed WAL entry</td><td>WAL is append-only</td><td>IDR-005</td></tr><tr><td>Mutable partition key</td><td>Ownership would move</td><td>SHARD-001</td></tr><tr><td>Non-idempotent engine call</td><td>Retry creates duplicate truth</td><td>ORCH-004</td></tr><tr><td>Minority commits during partition</td><td>Split-brain truth</td><td>IDR-004/005 CP boundary</td></tr><tr><td>Treating proposed invariants as law</td><td>They are pending CCP</td><td>Governance (CCP-GATE)</td></tr></tbody></table></div>
+<h2 id="17-1-proposed-invariant-guardrail">17.1 Proposed-invariant guardrail</h2>
+<p>G-001, QUERY-001, LCW-001, PERSIST-001, CAP-001..009, and ENG-001..005 are PROPOSED (pending CCP) and INFORMATIVE only. No behaviour may be ratified against them without a conformance scenario (CCP-GATE). This volume never leans on them as normative.</p>
+<h1 id="part-18-consolidated-engineering-checklists">Part 18 - Consolidated Engineering Checklists</h1>
+<h2 id="18-1-new-shard-bring-up-checklist">18.1 New-shard bring-up checklist</h2>
+<ul><li>Immutable partition key defined and derivable (SHARD-001).</li></ul>
+<ul><li>One Raft group provisioned for the shard (IDR-001).</li></ul>
+<ul><li>3 or 5 voters placed across fault domains.</li></ul>
+<ul><li>Leader elected; WAL and snapshot storage healthy (IDR-004, IDR-005).</li></ul>
+<ul><li>Read tiers wired (leader/follower/replica).</li></ul>
+<h2 id="18-2-commit-path-certification-checklist">18.2 Commit-path certification checklist</h2>
+<ul><li>Writes route to the owning shard leader only.</li></ul>
+<ul><li>Only OUTCOMES are replicated; followers apply, never recompute (ORCH-003).</li></ul>
+<ul><li>Engine invocations idempotent + content-addressable (ORCH-004).</li></ul>
+<ul><li>No cross-shard atomic commit; multi-shard = saga (IDR-001).</li></ul>
+<h2 id="18-3-resilience-checklist">18.3 Resilience checklist</h2>
+<ul><li>Quorum loss =&gt; refuse commits, not divergent truth (CP).</li></ul>
+<ul><li>Crash recovery =&gt; snapshot + WAL tail, no recompute.</li></ul>
+<ul><li>Membership changes =&gt; joint consensus, one step at a time (IDR-003).</li></ul>
+<ul><li>Cross-shard undo =&gt; saga compensation (Amendment-006).</li></ul>
+<ul><li>Cancellation =&gt; cooperative, idempotent, no partial truth (Amendment-005).</li></ul>
+<h2 id="18-4-governance-checklist">18.4 Governance checklist</h2>
+<ul><li>Only registered invariants treated as normative.</li></ul>
+<ul><li>IDR-001..005 treated as reference (non-normative) decisions.</li></ul>
+<ul><li>Proposed invariants flagged proposed (pending CCP).</li></ul>
+<ul><li>Milestone names used exactly as I1..I6.</li></ul>
+<ul><li>No new layers, invariants, milestones, or architecture introduced.</li></ul>
+<p><em>Final Definition  A distributed ARVES runtime is many small per-shard Raft groups that commit outcomes through one shard leader and apply them everywhere, so that TRUTH stays single-owned and CP, observability stays AP, and scale to ~10,000 nodes comes from independent shards and sagas - never from cross-shard atomic commits.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=1;</script>
+<script src="../search.js"></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Certification Program · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html" class="active">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-certification-program-the-evidence-os">ARVES Certification Program — the Evidence OS</h1>
+<p><strong>Status:</strong> living-repo (ED-001); the operating framework of the <strong>Standard Validation Era</strong>. It defines how any ARVES claim earns (and keeps) an <strong>Evidence Level</strong>, and how a runtime becomes <strong>certified</strong>. It invents no architecture; it grades evidence.</p>
+<blockquote><p><strong>Era philosophy.</strong> You are no longer building ARVES. You are trying to prove ARVES wrong. If you fail, only then ARVES becomes stronger. The KPI is <strong>Evidence Increased</strong>, not "Tests Passed." Nothing is ever "Done"; it only earns a level.</p></blockquote>
+<hr>
+<h2 id="1-the-evidence-tiers-what-a-claim-can-earn">1. The evidence tiers (what a claim can earn)</h2>
+<p>Five tiers, cumulative — each assumes the ones below it. The tiers map onto the L0..L4 shorthand used elsewhere.</p>
+<div class="table-wrap"><table><thead><tr><th>Tier</th><th>Level</th><th>The claim is…</th><th>Earned when</th></tr></thead><tbody><tr><td><strong>Scientific</strong></td><td>L0</td><td><em>specified &amp; sound</em> — defined in the frozen corpus or a ratified ACS, internally consistent, assumptions stated</td><td>spec text exists AND survives scientific review (no unproven load-bearing assumption left implicit)</td></tr><tr><td><strong>Engineering</strong></td><td>L1</td><td><em>implemented &amp; verified</em> — reference code produces the behaviour and gates hold</td><td>unit + behaviour + architecture-gate tests pass</td></tr><tr><td><strong>Implementation</strong></td><td>L2</td><td><em>conformance-proven</em> — passes the executable conformance + property + negative + differential-fuzz suites</td><td>Conformance Platform PASS incl. rejection vectors; property/fuzz clean</td></tr><tr><td><strong>Independent</strong></td><td>L3</td><td><em>reproduced by another implementation</em></td><td>≥1 other implementation reproduces it byte-for-byte / behaviourally (see independence grades)</td></tr><tr><td><strong>Industrial</strong></td><td>L4</td><td><em>certified &amp; operable at scale</em> — third-party certified; fault/replay/perf evidence under load</td><td>Certification granted to a <strong>third-party</strong> runtime; fault-injection + replay + performance evidence</td></tr></tbody></table></div>
+<p>A property's Evidence Level is the <strong>highest tier for which every lower tier also holds</strong>. A gap at any lower tier caps the level.</p>
+<h2 id="2-independence-grades-the-honesty-gate-never-launder-this">2. Independence grades (the honesty gate — never launder this)</h2>
+<p>"Independent" is not binary. Every Independent-tier claim MUST carry its grade:</p>
+<div class="table-wrap"><table><thead><tr><th>Grade</th><th>Meaning</th><th>Counts as…</th></tr></thead><tbody><tr><td><strong>G0 self</strong></td><td>verified only by the reference / same author &amp; context</td><td>NOT independent</td></tr><tr><td><strong>G1 same-process independent</strong></td><td>a fresh-context implementation, <strong>Kit-only</strong>, reference source forbidden, but produced inside this program</td><td>partial — real signal, not proof</td></tr><tr><td><strong>G2 third-party independent</strong></td><td>a different team/process with <strong>no help and no reference access</strong>, e.g. a stranger from a public download</td><td>the real thing</td></tr></tbody></table></div>
+<p>The current ACS Python implementation is <strong>G1</strong> — honest, valuable, but not G2. The Era-3 <strong>exit gate</strong> is a <strong>G2</strong> result:</p>
+<blockquote><p>A stranger downloads ONLY the Standard Kit from a public source, implements a runtime, and PASSES certification — <em>you did not help.</em></p></blockquote>
+<p>Until a G2 result exists, no ARVES claim may be reported as fully "independent."</p>
+<h2 id="3-evidence-os-the-dimensions-of-evidence">3. Evidence OS — the dimensions of evidence</h2>
+<p>Conformance is only one kind of evidence. The Evidence OS tracks ten dimensions; a mature property accumulates evidence across many of them:</p>
+<p><code>Behaviour · Differential · Formal · Performance · Fault · Replay · Independent · Security · Certification · Academic</code></p>
+<p>Each dimension is produced by a <strong>destroy-office</strong> whose job is to <em>fail</em> the claim: Scientific Review (sound?), Security (break it), Performance/Robustness (scale it), Academic (would SOSP/OSDI/PLDI accept it?), Standards (would an IETF WG approve it?), Independent Runtime (can another team build it?). A dimension with no adversarial attempt against it is graded <code>none</code>, not <code>strong</code>.</p>
+<h2 id="4-the-evidence-ledger">4. The Evidence Ledger</h2>
+<p>The single source of truth for "where does the evidence stand." One row per claim:</p>
+<p><code>claim · dimension(s) · evidence level (L0..L4) · verifier · reproduction command · independence grade · status · artifacts</code></p>
+<ul><li><strong>Machine-verifiable rows</strong> (Behaviour/Differential/Implementation) are regenerated by <code>evidence_probe.py</code>, which actually runs the suites — so those rows cannot drift from reality (they fail loudly if the claim regresses).</li><li><strong>Declared rows</strong> (Formal/Academic/Security/third-party Independent) cite the artifact and status; they are earned by the destroy-offices, not asserted.</li></ul>
+<p>The ledger lives at <code>EVIDENCE_LEDGER.md</code> (human) + <code>evidence_ledger.tsv</code> (machine). "Evidence Increased" is measured as: rows advancing a tier, dimensions moving off <code>none</code>, and independence grades moving G0→G1→G2.</p>
+<h2 id="5-runtime-certification-the-exit-gate-mechanics">5. Runtime certification (the exit gate mechanics)</h2>
+<p>A runtime (not a single claim) is certified against the Kit:</p>
+<ol><li><strong>L1 Core Runtime</strong> — passes ACS conformance (positive + core negative vectors).</li><li><strong>L2 Interop</strong> — differential-identical to another implementation on the golden + fuzz corpus.</li><li><strong>L3 Independent</strong> — the submitting implementation is G1 or better.</li><li><strong>L4 Certified Product</strong> — G2 third-party, plus fault/replay/performance evidence.</li></ol>
+<p>A third party self-certifies with <strong>only the Kit</strong>: run the conformance procedure (<code>standard/conformance/CONFORMANCE.md</code>), produce an ARVES Conformance Report, and (for L2) exchange golden/fuzz corpora with a peer to show byte-identical verdicts. No reference source is required or permitted as input.</p>
+<h2 id="6-how-this-era-runs">6. How this era runs</h2>
+<p>Each validation round: the destroy-offices attack → confirmed findings are fixed or recorded as Standard Defects → the Evidence Ledger is updated → the round's net effect on evidence is reported. Repeat until the exit gate (G2 third-party PASS) is met, then Era 4 (Industrialization: I2–I6, Kernel Integration) may begin — on validated ground.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

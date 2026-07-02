@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cognitive Memory · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html" class="active">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-cognitive-memory-cognitive-memory-p2">@arves/cognitive-memory — Cognitive Memory (P2)</h1>
+<p><strong>Three systems. One truth. Full audit. Exact replay. Provable reasoning.</strong></p>
+<p>Cognitive Memory is the flagship of the ARVES Cognitive Application Platform and the <strong>common core</strong> of everything above it — Personal AI, Enterprise AI, and every industry solution build on this. It answers the only question that matters now: <em>what can you do with ARVES that was impossible before?</em></p>
+<h2 id="impossible-before-possible-with-arves">Impossible before → Possible with ARVES</h2>
+<p>Wire three systems that describe the same reality in three different schemas — an email invite, a calendar event, a CRM activity — into Cognitive Memory. Because <strong>identity is the content address</strong>, they collapse to a single truth automatically. You get, for free:</p>
+<div class="table-wrap"><table><thead><tr><th>Capability</th><th>What you see in the demo</th></tr></thead><tbody><tr><td><strong>Identity</strong></td><td>three schemas → one identical <code>ContentId</code></td></tr><tr><td><strong>Deduplication</strong></td><td>three sources → one truth in memory</td></tr><tr><td><strong>Evidence</strong></td><td>that truth is attested by 3 independent systems (provenance)</td></tr><tr><td><strong>Truth</strong></td><td>the canonical fact is exact — a nanosecond timestamp never drifts</td></tr><tr><td><strong>Audit</strong></td><td>an append-only, tamper-evident chain (alter any past event → the head changes)</td></tr><tr><td><strong>Replay</strong></td><td>the whole memory state is a deterministic content address — re-ingest → identical</td></tr><tr><td><strong>Reasoning</strong></td><td>a conclusion is content-addressed over its supporting truths — reproducible and defensible</td></tr></tbody></table></div>
+<p>It also <strong>surfaces conflict</strong> instead of hiding it: if the CRM disagrees on the time, you get two distinct truths, not a silent fuzzy merge.</p>
+<h2 id="quick-start">Quick start</h2>
+<pre><code class="lang-js">import { CognitiveMemory } from '@arves/cognitive-memory';
+import { allSources } from '@arves/cognitive-memory/connectors';
+
+const memory = new CognitiveMemory();
+for (const observation of allSources()) memory.ingest(observation);
+
+memory.truths();                       // one deduplicated truth, with its 3 sources
+memory.root();                         // deterministic address of the whole state (replay)
+memory.reason('Ada attended Q3 Review', [truthId]); // reproducible, evidence-backed conclusion</code></pre>
+<pre><code>node examples/three-systems.mjs   # the flagship demo (proves all six capabilities, exits 0)</code></pre>
+<h2 id="how-it-is-built-the-five-product-rules">How it is built (the five product rules)</h2>
+<ul><li><strong>Platform-first:</strong> consumes <code>@arves/sdk</code> (P1) → <code>arves-standard-kit 0.2.0</code>; modifies no platform file (IDR-006).</li><li><strong>Value-first:</strong> a working demo, runnable today.</li><li><strong>Evidence-first:</strong> the demo <em>asserts</em> each of the six capabilities — the product is simultaneously a proof of ARVES.</li><li><strong>Developer-first:</strong> ingest + reason in a handful of lines.</li><li><strong>Production-first:</strong> connectors carry real observation shapes (only the transport is stubbed); the memory, audit chain, and reasoning are written to become the real product.</li></ul>
+<p>Next: <strong>P3 Agent Runtime</strong> turns these truths into reasoning, planning, and actions.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

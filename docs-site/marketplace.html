@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marketplace · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html" class="active">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-marketplace-marketplace-p7">@arves/marketplace — Marketplace (P7)</h1>
+<p>The <strong>distribution layer</strong> of the ARVES ecosystem: one party <strong>publishes</strong> a certified, signed capability; any other party <strong>discovers, installs, and runs</strong> it on the frozen Runtime v1.0 — producing truth. Publisher and consumer never coordinate. The marketplace holds no truth and runs nothing; it only accepts artifacts that are <strong>certified</strong> (P6.5 conformance) and whose <strong>content-addressed signature verifies</strong>, and it refuses uncertified, tampered, or duplicate-version publishes.</p>
+<pre><code>Publisher → author → certify → sign → PUBLISH →  Marketplace  → INSTALL → run → Truth
+Consumer  ────────────────────────── discover ──┘                      (frozen Runtime v1.0)</code></pre>
+<h2 id="run">Run</h2>
+<pre><code>cargo build -p arves-bridge --bin arves-bridge
+node examples/publish-install.mjs      # publish (Acme) → install+run (a different org) — exits 0</code></pre>
+<h2 id="why-it-matters">Why it matters</h2>
+<p>This is the loop that makes ARVES self-sustaining: a company publishes a Risk engine, a hospital installs a Radiology capability, a developer ships a connector — all certified, signed, and running on the same frozen runtime, with no coordination and no runtime change. Combined with P6.5 (authoring) it answers the platform KPI — <em>how much value do others create on ARVES?</em> Next: the <strong>ARVES Foundation</strong> (governance + registry + multiple certified runtimes behind one conformance), so the ecosystem outlives any single maintainer.</p>
+<h2 id="boundary">Boundary</h2>
+<p>Consumes P6.5 + the frozen Runtime v1.0; edits no runtime or spec file. It is pure distribution — certification and integrity are enforced, execution happens in the consumer's host against the frozen runtime.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

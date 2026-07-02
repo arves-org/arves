@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Cognitive OS · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html" class="active">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-personal-os-personal-cognitive-os-p4">@arves/personal-os — Personal Cognitive OS (P4)</h1>
+<p><strong>Not an assistant. Not a chatbot. Not automation.</strong> The first operating system for a person's cognition: a persistent, content-addressed world model of your reality that produces reasoning which is <strong>reproducible, evidence-backed, auditable, replayable, and aware of your prior decisions</strong> — built entirely on the <strong>frozen ARVES Runtime v1.0</strong>.</p>
+<pre><code>Email · Calendar · Slack · GitHub · Finance · Health · …
+        → Truth → Memory → Reasoning → Planning → Execution → Audit → Replay →
+Today · Contradictions · Recommendations · Actions</code></pre>
+<h2 id="the-success-metric-is-not-usability-it-is-proving-arves-is-n">The success metric is not usability — it is proving ARVES is necessary</h2>
+<p>Every feature must fail this filter to ship: <em>could it be built with ChatGPT, Claude, LangGraph, n8n, AutoGen, or a simple AI wrapper?</em> If yes, it's rejected. Here is why the core features <strong>cannot</strong>:</p>
+<div class="table-wrap"><table><thead><tr><th>Feature</th><th>Why existing AI can't do it</th><th>Runtime API</th><th>Truth created</th><th>Evidence</th><th>Replay</th></tr></thead><tbody><tr><td><strong>One truth from many systems</strong></td><td>a wrapper has no cross-source identity — it double-counts the same meeting from calendar+email+slack</td><td>SDK address · Bridge commit</td><td>one <code>uci.fact</code> per real event</td><td>the set of attesting sources</td><td>re-ingest → same truth</td></tr><tr><td><strong>Reproducible daily briefing</strong></td><td>an LLM answers differently every run, with no audit and no proof</td><td>Bridge commit (real Kernel)</td><td>one <code>uci.briefing</code> truth</td><td>the truth ids it reasoned over</td><td>re-run → identical id, Kernel idempotent</td></tr><tr><td><strong>Contradiction with a prior decision</strong></td><td>a chatbot has no persistent, addressable, evidence-backed decision history</td><td>Bridge commit</td><td><code>uci.decision</code> truths</td><td>the prior decision's ContentId</td><td>the contradiction is provable, not vibes</td></tr><tr><td><strong>Evidence-backed recommendation</strong></td><td>a wrapper cannot cite <em>which stored truths</em> a recommendation rests on</td><td>SDK address</td><td>—</td><td>truth ids per recommendation</td><td>defensible after the fact</td></tr></tbody></table></div>
+<h2 id="run">Run</h2>
+<pre><code>cargo build -p arves-bridge --bin arves-bridge   # once: the frozen Runtime API
+node examples/my-day.mjs                          # your day as reproducible cognition (exits 0)</code></pre>
+<h2 id="platform-boundary-runtime-v1-0-is-frozen">Platform boundary (Runtime v1.0 is FROZEN)</h2>
+<p>This product <strong>consumes</strong> the Runtime v1.0 API (SDK + Bridge → real Kernel/Engine/ Capability) and <strong>edits no runtime file</strong>. If it needs something the runtime lacks, that is a <strong>Runtime Change Request</strong> (→ v1.1), never a runtime edit — see <code>runtime/RUNTIME_FREEZE_v1.0.md</code>. P4 is the runtime's first real customer, and the proof that v1.0 can carry a rich product unchanged.</p>
+<p>Next products build on the same API, product-layer only: Enterprise Cognitive OS (P5), Developer Studio (P6), Marketplace (P7), Cloud (P8), Industry (P9).</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

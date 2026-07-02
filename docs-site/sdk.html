@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Developer SDK · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html" class="active">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-sdk-arves-developer-sdk-typescript">@arves/sdk — ARVES Developer SDK (TypeScript)</h1>
+<p><strong>Build deterministic, content-addressed, replayable cognitive apps — in a few lines.</strong> This is <strong>P1</strong> of the ARVES Product Program: the developer's entry point to the platform.</p>
+<blockquote><p>IDR-006: this SDK is a <em>product</em>. It consumes the ARVES standard (<code>arves-standard-kit 0.2.0</code>) and modifies no platform file. It is itself verified ACS-conformant (<code>npm run check</code> reproduces the Kit's published golden ContentIds).</p></blockquote>
+<h2 id="why-it-matters">Why it matters</h2>
+<p>One primitive — the <strong>content address</strong> — gives you four properties an ordinary datastore/framework does not, for free:</p>
+<div class="table-wrap"><table><thead><tr><th>Property</th><th>What you get</th><th>Demo</th></tr></thead><tbody><tr><td><strong>Deterministic identity</strong></td><td>the same value → the same address, regardless of key order, machine, or language</td><td><code>equal? true</code></td></tr><tr><td><strong>Idempotency</strong></td><td>committing the "same" fact twice deduplicates automatically</td><td><code>store size: 1</code></td></tr><tr><td><strong>Integrity</strong></td><td>any change → a different address; tampering is self-evident</td><td><code>differs? true</code></td></tr><tr><td><strong>Exact truth</strong></td><td>64-bit-exact integers; a nanosecond timestamp never silently corrupts</td><td>float path <code>…768</code> ≠ exact <code>…789</code></td></tr><tr><td><strong>Replay</strong></td><td>a decision trace is content-addressed; recomputation is reproducible</td><td><code>identical? true</code></td></tr></tbody></table></div>
+<h2 id="quick-start">Quick start</h2>
+<pre><code class="lang-js">import { Arves, FactStore } from '@arves/sdk';
+
+const arves = new Arves();
+const store = new FactStore();
+
+// Field order doesn't matter — identity is the content address.
+const id = store.commit({
+  type: 'uci.fact',
+  claim: 'sky-is-blue',
+  confidence: arves.float(0.5),   // floats are explicit (distinct ACS kind)
+  observed_at: 1730000000000000000n,  // integers are BigInt — exact, never lossy
+});
+// id === '12204284f0acb42a4730633fa8d6cfbd9040d85b62ebe3769d8b7d59af4375bb363e'
+// Commit it again with keys reordered → same id → store.size stays 1.
+
+arves.verify(fact, id);      // integrity check
+arves.traceRoot([id, id2]);  // reproducible decision-trace root</code></pre>
+<p>Two deliberate ergonomics enforce ACS correctness so you can't create silent bugs: integers <strong>must</strong> be <code>BigInt</code> and floats <strong>must</strong> be <code>arves.float(x)</code> — a bare <code>number</code> throws, because it is ambiguous (int vs float) and lossy beyond 2⁵³ (ACS-002 §5.2/§5.3).</p>
+<h2 id="run">Run</h2>
+<pre><code>node src/check.mjs          # standard-conformance self-check (4/4)
+node examples/fact-store.mjs # the "why ARVES matters" demo</code></pre>
+<p>Zero third-party dependencies; SHA-256 via Node's built-in <code>node:crypto</code>; the dCBOR profile is implemented directly from ACS-002. This is the smallest slab of the platform a product needs — the higher products (Agent Runtime, Personal AI, Enterprise AI) build on this same content-addressed substrate.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

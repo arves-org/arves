@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Authoring Kit (arves CLI) · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html" class="active">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-ecosystem-sdk-ecosystem-sdk-authoring-kit-p6-5">@arves/ecosystem-sdk — Ecosystem SDK &amp; Authoring Kit (P6.5)</h1>
+<p><strong>Make ARVES unnecessary to build yourself.</strong> This is the layer that lets a <em>third party</em> — a company, a developer, a university — author a capability/engine/connector and publish it, <strong>without ever touching the ARVES runtime</strong>. It is the prerequisite for the Marketplace (P7) and the real proof of platform-hood: <em>how much code did someone else write?</em></p>
+<pre><code>Author (Author SDK) → Certify (conformance) → Package (sign) → Install (cert-gated)
+   → Invoke → Truth (FROZEN Runtime v1.0 Kernel)</code></pre>
+<p>The runtime never changes: a third-party capability's <strong>code</strong> is unknown to it; only the <strong>ACS truth</strong> it produces crosses the boundary. So third-party code runs on ARVES with <strong>no Runtime Change Request</strong>.</p>
+<h2 id="what-s-in-the-kit">What's in the Kit</h2>
+<ul><li><strong>Capability Author SDK</strong> — <code>defineCapability({ name, version, produces, execute })</code>. <code>execute(input)</code> returns effects <code>{ target, value }</code> where <code>value</code> is an <strong>ARVES value</strong> (see the value model below).</li><li><strong>Certification</strong> — <code>certifyCapability(cap, testInputs)</code>: manifest valid · <strong>≥1 test input</strong> (certification will NOT pass vacuously — an empty input set is rejected) · effects target declared produces · effects ACS-canonical · <strong>deterministic</strong> (same input → same effect addresses). Failing checks report a <code>detail</code> reason. Uncertified ⇒ cannot install.</li><li><strong>Packaging / signing</strong> — <code>packageCapability(cap, testInputs)</code>: a versioned artifact whose <strong>content address IS its signature</strong>, taken over the manifest, the actual <code>execute</code> code (<code>codeHash</code>), <strong>and the representative test inputs</strong> (<code>testInputsHash</code>). Tamper with the manifest, the code, <em>or the test inputs</em> ⇒ different id ⇒ <code>verifyArtifact</code> fails. The certification gate is <strong>enforced, not attested</strong>: <code>publish</code> and <code>CapabilityHost.install</code> <strong>re-run certification</strong> against those signature-bound test inputs (never a caller-supplied flag) and refuse code that doesn't match the signed artifact. No PKI — identity is integrity.</li></ul>
+<h2 id="the-arves-value-model-what-an-effect-value-may-be">The ARVES value model (what an effect <code>value</code> may be)</h2>
+<p>An effect's <code>value</code> MUST be one of these, or certification's <code>effects-acs-canonical</code> check fails (with a <code>detail</code> telling you why):</p>
+<p><code>null</code> · <code>boolean</code> · <strong><code>BigInt</code></strong> integer in <code>[-2^64, 2^64-1]</code> · <strong><code>float(x)</code></strong> (import <code>float</code> from this Kit) · <code>string</code> (UTF-8, NFC) · <code>Uint8Array</code> (bytes) · <code>Array</code> · plain object (a map; keys must be <code>string</code> or <code>BigInt</code>). A <strong>bare JS <code>number</code> is rejected</strong> (ambiguous int/float, lossy beyond 2^53) — use <code>BigInt</code> for integers and <code>float(x)</code> for floats. Timestamps are integers (e.g. epoch-ms × <code>1_000_000n</code> for nanoseconds).</p>
+<blockquote><p>These rules were pinned by an independent cold-build: a fresh developer built + certified a capability from this Kit alone; the gaps their question-log surfaced (undocumented value model, vacuous certification, weak signature) are the fixes above.</p></blockquote>
+<ul><li><strong>Host</strong> — <code>CapabilityHost</code>: installs certified, signature-verified capabilities and invokes them, committing effects as truth via the frozen runtime.</li><li><strong>CLI</strong> — <code>arves init &lt;name&gt;</code> (scaffold a green, certifiable capability) · <code>arves doctor &lt;file&gt;</code> (conformance assistant: every violation with its exact fix) · <code>arves certify &lt;file&gt;</code> · <code>arves package &lt;file&gt;</code>.</li></ul>
+<h2 id="author-publish-a-capability-the-10-minute-path">Author + publish a capability (the 10-minute path)</h2>
+<pre><code class="lang-js">import { defineCapability } from '@arves/ecosystem-sdk';
+export const capability = defineCapability({
+  name: 'invoice.ocr', version: '1.0.0', produces: ['uci.fact'],
+  execute: (inv) =&gt; [{ target: 'uci.fact',
+    value: { type: 'uci.fact', entity: `invoice:${inv.vendor}`, event: `amount-usd-${inv.amountUsd}`, at: BigInt(inv.date) * 1_000_000n } }],
+});
+export const testInputs = [{ vendor: 'acme', amountUsd: 1234n, date: 1751468400000 }];
+export const source = 'invoice.ocr@1.0.0';
+export default { capability, testInputs, source };</code></pre>
+<pre><code>node bin/arves.mjs init hospital.incident                    # scaffold a green capability file
+node bin/arves.mjs doctor hospital.incident.capability.mjs   # HEALTHY, or every fix you need
+node bin/arves.mjs certify examples/invoice-ocr.capability.mjs   # → CERTIFIED
+node bin/arves.mjs package examples/invoice-ocr.capability.mjs   # → signed artifact id
+node examples/third-party-capability.mjs                         # author→…→truth (exits 0)</code></pre>
+<h2 id="why-this-matters">Why this matters</h2>
+<p>When a company can publish a Medical capability, a bank a Risk engine, a university a Research engine — all certified, signed, and running on the same frozen runtime — ARVES is no longer <em>your</em> system; it is a platform others build businesses on. Next: <strong>P7 Marketplace</strong> (distribute these artifacts) and, longer term, an <strong>ARVES Foundation</strong> with multiple certified runtimes (Rust/Go/Java) behind one conformance.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

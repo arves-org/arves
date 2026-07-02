@@ -14,6 +14,9 @@ This builds the bridge — the seam through which products commit truth to the r
 
 ## 2. See ARVES do something impossible for a chatbot (~1 min)
 
+> These demos use the Runtime API from step 1. If you see `arves-bridge unavailable`, run the
+> `cargo build` above first. (Authoring a capability in step 4 needs only Node — no runtime build.)
+
 ```bash
 node products/arves-personal-os/examples/my-day.mjs
 ```

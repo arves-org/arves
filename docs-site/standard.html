@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Standard · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html" class="active">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-standard-kit">ARVES Standard Kit</h1>
+<p><strong>Everything needed to implement and conformance-check the ARVES interoperability core — with NO access to the reference runtime source.</strong> This is the publishable artifact that turns ARVES from "a well-designed project" into an implementable standard.</p>
+<blockquote><p><strong>Independence test.</strong> If, to build a conformant implementation, you need to read the Rust reference runtime, this Kit has failed its purpose. Everything binding lives here (specs + schemas + golden vectors + conformance procedure). Report a gap as an ambiguity in the relevant ACS.</p></blockquote>
+<h2 id="contents">Contents</h2>
+<div class="table-wrap"><table><thead><tr><th>Dir</th><th>What</th></tr></thead><tbody><tr><td><code>acs/</code></td><td>The five ARVES Core Standards (normative, RFC 2119): ACS-001 Content Identity · ACS-002 Canonical Serialization (dCBOR) · ACS-003 Canonical Envelope · ACS-004 Universal Type Registry · ACS-005 Normative Language + Glossary. Plus the batch consistency report.</td></tr><tr><td><code>vectors/</code></td><td>Golden vectors: <code>acs_golden_vectors.tsv</code> (machine-readable: standard, domain, body_hex, content_id) + <code>acs_golden_vectors.md</code> (human table). The byte-exact targets any implementation must reproduce.</td></tr><tr><td><code>conformance/</code></td><td><code>CONFORMANCE.md</code> — the language-neutral procedure to self-check an implementation and emit an ARVES Conformance Report.</td></tr><tr><td><code>certification/</code></td><td>The certification process (L1..L4) and how a third-party runtime gets certified.</td></tr></tbody></table></div>
+<h2 id="how-to-implement-arves-from-this-kit-alone">How to implement ARVES (from this Kit alone)</h2>
+<ol><li>Read <code>acs/ACS-005</code> first (normative language + glossary + the 7 registered invariants as keyworded requirements).</li><li>Implement, in your language:</li><li><strong>ACS-001</strong> — content address <code>ContentId = 0x12 0x20 ‖ SHA-256(domain_tag ‖ body)</code> (self-describing SHA-256 multihash) + the domain-tag registry.</li><li><strong>ACS-002</strong> — deterministic CBOR (<code>body</code>): shortest ints, float64, NFC text, bytewise-sorted map keys, definite lengths.</li><li><strong>ACS-003</strong> — the canonical envelope (a dCBOR map; <code>payload_cid</code> = ACS-001 address of the dCBOR payload).</li><li><strong>ACS-004</strong> — the type registry / schema + instance encoding.</li><li>Also implement a canonical <strong>decoder</strong> that REJECTS non-canonical input, per <code>conformance/CONFORMANCE.md</code> "rejection check" (incl. the §5.10 max-depth bound).</li><li>Run the conformance procedure against <code>vectors/acs_golden_vectors.tsv</code> (reproduce every <code>body_hex</code> + <code>content_id</code>) AND <code>vectors/acs_negative_vectors.tsv</code> (reject every <code>core</code> row with the matching reason). If both PASS, you have a conformant ARVES ACS implementation — verified independently, not by comparison to any source.</li></ol>
+<h2 id="status">Status</h2>
+<ul><li><strong>Rust reference:</strong> positive + negative vectors PASS (<code>cargo run -p arves-conformance --bin conformance</code> → CONFORMANT), dependency-free SHA-256 + dCBOR — so this Kit is derivable from the spec, not from a library.</li><li><strong>Independent runtimes:</strong> Python (Kit-only) reproduces both directions — <strong>independence grade G1 (same-process)</strong>. Go / Java / <strong>third-party</strong> ⬜.</li><li><strong>The exit criterion (G2):</strong> <em>can a completely unknown team, using ONLY this Kit, build a conformant runtime without asking a single question?</em> Reproducing the Conformance Report from the Kit alone, by someone who did not help write it, is the proof. Until then, independence is honestly <strong>G1</strong>, not "independent."</li></ul>
+<h2 id="scope">Scope</h2>
+<p>This Kit is the <strong>interoperability / identity layer</strong> (content addressing, serialization, envelope, types, language) — the bytes every ARVES implementation must agree on. The full cognitive runtime (Kernel, LCW, Query, Engine, Capability, Execution) is the <strong>ARVES Reference Runtime</strong> (<code>runtime/</code>), a <em>consumer</em> of this standard, not part of the Kit.</p>
+<h2 id="version-release">Version &amp; release</h2>
+<ul><li><strong>Kit version:</strong> see <code>VERSION</code> (<code>arves-standard-kit 0.2.0</code>). Semantics: the Kit is versioned as a unit; each ACS carries its own version tag (e.g. <code>ACS-002/1</code>). A byte-affecting change is a new ACS profile via CCP, never a silent edit (ED-001).</li><li><strong>Self-contained:</strong> everything binding is under <code>standard/</code>. This directory is the publishable artifact — it can be copied out of the repo and released on its own; it references no file outside itself and no reference-runtime source.</li><li><strong>Registries</strong> (domain tags, hash codes, reason codes) and their allocation policy are normative in <code>acs/ACS-001 §4.1</code> and <code>conformance/CONFORMANCE.md</code>.</li></ul>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

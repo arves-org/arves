@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Runtime · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html" class="active">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-agent-runtime-agent-runtime-p3">@arves/agent-runtime — Agent Runtime (P3)</h1>
+<p><strong>An agent whose every thought is replayable, audited truth in a real Kernel.</strong></p>
+<p>P3 runs the full cognitive loop and commits <em>every step</em> as content-addressed truth in the <strong>real ARVES reference Kernel</strong> (through the P2 bridge):</p>
+<pre><code>Memory → Reasoning → Planning → Capability Selection → Execution → Truth Update</code></pre>
+<h2 id="could-this-be-built-without-arves-no">Could this be built without ARVES? No.</h2>
+<p>Ordinary agent frameworks give you a chain of prompts and side effects you cannot reproduce or audit. ARVES gives you an agent whose entire decision trace — what it knew, what it concluded, what it planned, which capability it chose, what it did — is truth in a real Kernel: <strong>deterministic, content-addressed, idempotent, and replayable</strong>. Run it twice with the same inputs and you get byte-identical trace ids and the Kernel reports <code>already-committed</code>. That is the "impossible before ARVES" the platform exists for.</p>
+<p>Capabilities proven: <strong>Reasoning · Planning · Capability selection · Execution · Memory · Truth Update</strong> — and it runs on the <em>real</em> Kernel, not a stand-in.</p>
+<h2 id="run">Run</h2>
+<pre><code>cargo build -p arves-bridge --bin arves-bridge   # once: the platform bridge (P2)
+node examples/agent-run.mjs                       # the agent commits its trace to the real Kernel</code></pre>
+<p>The demo (proves all of the above, exits 0): - three systems collapse to one truth (Cognitive Memory, P1); - the agent reasons, plans 3 steps, selects a capability per step, executes each; - <strong>every step is committed as truth in the real Rust Kernel</strong> with one-world identity (SDK-local id == Kernel id); - a second run yields identical ids and the Kernel reports <code>already-committed</code> (replay / ORCH-004 idempotency).</p>
+<h2 id="architecture-idr-006-consumes-the-platform-modifies-nothing">Architecture (IDR-006 — consumes the platform, modifies nothing)</h2>
+<pre><code>@arves/agent-runtime (P3)
+  → @arves/cognitive-memory (P1)   truths / memory
+  → @arves/sdk (P0)                content addressing
+  → arves-bridge (P2)              → real Kernel  (Truth Update, idempotent)</code></pre>
+<p>Reasoning, planning, and capability selection are product-layer agent logic; the capabilities are deterministic (so execution replays). The <em>truth</em> — every committed step — lives in the real Kernel under its ACS-001 address. Next: extend the bridge to the <strong>Engine / Capability-fabric</strong> layers so capability execution runs inside the runtime, and P4 Personal AI, which turns this loop loose on Mail/Calendar/Slack/… data.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>
