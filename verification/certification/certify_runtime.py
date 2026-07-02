@@ -61,7 +61,7 @@ def load_negative():
 def rust_addresses(golden):
     payload = "".join(f"{dom:02x} {body}\n" for dom, body, _ in golden)
     out = subprocess.run([RUST_BRIDGE], input=payload.encode(), stdout=subprocess.PIPE).stdout.decode().splitlines()
-    return [ln.split()[0] for ln in out]
+    return [ln.split()[0] if ln.split() else "" for ln in out]  # guard empty/ERR lines (B4 secondary)
 
 
 def rust_rejects(neg):
@@ -118,23 +118,48 @@ def main():
     golden = load_golden()
     neg = load_negative()
 
-    records = [
-        certify("ARVES Rust (reference)", rust_addresses(golden), rust_rejects(neg), golden, neg),
-        certify("ARVES Python (independent)", py_addresses(golden), py_rejects(neg), golden, neg),
-    ]
+    # B4 (verification/evidence/G2_READINESS.md): on a Kit-only checkout the reference Rust
+    # binaries are not built. Guard their invocation so the harness degrades to an
+    # UNAVAILABLE row instead of dying with an uncaught FileNotFoundError before printing
+    # ANY verdict. certify()'s signature is unchanged — the RUNTIME_AUTHORS_GUIDE contract
+    # still holds; only main() is made resilient, and the record list is data-driven so a
+    # vendor can run only their own runtime.
+    records = []
+    if os.path.exists(RUST_BRIDGE) and os.path.exists(RUST_DECODE):
+        try:
+            records.append(certify("ARVES Rust (reference)", rust_addresses(golden),
+                                   rust_rejects(neg), golden, neg))
+        except (FileNotFoundError, OSError):
+            records.append({"runtime": "ARVES Rust (reference)", "unavailable": True})
+    else:
+        records.append({"runtime": "ARVES Rust (reference)", "unavailable": True})
+    records.append(certify("ARVES Python (independent)", py_addresses(golden),
+                           py_rejects(neg), golden, neg))
 
     print("ARVES Runtime Certification - against the frozen Standard alone")
     print("=" * 66)
     for r in records:
+        if r.get("unavailable"):
+            print(f"  {r['runtime']:<28} UNAVAILABLE (reference binaries not built in this "
+                  f"checkout — build them, or run only your own runtime)")
+            continue
         p, pt = r["positive"]
         c, ct = r["negative_core"]
         print(f"  {r['runtime']:<28} positive {p}/{pt}  core-reject {c}/{ct}  ->  "
               f"{'CERTIFIED' if r['certified'] else 'NOT CERTIFIED'}")
-    all_certified = all(r["certified"] for r in records)
+    avail = [r for r in records if not r.get("unavailable")]
+    all_certified = len(avail) > 0 and all(r["certified"] for r in avail)
     print("-" * 66)
-    print(f"  Independent Runtime Alliance: {sum(r['certified'] for r in records)}/{len(records)} runtimes "
-          f"certified under ONE conformance -> {'PASS' if all_certified else 'FAIL'}")
+    print(f"  Independent Runtime Alliance: {sum(r['certified'] for r in avail)}/{len(avail)} "
+          f"available runtime(s) certified under ONE conformance -> {'PASS' if all_certified else 'FAIL'}")
+    if len(avail) < len(records):
+        print(f"  ({len(records) - len(avail)} runtime(s) unavailable in this checkout — not a "
+              f"certification failure; build the reference bins or add your own record.)")
+    # NOTE (B3, tracked in G2_READINESS.md): certify() above follows the frozen
+    # RUNTIME_AUTHORS_GUIDE contract, which receives the answer key and does not recompute;
+    # a hollow echo adapter can pass it. The non-gameable check is verify_runtime_sound.py.
     print("  Certified by the Standard + this harness alone — no maintainer required.")
+    print("  (Soundness note: verify_runtime_sound.py re-grades non-gameably — see G2_READINESS.md B3.)")
     return 0 if all_certified else 1
 
 

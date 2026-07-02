@@ -253,18 +253,18 @@ record alongside the existing ones and run:
 python verification/certification/certify_runtime.py
 ```
 
-> **Two operational cautions before you run it — both are real, both are in §5:**
-> 1. As shipped, the harness **also** drives the reference Rust binaries at
->    `runtime/target/debug/{arves-bridge,acs_decode}` and will raise an uncaught
->    `FileNotFoundError` (crashing before printing *any* verdict, including yours) if
->    those binaries are not built. On a Kit-only checkout, either build them
->    (`cargo build`) or comment out / guard the two pre-wired reference records so only
->    your adapter runs. The pre-wired reference records are **optional**.
-> 2. The harness **trusts what your adapter returns** and does not re-hash or re-decode.
->    That means it certifies the *honesty* of your reported results, not that you did the
->    work — see §5. Use the self-check runner in Step 2 (`run.mjs`, which recomputes
->    everything itself) as your real proof of correctness, and treat the harness as the
->    verdict-shape formality.
+> **Two operational notes before you run it — both detailed in §5:**
+> 1. The harness **also** drives the reference Rust binaries at
+>    `runtime/target/debug/{arves-bridge,acs_decode}`. **As of 2026-07-02 these are
+>    guarded** — if they are not built, the harness prints an `UNAVAILABLE` row and still
+>    runs your record (it no longer crashes with `FileNotFoundError`). You may build them
+>    (`cargo build`) or just run your own; the pre-wired reference records are **optional**.
+> 2. The harness **trusts what your adapter returns** and does not re-hash or re-decode, so
+>    on its own it certifies the *honesty* of your reported results, not that you did the
+>    work. Use the non-gameable
+>    [`verify_runtime_sound.py`](verification/certification/verify_runtime_sound.py) (grader
+>    owns the truth + fresh/accept probes) and the Step-2 self-check runner (`run.mjs`) as
+>    your real proof of correctness — see §5.
 
 ### Step 4 — What CERTIFIED means (and what it does not)
 
@@ -326,6 +326,14 @@ spec gap — your obligation is real conformance. Use the Step-2 self-check runn
 raw inputs (it holds no answer key), as your genuine proof. Treat a green
 `certify_runtime.py` line as the verdict *format*, and the honest self-check as the
 substance.
+**[Addressed 2026-07-02]** A non-gameable verifier now backstops this:
+[`verification/certification/verify_runtime_sound.py`](verification/certification/verify_runtime_sound.py)
+gives your runtime **inputs only**, recomputes every ContentId itself, and adds **fresh**
+address probes + **accept**-probes a hollow echo adapter cannot satisfy — run it as your
+real proof (`python verification/certification/verify_runtime_sound.py`). The *documented*
+`certify_runtime.py` path stays echo-trusting until a maintainer-gated Kit 0.2.1 converges
+it onto the sound grader; the regression `test_harness_integrity.py` proves the hollow
+adapter fails the sound verifier.
 
 **3. Root-event `causation_id` encoding is not pinned by an RFC-2119 keyword (ACS-003).**
 For a **root** event (no cause), ACS-003 §5 marks `causation_id` plainly OPTIONAL, while
@@ -345,6 +353,10 @@ proceed:* build them (`cargo build`) **or** — cleaner for a Kit-only checkout 
 or guard the two pre-wired reference `certify(...)` records in `main()` so only your
 adapter runs. Editing files under `verification/` is expected; only `standard/` and
 `runtime/` are frozen.
+**[Fixed 2026-07-02]** `certify_runtime.py` now guards the reference-bin invocation: on a
+Kit-only checkout the missing binaries degrade to an `UNAVAILABLE` row and your own runtime
+still certifies — no more `FileNotFoundError`. (You may still build the bins or add only
+your own record; the record list is data-driven.)
 
 **5. The `nfc` deferral is unenforced and unsurfaced by the harness.**
 The harness ignores the `nfc` row entirely, so a runtime that *silently accepts* non-NFC

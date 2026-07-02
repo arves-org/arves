@@ -78,6 +78,27 @@ the gate checks (envelope/instance rejects; the root-event byte form); B3/B4 are
 box). All four are already logged, in whole or part, as **L1 Standard Lock gap G5** and the
 Lock verdict of **CONDITIONAL** (`verification/certification/L1_Attestation_and_Standard_Lock_Review.md`).
 
+### 2a. Remediation status (post-audit, 2026-07-02)
+
+Two of the four defects were closable in the **living verification arm** with no frozen-Kit
+change, and were closed + regression-tested the same session:
+
+| Gap | Status | What shipped | Proof |
+|-----|--------|--------------|-------|
+| **B4** | **CLOSED (living)** | `certify_runtime.py` `main()` now guards the reference-bin invocation: a missing `arves-bridge`/`acs_decode` degrades to an `UNAVAILABLE` row instead of an uncaught `FileNotFoundError`, and the record list is data-driven so a vendor runs only their own runtime. `certify()`'s signature is unchanged, so the frozen `RUNTIME_AUTHORS_GUIDE` contract still holds. | `test_harness_integrity.py` points the harness at a missing binary and asserts it prints a verdict and returns (no crash). |
+| **B3** | **Mitigated (living); documented-path fix gated to Kit 0.2.1** | `verification/certification/verify_runtime_sound.py` — a non-gameable grader that OWNS the truth (recomputes every ContentId per ACS-001 §5/§7, re-decodes every input), probes **fresh** `(domain,body)` pairs absent from the vectors, and injects **accept-probes** a conformant decoder must accept. The runtime is given inputs only, so a hollow echo adapter cannot pass. | `test_harness_integrity.py`: the real Python runtime is `SOUND-CERTIFIED`; a maximally-informed hollow echo adapter (hardcodes every published answer) scores **fresh 0/3, accept 0/3 → NOT CERTIFIED**. |
+
+**Why B3 is "mitigated," not "closed":** the *official documented* path (`certify_runtime.py`
++ `RUNTIME_AUTHORS_GUIDE.md` Step 4) hands the grader the answer key **by design**, and that
+contract is **frozen**. Converging the official path onto the sound grader is a **Kit 0.2.1**
+change (frozen guide + harness contract) — maintainer-gated, never a silent edit. Until then,
+the sound verifier is the Verification arm's non-gameable gate and the guide-path residual is
+disclosed to implementers (`IMPLEMENTING_ARVES.md` §5).
+
+**Still open — not living-only fixes:** **B1** (ACS-003/004/005 negative vectors: new
+fixtures + harness extension — a genuine Kit-packaging change) and **B2** (root-event
+`causation_id` — a CCP Amendment to ACS-003 §5). Both tracked for the next Kit/spec cycle.
+
 ---
 
 ## 3. What the Kit already carries (answered-in-Kit — NOT gaps)
@@ -127,6 +148,13 @@ at all (B3), and cannot even run on the exact checkout a G2 team uses (B4). Sinc
 point of the G2 event is that the *stamp means something to a stranger*, these four defects
 block G2-readiness. They are all **closable without touching the frozen ACS specs' byte
 formats** — none requires a new major version.
+
+**Update (2026-07-02, same session — see §2a):** **B4 is CLOSED** and **B3 is backstopped**
+by a non-gameable sound verifier (`verify_runtime_sound.py`), both regression-tested. But
+**B1 and B2 remain open**, and B3's *official documented* path is still echo-trusting until
+the maintainer-gated Kit 0.2.1 convergence — so the verdict stands at **NOT-YET**: the
+documented gate can still certify a runtime that skips the ACS-003/004/005 reject surface
+(B1), and the root-event encoding ambiguity (B2) is unresolved.
 
 **The specific closable list (framed by instrument):**
 
