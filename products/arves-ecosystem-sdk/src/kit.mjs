@@ -13,6 +13,13 @@ import { sha256, hex } from '../../arves-sdk-ts/src/codec.mjs';
 
 const arves = new Arves();
 
+// Re-exported so a capability author has the full ARVES value model without reaching into
+// runtime internals. An effect `value` MUST be one of: null · boolean · BigInt (integer in
+// [-2^64, 2^64-1]) · float(x) (a float wrapper) · string (UTF-8, NFC) · Uint8Array (bytes) ·
+// Array · plain object (map; keys are strings or BigInt). A BARE JS number is rejected
+// (ambiguous int/float, lossy beyond 2^53) — use BigInt or float().
+export { float } from '../../arves-sdk-ts/src/codec.mjs';
+
 // ---- Capability Author SDK -------------------------------------------------
 
 /** Author a capability. `execute(input)` returns an array of effects
@@ -38,45 +45,65 @@ export function defineCapability({ name, version, produces, execute, determinism
  *  installed. */
 export function certifyCapability(cap, testInputs) {
   const checks = [];
-  const add = (name, ok) => checks.push({ name, ok });
+  const add = (name, ok, detail = '') => checks.push({ name, ok, detail });
 
-  add('manifest-valid', !!cap.manifest.name && !!cap.manifest.version && cap.manifest.produces.length > 0);
+  add('manifest-valid',
+    !!cap.manifest.name && !!cap.manifest.version && cap.manifest.produces.length > 0,
+    'name, version, and a non-empty produces[] are required');
 
-  let targetsDeclared = true;
-  let acsCanonical = true;
-  let deterministic = true;
+  // Certification MUST NOT pass vacuously: a capability with no representative inputs
+  // exercises no effect, so its checks would pass trivially. Require ≥1 input.
+  if (!Array.isArray(testInputs) || testInputs.length === 0) {
+    add('has-test-inputs', false, 'certification requires >=1 representative test input (else checks pass vacuously)');
+    return { certified: false, checks };
+  }
+  add('has-test-inputs', true);
+
+  let targetsDeclared = { ok: true, detail: '' };
+  let acsCanonical = { ok: true, detail: '' };
+  let deterministic = { ok: true, detail: '' };
   for (const input of testInputs) {
     let e1;
     let e2;
     try {
       e1 = cap.execute(input);
       e2 = cap.execute(input);
-    } catch {
-      acsCanonical = false;
+    } catch (err) {
+      acsCanonical = { ok: false, detail: `execute threw on input ${JSON.stringify(input)}: ${err.message}` };
       continue;
     }
     const addr = (effs) => effs.map((x) => {
-      if (!cap.manifest.produces.includes(x.target)) targetsDeclared = false;
-      try { return arves.address(x.value, 'commit'); } catch { acsCanonical = false; return 'ERR'; }
+      if (!cap.manifest.produces.includes(x.target)) {
+        targetsDeclared = { ok: false, detail: `effect target '${x.target}' not in produces ${JSON.stringify(cap.manifest.produces)}` };
+      }
+      try { return arves.address(x.value, 'commit'); } catch (err) {
+        acsCanonical = { ok: false, detail: `effect value is not ACS-canonical (${err.message}) — see the value model in the README` };
+        return 'ERR';
+      }
     }).join(',');
-    if (addr(e1) !== addr(e2)) deterministic = false;
+    if (addr(e1) !== addr(e2)) deterministic = { ok: false, detail: `execute is non-deterministic for input ${JSON.stringify(input)}` };
   }
-  add('effects-declared', targetsDeclared);
-  add('effects-acs-canonical', acsCanonical);
-  add('deterministic', deterministic);
+  add('effects-declared', targetsDeclared.ok, targetsDeclared.detail);
+  add('effects-acs-canonical', acsCanonical.ok, acsCanonical.detail);
+  add('deterministic', deterministic.ok, deterministic.detail);
 
   return { certified: checks.every((c) => c.ok), checks };
 }
 
 // ---- Packaging (content-addressed signing) ---------------------------------
 
+/** The content hash of a capability's ACTUAL executable code. This is what the artifact
+ *  signature covers — real code integrity, not an author-claimed string. */
+export function codeHash(cap) {
+  return hex(sha256(new TextEncoder().encode(cap.execute.toString())));
+}
+
 /** Package a capability into a signed, versioned artifact. The "signature" is the ACS
- *  content address of `{ manifest, sourceHash }` — content-addressed integrity: any tamper
- *  with the manifest or source changes the artifact id, so it is self-verifying (no PKI
- *  needed; identity IS the integrity). */
-export function packageCapability(cap, source) {
-  const sourceHash = hex(sha256(new TextEncoder().encode(source)));
-  const body = { type: 'uci.capability-artifact', manifest: cap.manifest, sourceHash };
+ *  content address of `{ manifest, codeHash }`, where `codeHash` is over the REAL execute
+ *  code — content-addressed integrity: any tamper with the manifest OR the code changes the
+ *  artifact id (self-verifying; no PKI). */
+export function packageCapability(cap) {
+  const body = { type: 'uci.capability-artifact', manifest: cap.manifest, codeHash: codeHash(cap) };
   const id = arves.address(body, 'engine'); // domain: engine-manifest
   return { id, artifact: body, version: cap.manifest.version };
 }
@@ -101,6 +128,9 @@ export class CapabilityHost {
   install(pkg, cap, certification) {
     if (!certification || !certification.certified) throw new Error('install refused: capability is not certified');
     if (!verifyArtifact(pkg)) throw new Error('install refused: artifact signature does not verify (tampered)');
+    // Real code integrity: the capability's actual code MUST match the signed artifact —
+    // a swapped implementation under a valid artifact is refused.
+    if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('install refused: capability code does not match the signed artifact');
     this.#installed.set(cap.manifest.name, { pkg, cap });
     return pkg.id;
   }

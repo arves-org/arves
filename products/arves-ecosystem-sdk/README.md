@@ -17,12 +17,32 @@ Runtime Change Request**.
 ## What's in the Kit
 
 - **Capability Author SDK** — `defineCapability({ name, version, produces, execute })`.
-- **Certification** — `certifyCapability(cap, testInputs)`: manifest valid · effects target
-  declared produces · effects ACS-canonical · **deterministic** (same input → same effect
-  addresses). Uncertified ⇒ cannot install.
-- **Packaging / signing** — `packageCapability(cap, source)`: a versioned artifact whose
-  **content address IS its signature** (tamper ⇒ different id ⇒ `verifyArtifact` fails; no
-  PKI needed — identity is integrity).
+  `execute(input)` returns effects `{ target, value }` where `value` is an **ARVES value**
+  (see the value model below).
+- **Certification** — `certifyCapability(cap, testInputs)`: manifest valid · **≥1 test
+  input** (certification will NOT pass vacuously — an empty input set is rejected) · effects
+  target declared produces · effects ACS-canonical · **deterministic** (same input → same
+  effect addresses). Failing checks report a `detail` reason. Uncertified ⇒ cannot install.
+- **Packaging / signing** — `packageCapability(cap)`: a versioned artifact whose **content
+  address IS its signature**, taken over the manifest **and the actual `execute` code**
+  (`codeHash`). Tamper with the manifest *or the code* ⇒ different id ⇒ `verifyArtifact`
+  fails, and the host additionally refuses code that doesn't match the signed artifact. No
+  PKI — identity is integrity.
+
+## The ARVES value model (what an effect `value` may be)
+
+An effect's `value` MUST be one of these, or certification's `effects-acs-canonical` check
+fails (with a `detail` telling you why):
+
+`null` · `boolean` · **`BigInt`** integer in `[-2^64, 2^64-1]` · **`float(x)`** (import
+`float` from this Kit) · `string` (UTF-8, NFC) · `Uint8Array` (bytes) · `Array` · plain
+object (a map; keys must be `string` or `BigInt`). A **bare JS `number` is rejected**
+(ambiguous int/float, lossy beyond 2^53) — use `BigInt` for integers and `float(x)` for
+floats. Timestamps are integers (e.g. epoch-ms × `1_000_000n` for nanoseconds).
+
+> These rules were pinned by an independent cold-build: a fresh developer built + certified
+> a capability from this Kit alone; the gaps their question-log surfaced (undocumented value
+> model, vacuous certification, weak signature) are the fixes above.
 - **Host** — `CapabilityHost`: installs certified, signature-verified capabilities and
   invokes them, committing effects as truth via the frozen runtime.
 - **CLI** — `arves certify <file>` · `arves package <file>`.

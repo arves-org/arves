@@ -11,6 +11,7 @@ import { PersonalCognitiveOS } from './arves-personal-os/src/personal-os.mjs';
 import { personalReality } from './arves-personal-os/src/connectors.mjs';
 import { EnterpriseCognitiveOS } from './arves-enterprise-os/src/enterprise-os.mjs';
 import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from './arves-ecosystem-sdk/src/kit.mjs';
+import { Marketplace } from './arves-marketplace/src/marketplace.mjs';
 
 let n = 0;
 const ok = (name, cond) => { assert.ok(cond, name); n++; console.log('  ✓', name); };
@@ -131,17 +132,45 @@ console.log('Ecosystem SDK & Authoring Kit (P6.5):');
     execute: () => [{ target: 'uci.other', value: { type: 'uci.fact' } }] });
   ok('undeclared-effect capability is rejected', certifyCapability(undeclared, [{}]).certified === false);
 
-  // Content-addressed signature: verifies, and tamper is detected.
-  const pkg = packageCapability(good, 'good.cap@1.0.0 source');
+  // Cold-build fix: certification must NOT pass vacuously with no test inputs.
+  ok('empty testInputs is rejected (no vacuous certification)', certifyCapability(good, []).certified === false);
+
+  // Content-addressed signature over the ACTUAL code: verifies, and tamper is detected.
+  const pkg = packageCapability(good);
   ok('artifact signature verifies', verifyArtifact(pkg) === true);
-  const tampered = { ...pkg, artifact: { ...pkg.artifact, sourceHash: 'deadbeef' } };
+  const tampered = { ...pkg, artifact: { ...pkg.artifact, codeHash: 'deadbeef' } };
   ok('tampered artifact is detected', verifyArtifact(tampered) === false);
 
-  // Host refuses an uncertified capability at install (no bridge needed — throws first).
   const host = new CapabilityHost(null);
-  let refused = false;
-  try { host.install(pkg, good, { certified: false, checks: [] }); } catch { refused = true; }
-  ok('host refuses to install an uncertified capability', refused);
+  let refusedUncert = false;
+  try { host.install(pkg, good, { certified: false, checks: [] }); } catch { refusedUncert = true; }
+  ok('host refuses to install an uncertified capability', refusedUncert);
+
+  // Cold-build fix: the host refuses code that does not match the signed artifact.
+  const impostor = defineCapability({ name: 'good.cap', version: '1.0.0', produces: ['uci.fact'],
+    execute: (i) => [{ target: 'uci.fact', value: { type: 'uci.fact', k: BigInt(i.k), evil: true } }] });
+  const impostorCert = certifyCapability(impostor, [{ k: 1 }]);
+  let refusedSwap = false;
+  try { host.install(pkg, impostor, impostorCert); } catch { refusedSwap = true; }
+  ok('host refuses code that does not match the signed artifact', refusedSwap);
+}
+
+console.log('Marketplace (P7):');
+{
+  const cap = defineCapability({ name: 'ticket.triage', version: '1.0.0', produces: ['uci.fact'],
+    execute: (t) => [{ target: 'uci.fact', value: { type: 'uci.fact', entity: `ticket:${t.id}` } }] });
+  const cert = certifyCapability(cap, [{ id: 'T1' }]);
+  const pkg = packageCapability(cap);
+  const market = new Marketplace();
+  market.publish({ pkg, cap, cert, publisher: 'Acme' });
+  ok('published capability is discoverable', market.list().length === 1);
+  let rU = false; let rT = false; let rD = false;
+  try { market.publish({ pkg, cap, cert: { certified: false, checks: [] }, publisher: 'x' }); } catch { rU = true; }
+  try { market.publish({ pkg: { ...pkg, artifact: { ...pkg.artifact, codeHash: 'x' } }, cap, cert, publisher: 'x' }); } catch { rT = true; }
+  try { market.publish({ pkg, cap, cert, publisher: 'x' }); } catch { rD = true; }
+  ok('marketplace refuses uncertified publish', rU);
+  ok('marketplace refuses tampered artifact', rT);
+  ok('marketplace refuses duplicate version', rD);
 }
 
 console.log(`\n${n}/${n} robustness regressions PASS`);

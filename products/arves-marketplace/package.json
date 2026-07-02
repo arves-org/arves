@@ -1,0 +1,14 @@
+{
+  "name": "@arves/marketplace",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Marketplace (P7) — distribution layer: one party publishes a certified, signed capability; any other party discovers, installs, and runs it on the frozen Runtime v1.0.",
+  "platform": {
+    "consumes": "@arves/ecosystem-sdk (P6.5) + ARVES Runtime v1.0 — FROZEN",
+    "modifiesRuntime": false
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/publish-install.mjs" }
+}
