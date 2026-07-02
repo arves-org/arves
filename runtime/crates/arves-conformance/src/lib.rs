@@ -50,6 +50,11 @@
 
 #![forbid(unsafe_code)]
 
+/// ARVES Conformance Platform — executable ACS golden-vector runner (populates the
+/// previously-empty assertion surface for the ACS layer; the universal check any
+/// implementation, in any language, must pass).
+pub mod acs;
+
 // =============================================================================
 // Part 5 - Conformance Axes (12)
 // =============================================================================
