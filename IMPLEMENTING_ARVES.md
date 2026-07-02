@@ -178,7 +178,10 @@ ACS-003 §6.3 (envelope validation), ACS-004 §6.5/§7/§8 (instance validation 
 ACS-002-tier, so **none of these rejection rules is exercised by the automated gate.**
 You should still implement them (the specs are unambiguous and complete), because two
 "certified" runtimes that skip them will disagree on real traffic. See
-[§5 Known rough edges](#5-known-rough-edges).
+[§5 Known rough edges](#5-known-rough-edges). Worked reference validators for these rules now
+exist as living examples — `verification/independent/python/acs003_envelope.py`,
+`acs004_instance.py`, `acs005_checker.py` (run `acs_validators_selftest.py`) — copy their
+structure; each proves its reject rules from the spec text.
 
 ---
 

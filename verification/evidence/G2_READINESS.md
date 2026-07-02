@@ -95,9 +95,27 @@ change (frozen guide + harness contract) — maintainer-gated, never a silent ed
 the sound verifier is the Verification arm's non-gameable gate and the guide-path residual is
 disclosed to implementers (`IMPLEMENTING_ARVES.md` §5).
 
-**Still open — not living-only fixes:** **B1** (ACS-003/004/005 negative vectors: new
-fixtures + harness extension — a genuine Kit-packaging change) and **B2** (root-event
-`causation_id` — a CCP Amendment to ACS-003 §5). Both tracked for the next Kit/spec cycle.
+**B1 — reclassified to CCP, and an evidence subset delivered (2026-07-02).** Scouting B1
+found that the frozen reason-code registry is closed and **ACS-001 §4.1 mandates that new
+reject reason codes be added _only via a CCP Amendment that also adds a negative vector_** — so
+B1 is a **CCP**, not the Kit-packaging the initial triage assumed (a correction to this
+register's B1 row). To de-risk that CCP and increase evidence now with **no frozen edit**, the
+ACS-003/004/005 reject surfaces were implemented as **living reference validators + self-tests**,
+proving the rules are implementable from the Kit spec alone:
+
+| Validator (living) | Reject rules proven (self-test) | Result |
+|---|---|---|
+| `verification/independent/python/acs003_envelope.py` | §6.3: not-a-Map, missing-required, unknown-key, wrong-type, malformed `payload_cid` shape, empty tenant/workspace (SHARD-001), bad `causation_id` type | **8/8** (1 accept + 7 reject) |
+| `verification/independent/python/acs004_instance.py` | §6.5/§7/§8: unknown-field, required-absent, type (int/u32/conf/urn), cardinality (both ways), provenance state machine (`invocation` iff `origin==derived`, both ways) | **11/11** (1 + 10) |
+| `verification/independent/python/acs005_checker.py` | §8/§9.2/§9.3: UTF-8, NFC, no lead/trail/blank LF, strict sort, no-dup, per-body grammar; anchored to the 3 golden ContentIds | **17/17** (6 + 11) |
+
+Combined runner: `python verification/independent/python/acs_validators_selftest.py`. These are
+the **oracle** a future CCP's negative vectors will be checked against.
+
+**Still open (the CCP itself + B2):** **B1's CCP** — define the stable reject reason codes
+(extend the closed registry), ship the negative vectors in `standard/vectors/`, and wire the
+harness (per ACS-001 §4.1, maintainer-authorized); and **B2** (root-event `causation_id` — a CCP
+Amendment to ACS-003 §5). Both are frozen-touching spec/Kit changes for the next cycle.
 
 ---
 
@@ -154,7 +172,10 @@ by a non-gameable sound verifier (`verify_runtime_sound.py`), both regression-te
 **B1 and B2 remain open**, and B3's *official documented* path is still echo-trusting until
 the maintainer-gated Kit 0.2.1 convergence — so the verdict stands at **NOT-YET**: the
 documented gate can still certify a runtime that skips the ACS-003/004/005 reject surface
-(B1), and the root-event encoding ambiguity (B2) is unresolved.
+(B1), and the root-event encoding ambiguity (B2) is unresolved. B1's reject rules are now
+**proven implementable** from the spec (living validators + self-tests, §2a), de-risking its CCP
+to a maintainer-authorized change (new stable reason codes + shipped negative vectors, per
+ACS-001 §4.1); the verdict is unchanged until that CCP and B2 land.
 
 **The specific closable list (framed by instrument):**
 
