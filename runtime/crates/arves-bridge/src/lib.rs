@@ -73,6 +73,13 @@ pub enum InvokeError {
     /// The capability had no active binding in the shard — execution is refused
     /// (CAP-005). The Capability layer gates the chain: an unbound capability cannot run.
     Unbound(String),
+    /// The resolved binding names a different provider than the engine presented — the
+    /// gate binds to engine IDENTITY, not just the capability name, so a caller cannot
+    /// smuggle an arbitrary engine past a name-only check (CAP-002).
+    ProviderMismatch { expected: String, bound: String },
+    /// The engine proposed an effect targeting a resource it did not declare in its
+    /// manifest `produces` set (ENG-004) — refused rather than committed.
+    UndeclaredEffect(String),
     /// The Kernel refused to commit a proposed effect for a reason other than idempotency.
     Commit(CommitError),
 }
@@ -105,10 +112,28 @@ where
         .resolve(&cap_shard, &CapabilityId(capability.to_string()))
         .map_err(|_| InvokeError::Unbound(capability.to_string()))?;
 
+    // 1b. Bind the gate to engine IDENTITY, not just the capability name: the resolved
+    // binding's provider MUST name this exact engine (name@version). A name-only gate
+    // would let any engine run under an authorized capability (CAP-002).
+    let manifest = engine.manifest();
+    let expected_provider = format!("engine:{}@{}", manifest.name, manifest.version);
+    if binding.provider.0 != expected_provider {
+        return Err(InvokeError::ProviderMismatch { expected: expected_provider, bound: binding.provider.0 });
+    }
+
     // 2. Engine layer: pure invocation → Inference (proposals only, ENG-003).
     let inference = engine.invoke(input);
 
-    // 3. Kernel: commit each proposed effect as ACS-001-addressed truth.
+    // 3. Kernel: commit each proposed effect as ACS-001-addressed truth. An effect MUST
+    // target a resource the engine declared (ENG-004); undeclared effects are refused
+    // BEFORE any commit, so a single-effect invocation is all-or-nothing. (Cross-effect
+    // atomicity for multi-effect, multi-shard invocations needs a Kernel batch-commit
+    // primitive — tracked; the reference engine emits one effect, so no partial truth.)
+    for effect in &inference.proposed_effects {
+        if !manifest.produces.contains(&effect.target) {
+            return Err(InvokeError::UndeclaredEffect(effect.target.clone()));
+        }
+    }
     let mut effects = Vec::new();
     for effect in &inference.proposed_effects {
         match commit_body(kernel, shard.clone(), domain_tag, &effect.payload) {
@@ -210,6 +235,14 @@ mod tests {
         assert!(matches!(
             invoke(&k, &reg, shard(), "nope", &engine, b"x".to_vec(), domain::COMMIT_CONTENT),
             Err(InvokeError::Unbound(_))
+        ));
+
+        // Regression (destroy finding): the gate binds ENGINE IDENTITY, not just the
+        // capability name — an impostor engine under an authorized capability is refused.
+        let impostor = PureEngine::new("evil.engine", "uci.fact", |b: &[u8]| b.to_vec());
+        assert!(matches!(
+            invoke(&k, &reg, shard(), "derive.fact", &impostor, b"x".to_vec(), domain::COMMIT_CONTENT),
+            Err(InvokeError::ProviderMismatch { .. })
         ));
     }
 

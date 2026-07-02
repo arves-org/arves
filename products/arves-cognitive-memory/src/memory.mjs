@@ -25,9 +25,16 @@ function resolveEntity(key) {
   return urn;
 }
 
-// Event normalization: different labels -> one stable event key.
+// Event resolution: different source labels for the SAME event resolve to one key via
+// an explicit alias table (like entity resolution) — NOT by stripping words, which would
+// falsely merge genuinely different events (e.g. "Board Meeting" vs "Board"). Unknown
+// labels fall back to a lossless slug, so distinct events stay distinct.
+const EVENT_ALIASES = new Map([
+  ['Q3 Review', 'q3-review'],
+  ['Q3 Review Meeting', 'q3-review'],
+]);
 function eventKey(text) {
-  return text.toLowerCase().replace(/\bmeeting\b/g, '').trim().replace(/\s+/g, '-');
+  return EVENT_ALIASES.get(text) || text.toLowerCase().trim().replace(/\s+/g, '-');
 }
 
 /** Map any source observation to the single canonical ARVES fact it attests. Three
@@ -89,8 +96,31 @@ export class CognitiveMemory {
   }
 
   evidenceOf(id) { return [...(this.#evidence.get(id) || [])].sort(); }
-  auditTrail() { return this.#log; }
+  /** The audit trail as an immutable deep copy — callers cannot mutate history. */
+  auditTrail() { return this.#log.map((e) => Object.freeze({ ...e })); }
   head() { return this.#head; }
+
+  /** Verify the audit chain is intact — this is what makes it *tamper-evident*, not just
+   *  a chain that was built once. Walks from genesis, re-derives each entry's id from its
+   *  own fields and the running head, and checks it matches the stored id and links to the
+   *  prior head; finally checks the recomputed head equals the current head. Altering,
+   *  reordering, or dropping ANY past entry makes this fail at that point.
+   *  Returns `{ ok, brokenAt, reason }`. */
+  verifyChain(log = this.#log, head = this.#head) {
+    let running = '00';
+    for (let i = 0; i < log.length; i++) {
+      const e = log[i];
+      if (e.prev !== running) return { ok: false, brokenAt: i, reason: 'broken link (prev != running head)' };
+      const reId = arves.address(
+        { type: e.type, seq: e.seq, op: e.op, fact: e.fact, source: e.source, at: e.at, prev: e.prev },
+        'trace',
+      );
+      if (reId !== e.id) return { ok: false, brokenAt: i, reason: 'entry tampered (id mismatch)' };
+      running = e.id;
+    }
+    if (running !== head) return { ok: false, brokenAt: log.length, reason: 'head mismatch (entry dropped/appended)' };
+    return { ok: true, brokenAt: null, reason: 'intact' };
+  }
 
   /** A deterministic content address of the whole memory STATE (order-independent):
    *  the sorted set of (truth, evidence-count). Same truths + evidence => same root. */

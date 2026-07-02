@@ -30,6 +30,7 @@ Regenerate: `python verification/evidence/evidence_probe.py`
 | **SDK ↔ Kernel one-world** (arves-bridge) | Identity, Integration | L2 | G1 | ✅ PASS | Kernel commits under the ACS-001 address; TS SDK id == Kernel id; idempotent | `cargo test -p arves-bridge` · `node products/arves-sdk-ts/examples/kernel-bridge.mjs` |
 | **Agent decision trace on the real Kernel** (P3) | Reasoning, Replay, Audit | L2 | G1 | ✅ PASS | full agent loop; every step content-addressed truth in the real Kernel; re-run identical + idempotent | `node products/arves-agent-runtime/examples/agent-run.mjs` |
 | **Full cognitive work chain** (Capability→Engine→Kernel) | Reasoning, Integration | L2 | G1 | ✅ PASS | SDK invoke → real Engine runs (pure) → proposed effect committed as ACS truth; unbound capability refused; idempotent | `cargo test -p arves-bridge` · `node products/arves-sdk-ts/examples/engine-invoke.mjs` |
+| **Robustness (whole-system destroy → repair → prove)** | Security, Reliability, Correctness | L2 | G1 | ✅ PASS | 21 confirmed blocker/major found & fixed across 6 files; 15 product regressions + Rust gate test lock them | `node products/robustness.test.mjs` · `cargo test --workspace` |
 | Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | ✅ PASS | 61 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
 
 ## Section B — Declared evidence (destroy-office graded)
@@ -60,6 +61,16 @@ reject guaranteed, code matches only for single-defect corpus); (3) exact 64-bit
 carrier now mandated (ACS-002 §5.2); (4) Kit self-containment leak in
 `certification/README.md` removed. Track 1 also gained ACS-001 §4.1 registry policy +
 `standard/VERSION`.
+
+**Whole-system destroy → harden (product era, ED-006).** A six-lens destroy pass over the
+full stack confirmed **21 blocker/major** fragilities; all fixed with regression tests
+(`products/robustness.test.mjs` 15/15 + Rust gate test): SDK encoder depth/int-range/
+undefined guards; bridge client death/timeout/injection/malformed-response handling; Rust
+bin `MAX_LINE`; capability gate bound to engine identity; Cognitive Memory `verifyChain()`
++ immutable audit trail + false-merge fix; Agent order-independent planning + honest
+refusal + guarded capabilities. Residual (tracked, non-blocking): request-id correlation
+(vs positional FIFO) for the bridge protocol; engine-enforced (not self-declared)
+determinism; Kernel batch-commit for multi-effect atomicity.
 
 **Tracked (Round 2 candidates, not yet done):** `dCBOR` name-collision citation
 (`draft-mcnally-deterministic-cbor`); a quantitative differential-ablation harness

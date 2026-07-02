@@ -117,3 +117,47 @@ implementations converge.** Ratified at the opening of the Standardization era.
 
 *Ratified after the L1 attestation + Standard Lock Review (Lock = CONDITIONAL):
 the gap to a standard is evidence and a second implementation, not more design.*
+
+---
+
+## ED-006 — Destroy-First, Robustness-Gated Development (the permanent cycle)
+
+> Once the architecture exists, the most valuable act is not adding a feature — it is
+> trying to **break** the system. **Don't build new features. Try to prove that every
+> existing feature is wrong. If you fail to break it, produce evidence that it is
+> correct. Only then allow the next feature to exist.** (The path of Linux, PostgreSQL,
+> Kubernetes, AWS — longevity comes from robustness, not feature count.)
+
+**The cycle (no feature skips a stage):**
+
+```
+Idea → Implement → 100-Agent Destroy →  ┌ Broken  → Repair ┐
+                                        └ Survived → Evidence ┘
+   → Regression Tests → Conformance → Performance → Security
+   → Independent Review → FREEZE → Next Milestone
+```
+
+**Robustness offices (the destroy lenses):** Red Team (break it, no other goal) ·
+Security (memory corruption, replay, DoS, overflow, injection, race, deadlock, resource
+exhaustion, privilege escalation, supply chain) · Reliability (power loss, crash,
+restart, disk full/slow, network loss, clock skew, corrupt WAL/snapshot) · Scalability
+(1 → 1M) · Correctness (replay, idempotency, ordering, consistency, determinism, truth,
+evidence) · Performance (latency, CPU, memory, GC, cache, allocation).
+
+**Testing disciplines (escalating):** chaos engineering (kill -9, disk/mem/cpu pressure,
+latency, bit-flips, dropped/duplicate/out-of-order packets, clock jumps, leader/follower
+crash, partition) · property-based testing (1M random cognitive states → replay
+deterministic?) · differential testing (Rust ↔ Python ↔ TypeScript ↔ Go ↔ Java ↔ C# all
+agree) · fuzzing (random CBOR/envelope/truth/identity/capability/query/plan) · mutation
+testing (remove an `if` → does a test fail?) · formal verification (replay always
+deterministic?) · long-running (30-day continuous) · memory-leak (1B ops, memory
+stable?) · independent team (a team builds ARVES from the Standard Kit alone, no help).
+
+**KPIs change** — from *features completed* to: **bugs found · bugs fixed · regression
+tests added · evidence generated · confidence.** A feature that survives destroy with
+evidence + regression tests + conformance/perf/security/independent-review + freeze is
+worth more than three unbroken-because-untested features.
+
+*Ratified by the maintainer during the product era: robustness, not feature count, is
+what makes a cognitive platform outlive its competitors. Applied first in the
+whole-system destroy pass before P4.*

@@ -33,6 +33,21 @@ function planFor(relevant) {
   ];
 }
 
+// Product-boundary guard: a capability outcome must be ACS-encodable. A bare JS number
+// is ambiguous (int vs float) and lossy beyond 2^53 — reject it here so a buggy capability
+// produces a recorded refusal, not a codec crash mid-trace. (Integers must be BigInt,
+// floats arves.float(x).)
+function normalizeOutcome(v) {
+  if (typeof v === 'number') throw new Error('capability returned a bare number; use BigInt or a float wrapper');
+  if (Array.isArray(v)) { v.forEach(normalizeOutcome); return v; }
+  // Recurse only into PLAIN objects; class instances (Flt float wrapper, Uint8Array) are
+  // opaque ACS values and pass through untouched.
+  if (v && typeof v === 'object' && v.constructor === Object) {
+    for (const x of Object.values(v)) normalizeOutcome(x);
+  }
+  return v;
+}
+
 export class Agent {
   #caps;
   constructor(capabilities) { this.#caps = capabilities; }
@@ -52,8 +67,19 @@ export class Agent {
       return entry;
     };
 
-    // 1. Memory + 2. Reasoning.
-    const relevant = relevantTo(goal, truths);
+    // 1. Memory + 2. Reasoning. Order-INDEPENDENCE: sort relevant truths by their content
+    // address so the same knowledge in any incidental order yields the identical trace
+    // (the replay/one-world claim would be false otherwise).
+    const relevant = relevantTo(goal, truths).slice().sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+    // Honest refusal: if nothing in memory is relevant, do NOT fabricate an authoritative
+    // plan — record a refusal as truth and stop (misleading truth is worse than none).
+    if (relevant.length === 0) {
+      const reasoning = await commit('reasoning', { goal, from: [], conclusion: 'no relevant truth; refusing to plan' });
+      const root = await commit('decision-trace', { goal, steps: [reasoning.id], outcome: 'refused' });
+      return { goal, reasoning, planning: null, actions: [], root, trace, refused: true };
+    }
+
     const reasoning = await commit('reasoning', {
       goal,
       from: relevant.map((t) => t.id).sort(),
@@ -64,12 +90,19 @@ export class Agent {
     const plan = planFor(relevant);
     const planning = await commit('plan', { goal, steps: plan.map((s) => s.intent) });
 
-    // 4. Capability Selection + 5. Execution.
+    // 4. Capability Selection + 5. Execution. Each step is guarded: a missing capability
+    // or a bad outcome becomes a recorded REFUSAL step (truth), never a mid-loop crash
+    // that leaves a half-committed trace.
     const actions = [];
     for (const step of plan) {
-      const cap = this.#caps.select(step.intent);               // Capability Selection
-      const outcome = cap.execute(step.args, relevant.map((t) => t.fact)); // Execution (deterministic)
-      const action = await commit('action', { intent: step.intent, capability: cap.name, outcome });
+      let action;
+      try {
+        const cap = this.#caps.select(step.intent);               // Capability Selection
+        const outcome = normalizeOutcome(cap.execute(step.args, relevant.map((t) => t.fact))); // Execution
+        action = await commit('action', { intent: step.intent, capability: cap.name, outcome });
+      } catch (err) {
+        action = await commit('action', { intent: step.intent, capability: 'none', outcome: { refused: String(err.message).slice(0, 80) } });
+      }
       actions.push(action);
     }
 

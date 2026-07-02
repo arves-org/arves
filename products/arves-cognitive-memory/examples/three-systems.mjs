@@ -29,8 +29,14 @@ console.log('\n[2] Evidence / Provenance / Truth');
 console.log('    truth:', t.fact.entity, '· event', JSON.stringify(t.fact.event), '· at', t.fact.at.toString(), 'ns');
 console.log('    attested by', t.sources.length, 'independent systems:', t.sources.join(', '));
 
-console.log('\n[3] Audit — tamper-evident chain');
-console.log('    audit entries:', mem.auditTrail().length, '· chain head:', mem.head().slice(0, 22) + '…');
+console.log('\n[3] Audit — tamper-evident chain (verified, and tamper is detected)');
+const intact = mem.verifyChain();
+console.log('    audit entries:', mem.auditTrail().length, '· chain head:', mem.head().slice(0, 22) + '…', '· verifyChain:', intact.ok);
+// Prove it is actually tamper-EVIDENT: mutate a copy of history and re-verify → must fail.
+const tampered = mem.auditTrail().map((e) => ({ ...e }));
+tampered[0] = { ...tampered[0], source: 'forged' };
+const detected = mem.verifyChain(tampered, mem.head());
+console.log('    tampered a past entry → detected?', !detected.ok, `(${detected.reason} at #${detected.brokenAt})`);
 
 console.log('\n[4] Replay — deterministic');
 const rootA = mem.root();
@@ -55,7 +61,7 @@ const proofs = {
   Identity: ids.every((i) => i === ids[0]),
   Deduplication: mem.truths().length === 1,
   Evidence: t.sources.length === 3,
-  Audit: mem.auditTrail().length === 3 && mem.head() !== '00',
+  Audit: mem.auditTrail().length === 3 && mem.head() !== '00' && intact.ok && !detected.ok,
   Replay: rootA === rootB,
   Reasoning: c1.id === c2.id,
 };

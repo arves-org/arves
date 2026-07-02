@@ -12,6 +12,38 @@
 
 use std::io::{self, BufRead, Write};
 
+/// Hard cap on a single request line (1 MiB): a hostile unbounded line cannot exhaust
+/// memory — it is answered with `ERR too-large` and the rest of the line discarded.
+const MAX_LINE: usize = 1 << 20;
+
+/// Read one '\n'-terminated line, bounded to MAX_LINE bytes. Returns `(line, truncated)`
+/// or `None` at clean EOF. A truncated line's remainder (up to the newline) is discarded.
+fn read_line_bounded<R: BufRead>(r: &mut R) -> Option<(String, bool)> {
+    let mut buf: Vec<u8> = Vec::new();
+    let (mut truncated, mut any) = (false, false);
+    let mut byte = [0u8; 1];
+    loop {
+        match r.read(&mut byte) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {
+                any = true;
+                if byte[0] == b'\n' {
+                    break;
+                }
+                if buf.len() < MAX_LINE {
+                    buf.push(byte[0]);
+                } else {
+                    truncated = true;
+                }
+            }
+        }
+    }
+    if !any {
+        return None;
+    }
+    Some((String::from_utf8_lossy(&buf).into_owned(), truncated))
+}
+
 use arves_acs::hex;
 use arves_bridge::{commit_body, invoke, InvokeError};
 use arves_capability_fabric::{
@@ -71,11 +103,13 @@ fn main() {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut out = stdout.lock();
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => break,
-        };
+    let mut reader = stdin.lock();
+    while let Some((line, truncated)) = read_line_bounded(&mut reader) {
+        if truncated {
+            let _ = writeln!(out, "ERR too-large");
+            let _ = out.flush();
+            continue;
+        }
         let line = line.trim();
         if line.is_empty() {
             continue;
@@ -96,7 +130,7 @@ fn main() {
                             None => "ERR no-effect".to_string(),
                         },
                         Err(InvokeError::Unbound(_)) => "ERR unbound".to_string(),
-                        Err(InvokeError::Commit(e)) => format!("ERR {e:?}"),
+                        Err(e) => format!("ERR {e:?}"),
                     }
                 }
                 _ => "ERR bad-request".to_string(),
