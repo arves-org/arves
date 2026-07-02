@@ -1,0 +1,20 @@
+{
+  "name": "@arves/ecosystem-sdk",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Ecosystem SDK & Authoring Kit (P6.5) — third parties author, certify, sign, and publish capabilities/engines/connectors that run on the frozen Runtime v1.0 without touching it.",
+  "bin": { "arves": "bin/arves.mjs" },
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (SDK + Bridge) — FROZEN",
+    "modifiesRuntime": false,
+    "enables": ["third-party capabilities", "third-party engines", "third-party connectors", "certification", "content-addressed signing"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": {
+    "demo": "node examples/third-party-capability.mjs",
+    "certify": "node bin/arves.mjs certify examples/invoice-ocr.capability.mjs",
+    "package": "node bin/arves.mjs package examples/invoice-ocr.capability.mjs"
+  }
+}

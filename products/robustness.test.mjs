@@ -10,6 +10,7 @@ import { allSources } from './arves-cognitive-memory/src/connectors.mjs';
 import { PersonalCognitiveOS } from './arves-personal-os/src/personal-os.mjs';
 import { personalReality } from './arves-personal-os/src/connectors.mjs';
 import { EnterpriseCognitiveOS } from './arves-enterprise-os/src/enterprise-os.mjs';
+import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from './arves-ecosystem-sdk/src/kit.mjs';
 
 let n = 0;
 const ok = (name, cond) => { assert.ok(cond, name); n++; console.log('  ✓', name); };
@@ -111,6 +112,36 @@ console.log('Enterprise Cognitive OS (P5):');
   const small = await org.proposeDecision({ agent: 'finance', subject: 'spend:coffee', action: 'approve', amountUsd: 500n });
   ok('compliant small spend is NOT falsely blocked', small.committed === true);
   bridge.close();
+}
+
+console.log('Ecosystem SDK & Authoring Kit (P6.5):');
+{
+  const good = defineCapability({ name: 'good.cap', version: '1.0.0', produces: ['uci.fact'],
+    execute: (i) => [{ target: 'uci.fact', value: { type: 'uci.fact', k: BigInt(i.k) } }] });
+  ok('a well-formed capability certifies', certifyCapability(good, [{ k: 1 }, { k: 2 }]).certified === true);
+
+  // Non-deterministic capability (stateful counter) must FAIL certification.
+  let ctr = 0n;
+  const nondet = defineCapability({ name: 'nondet.cap', version: '1.0.0', produces: ['uci.fact'],
+    execute: () => { ctr += 1n; return [{ target: 'uci.fact', value: { type: 'uci.fact', n: ctr } }]; } });
+  ok('non-deterministic capability is rejected', certifyCapability(nondet, [{}, {}]).certified === false);
+
+  // Capability emitting an UNDECLARED target must FAIL certification.
+  const undeclared = defineCapability({ name: 'bad.cap', version: '1.0.0', produces: ['uci.fact'],
+    execute: () => [{ target: 'uci.other', value: { type: 'uci.fact' } }] });
+  ok('undeclared-effect capability is rejected', certifyCapability(undeclared, [{}]).certified === false);
+
+  // Content-addressed signature: verifies, and tamper is detected.
+  const pkg = packageCapability(good, 'good.cap@1.0.0 source');
+  ok('artifact signature verifies', verifyArtifact(pkg) === true);
+  const tampered = { ...pkg, artifact: { ...pkg.artifact, sourceHash: 'deadbeef' } };
+  ok('tampered artifact is detected', verifyArtifact(tampered) === false);
+
+  // Host refuses an uncertified capability at install (no bridge needed — throws first).
+  const host = new CapabilityHost(null);
+  let refused = false;
+  try { host.install(pkg, good, { certified: false, checks: [] }); } catch { refused = true; }
+  ok('host refuses to install an uncertified capability', refused);
 }
 
 console.log(`\n${n}/${n} robustness regressions PASS`);

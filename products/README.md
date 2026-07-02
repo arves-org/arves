@@ -62,7 +62,8 @@ the constitution's own instrument for an engineering decision (not a silent edit
 | **P4** | **Personal Cognitive OS** ✅ | persistent world model · reproducible/audited reasoning · contradiction-with-prior-decision · evidence-backed (not a chatbot) | P0–P3, Runtime v1.0 |
 | **P5** | **Enterprise Cognitive OS** ✅ | Multi-Agent shared truth · Governance · Policy-as-truth · Compliance ledger · cross-dept consistency | P0–P3, Runtime v1.0 |
 | P6 | Visual Cognitive Studio | visual authoring of cognitive graphs | P1–P3 |
-| P7 | Marketplace | engines/capabilities/agents/connectors | P0–P5 |
+| **P6.5** | **Ecosystem SDK & Authoring Kit** ✅ | third parties author/certify/sign/publish capabilities that run on the frozen runtime — *no runtime change* | Runtime v1.0 API |
+| P7 | Marketplace | distribute certified third-party capabilities/engines/connectors | P6.5 |
 | P8 | Cloud Platform | hosted ARVES | P0–P7 |
 | P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P0–P8 |
 | P10 | ARVES OS | the cognitive operating system | P0–P9 |
@@ -108,6 +109,7 @@ products/
   arves-agent-runtime/            P3 — Agent Runtime ✅ (reasons on the real Kernel)
   arves-personal-os/              P4 — Personal Cognitive OS ✅ (first customer of Runtime v1.0)
   arves-enterprise-os/            P5 — Enterprise Cognitive OS ✅ (2nd customer, no runtime change)
+  arves-ecosystem-sdk/            P6.5 — Ecosystem SDK & Authoring Kit ✅ (third-party capabilities; arves CLI)
 runtime/crates/arves-bridge/      P2 — Runtime Bridge (PLATFORM): Capability→Engine→Kernel, ACS-addressed
 runtime/crates/arves-engine-fabric/     concrete reference Engine (PureEngine)
 runtime/crates/arves-capability-fabric/ concrete reference CapabilityRegistry (MemRegistry)
