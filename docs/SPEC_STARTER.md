@@ -1,15 +1,17 @@
 # ARVES Specification — Read These 3 First
 
-The ARVES specification corpus is large (~50 documents across
-[`spec-markdown/`](../spec-markdown/) and the standard set under [`standard/`](../standard/)).
-You do **not** need to read it all to start. This page is a curated on-ramp: the **three
-load-bearing documents** that a newcomer, a capability author, or someone building an
-independent runtime should read first, in order — plus where to go next.
+The ARVES specification corpus is large (~50 documents in the
+[Specification Corpus](../spec-markdown/ARVES_00_Documentation_Index_v2.2.md) plus the standard
+set on [The Standard](../standard/README.md) page). You do **not** need to read it all to start.
+This page is a curated on-ramp: the **three load-bearing documents** that a newcomer, a capability
+author, or someone building an independent runtime should read first, in order — plus where to go
+next.
 
-> The Markdown files in [`spec-markdown/`](../spec-markdown/) are faithful mirrors of the frozen
-> `.docx` corpus (the authoritative source of record). The ACS contracts live under
-> [`standard/acs/`](../standard/acs/). Everything is frozen — changes go through CCP / Amendment
-> / IDR, never a silent edit.
+> The Markdown files in the `spec-markdown/` corpus are faithful mirrors of the frozen `.docx`
+> corpus (the authoritative source of record). The ACS contracts are published below —
+> [ACS-001](../standard/acs/ACS-001_Content_Addressing.md) through
+> [ACS-005](../standard/acs/ACS-005_Normative_Language.md). Everything is frozen — changes go
+> through CCP / Amendment / IDR, never a silent edit.
 
 ---
 

@@ -74,8 +74,10 @@ export class KernelBridge {
   #parse(line, kind, ctx) {
     const [contentId, status, index] = line.split(/\s+/);
     if (contentId === 'ERR') throw new Error(`bridge ${kind} refused: ${line}${ctx ? ` (${ctx})` : ''}`);
-    // Defensive: a conformant response is `<64-hex-id> <status> <index>`. Anything else
-    // means desync/corruption — fail loudly rather than return a wrong ContentId.
+    // Defensive: a conformant response is `<68-hex-id> <status> <index>`. The id is 68 hex
+    // chars = 34 bytes: the 2-byte ACS-001 multihash prefix (code + length) + a 32-byte
+    // SHA-256 digest. Anything else means desync/corruption — fail loudly rather than return
+    // a wrong ContentId.
     if (!/^[0-9a-f]{68}$/.test(contentId) || (status !== 'committed' && status !== 'already-committed')) {
       throw new Error(`arves-bridge malformed response: ${JSON.stringify(line)}`);
     }

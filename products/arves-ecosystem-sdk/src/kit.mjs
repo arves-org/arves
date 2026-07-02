@@ -40,9 +40,18 @@ export function defineCapability({ name, version, produces, execute, determinism
 
 /** Certify a capability against the ARVES contract, using representative test inputs.
  *  Checks: manifest validity · every effect targets a declared produce · every effect is
- *  ACS-canonical (encodable/addressable) · determinism (same input → same effect
- *  addresses). Returns `{ certified, checks }`. An uncertified capability MUST NOT be
- *  installed. */
+ *  ACS-canonical (encodable/addressable) · determinism.
+ *
+ *  DETERMINISM IS A BEST-EFFORT PROBE, NOT ENFORCEMENT. The `deterministic` check runs each
+ *  supplied test input TWICE and compares the effect addresses. It only samples the
+ *  author-provided inputs, so it catches obvious non-determinism (clocks, RNG, mutable
+ *  counters that vary between the two runs) but CANNOT prove purity: input-scoped
+ *  non-determinism (a branch on an input the author didn't supply) or delayed/Nth-call
+ *  non-determinism will pass this probe and still certify + install. True enforcement is
+ *  engine-side and is deferred v1.1 RCR debt ("engine-enforced determinism", see
+ *  runtime/RUNTIME_FREEZE_v1.0.md). Read this check as "no non-determinism observed over the
+ *  supplied inputs", not "guaranteed pure". Returns `{ certified, checks }`. An uncertified
+ *  capability MUST NOT be installed. */
 export function certifyCapability(cap, testInputs) {
   const checks = [];
   const add = (name, ok, detail = '') => checks.push({ name, ok, detail });
@@ -63,6 +72,9 @@ export function certifyCapability(cap, testInputs) {
   let acsCanonical = { ok: true, detail: '' };
   let deterministic = { ok: true, detail: '' };
   for (const input of testInputs) {
+    // BEST-EFFORT determinism PROBE: run each supplied input twice and compare effect
+    // addresses. This samples the author's inputs only — it does not (and cannot here) prove
+    // purity across all inputs or across time. See the certifyCapability() docstring.
     let e1;
     let e2;
     try {
@@ -158,7 +170,11 @@ export class CapabilityHost {
   /** Install a packaged capability. The certification gate is ENFORCED, not attested: the
    *  host re-runs certification itself against the artifact's own tamper-evident test inputs,
    *  so a forged `certified:true` cannot get a non-conformant capability installed. Also
-   *  refuses a tampered artifact or code that does not match the signed artifact. */
+   *  refuses a tampered artifact or code that does not match the signed artifact.
+   *  NOTE: re-running certification inherits the determinism check's limits — it is the same
+   *  best-effort run-twice PROBE over the signed inputs (see certifyCapability()), so
+   *  input-scoped/delayed non-determinism can still pass. Manifest/code/signature integrity is
+   *  enforced; full determinism enforcement is deferred v1.1 engine-side RCR debt. */
   install(pkg, cap) {
     if (!verifyArtifact(pkg)) throw new Error('install refused: artifact signature/test-inputs do not verify (tampered)');
     // Real code integrity: the capability's actual code MUST match the signed artifact —

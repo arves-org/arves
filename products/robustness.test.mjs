@@ -122,7 +122,11 @@ console.log('Ecosystem SDK & Authoring Kit (P6.5):');
     execute: (i) => [{ target: 'uci.fact', value: { type: 'uci.fact', k: BigInt(i.k) } }] });
   ok('a well-formed capability certifies', certifyCapability(good, [{ k: 1 }, { k: 2 }]).certified === true);
 
-  // Non-deterministic capability (stateful counter) must FAIL certification.
+  // The determinism check is a BEST-EFFORT run-twice PROBE over the supplied inputs, not full
+  // enforcement (input-scoped/delayed non-determinism can still pass; full engine-enforced
+  // determinism is v1.1 RCR debt — see kit.mjs certifyCapability() + RUNTIME_FREEZE_v1.0.md).
+  // This case is the kind the probe DOES catch: a stateful counter changes between the two
+  // runs of the same input, so its effect addresses differ and certification fails.
   let ctr = 0n;
   const nondet = defineCapability({ name: 'nondet.cap', version: '1.0.0', produces: ['uci.fact'],
     execute: () => { ctr += 1n; return [{ target: 'uci.fact', value: { type: 'uci.fact', n: ctr } }]; } });

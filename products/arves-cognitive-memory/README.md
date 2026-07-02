@@ -26,11 +26,31 @@ the content address**, they collapse to a single truth automatically. You get, f
 It also **surfaces conflict** instead of hiding it: if the CRM disagrees on the time, you
 get two distinct truths, not a silent fuzzy merge.
 
+> **Scope caveat (honest).** This product is an **in-memory reference substrate**: a JS `Map`
+> plus a co-located hash chain. It does not use the Kernel bridge and has **no WAL, no durable
+> persistence, and no crash recovery** — all state is lost on process exit.
+> - **"Replay"** here means re-ingesting the same observations recomputes the same content
+>   address (deterministic recomputation), not replay from a durable log.
+> - **"Tamper-evident"** requires an **externally-trusted head.** `verifyChain()` detects a
+>   change to any *past* entry only relative to a head the verifier already trusts; an attacker
+>   who rewrites the whole log *and* its head produces a chain that verifies clean. The head is
+>   stored next to the log here, so this is integrity, not attestation. Real tamper-evidence
+>   needs the head anchored outside this process — e.g. committed to the real Kernel through
+>   `arves-sdk-ts/src/bridge.mjs`, or to another append-only authority.
+>
+> For durable, cross-process, WAL-backed truth, commit through the bridge to the real Kernel.
+
 ## Quick start
 
+> **Repo-local preview.** This package is `private` and unpublished (`0.1.0-preview`, no npm
+> registry, no `exports` map), so a bare `@arves/cognitive-memory` specifier does **not**
+> resolve (`ERR_MODULE_NOT_FOUND`). Until it is published, import from the **relative source
+> paths** below — exactly as `examples/three-systems.mjs` does. `@arves/cognitive-memory` is
+> the intended published name, not a working import today.
+
 ```js
-import { CognitiveMemory } from '@arves/cognitive-memory';
-import { allSources } from '@arves/cognitive-memory/connectors';
+import { CognitiveMemory } from './src/memory.mjs';
+import { allSources } from './src/connectors.mjs';
 
 const memory = new CognitiveMemory();
 for (const observation of allSources()) memory.ingest(observation);

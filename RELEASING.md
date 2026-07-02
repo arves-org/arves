@@ -10,12 +10,17 @@ Verify green, then publish. Every command below runs offline, no keys:
 
 - [x] **LICENSE** — Apache-2.0 at the repo root.
 - [x] **Front door** — [README.md](README.md) · [WHY_ARVES.md](WHY_ARVES.md) ·
-  [QUICKSTART.md](QUICKSTART.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · `docs-site/` (77 pages,
-  links clean, GitHub-Pages-ready).
+  [QUICKSTART.md](QUICKSTART.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · `docs-site/` (90 pages —
+  40 primary + 50 spec — GitHub-Pages-ready). "Links clean" is not asserted by hand: running
+  `node tools/build_docs_site.mjs` regenerates the site and runs a **build-time link-gate** that
+  fails (non-zero exit) on any broken in-site relative link; the checklist is green only when that
+  build exits 0 (`link-gate: OK — 0 broken links`).
 - [x] **Green:** `node products/robustness.test.mjs` (43/43) ·
   `cargo test --manifest-path runtime/Cargo.toml --workspace` (71/0) ·
   `python verification/certification/certify_runtime.py` (2/2) ·
-  `python verification/evidence/evidence_probe.py` (7/7).
+  `python verification/evidence/evidence_probe.py` (8/8) ·
+  `python verification/certification/verify_runtime_sound.py` (2/2 SOUND-CERTIFIED) ·
+  `python verification/freeze/freeze_check.py check` (0 drift).
 - [ ] **`CODE_OF_CONDUCT.md` + `SECURITY.md`** — standard community/security-policy files
   (a maintainer action; outward-facing policy, not code).
 - [ ] **Pick the public GitHub org/name.**
@@ -24,7 +29,8 @@ Verify green, then publish. Every command below runs offline, no keys:
 
 1. Push to a public GitHub repository.
 2. Enable **GitHub Pages** serving `docs-site/` — it is static with a `.nojekyll`, so there is
-   no build step; regenerate any time with `node tools/build_docs_site.mjs`.
+   no build step; regenerate any time with `node tools/build_docs_site.mjs` (which also runs the
+   link-gate and refuses to emit a site with a broken in-site link).
 3. Cut a release from the sealed line (tags `runtime-v1.0`, `arves-build-v1.0`,
    `growth-program-v1` already exist).
 4. Announce with the [WHY_ARVES](WHY_ARVES.md) manifesto as the lead — *why* before *how*.

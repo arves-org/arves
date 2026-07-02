@@ -1,12 +1,19 @@
 // ARVES Agent Runtime (P3) — a cognitive agent whose ENTIRE decision trace is
-// committed as content-addressed truth in the REAL reference Kernel (via the P2 bridge).
+// committed as content-addressed truth through the P2 bridge (`bridge.mjs` → the
+// `arves-bridge` server → the WAL-backed Rust reference Kernel).
 //
 // The loop the platform prescribes:
 //   Memory → Reasoning → Planning → Capability Selection → Execution → Truth Update.
 // Every step is committed through the Kernel bridge, so the agent's reasoning is
 // deterministic, auditable, and replayable at the truth layer — not just in app memory.
-// This product needs ARVES: without content-addressed truth + a real Kernel, you cannot
-// get idempotent, byte-reproducible, audited agent reasoning for free.
+//
+// SCOPE CAVEAT (honest): durable persistence/replay/recovery hold ONLY along the bridge
+// path, and ONLY when the `arves-bridge` binary is built and running (QUICKSTART step 1) —
+// if it is not, `bridge.commit(...)` rejects and nothing is committed. This module's own
+// addressing helper is `class Arves` from the SDK, which is an IN-MEMORY reference substrate
+// (a JS `Map`, no WAL/recovery); it is used here only to compute the local ContentId, not to
+// store truth. So "audited/replayable in the real Kernel" is a claim about the bridge path,
+// not about `class Arves`, which persists nothing on its own.
 //
 // IDR-006: this consumes the SDK (P0), Cognitive Memory (P1), and the bridge (P2). It
 // modifies no platform file.

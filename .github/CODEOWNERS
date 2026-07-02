@@ -1,0 +1,47 @@
+# ARVES — CODEOWNERS
+# =============================================================================
+# Purpose: mark the FROZEN trees so that any pull request touching them REQUIRES
+# review from the freeze owners. This is the human half of the freeze gate; the
+# mechanical half is `verification/freeze/freeze_check.py check` (wired into
+# .github/workflows/ci.yml), which fails CI on ANY drift of a frozen file.
+#
+# The freeze is defined by the ARVES Engineering Constitution (CLAUDE.md) and the
+# Runtime Freeze Record (runtime/RUNTIME_FREEZE_v1.0.md):
+#   * runtime/  — Runtime v1.0, byte-stable; changes ONLY via a Runtime Change
+#                 Request (RCR).
+#   * standard/ — the frozen Standard; changes ONLY via a CCP Amendment / IDR.
+# No product-side or ad-hoc edit may land in either tree.
+#
+# NOTE ON ENFORCEMENT: CODEOWNERS only *requests/*requires review when the repo
+# has branch protection with "Require review from Code Owners" enabled on the
+# GitHub host. No CI host is wired yet (this repo has no remote), so this file is
+# the review-gate DEFINITION; branch protection must be turned on when the repo
+# is hosted. The freeze_check.py gate in ci.yml is host-independent and is the
+# authoritative mechanical stop.
+#
+# Owners are placeholder maintainer groups; replace with real GitHub teams/handles
+# when the repo is hosted (e.g. @arves/runtime-team, @arves/standard-team).
+# =============================================================================
+
+# ----------------------------------------------------------------------------
+# FROZEN — Runtime v1.0. Runtime Team owns; changes only via RCR.
+# ----------------------------------------------------------------------------
+/runtime/                       @arves-maintainers @arves-runtime-team
+
+# ----------------------------------------------------------------------------
+# FROZEN — the Standard. Standard Team owns; changes only via CCP Amendment/IDR.
+# ----------------------------------------------------------------------------
+/standard/                      @arves-maintainers @arves-standard-team
+
+# ----------------------------------------------------------------------------
+# The freeze machinery itself (the gate that guards the two trees above) and its
+# rolling baseline manifest. Changing the gate or its baseline must be reviewed
+# by the maintainers, because a silent manifest edit could hide real drift.
+# ----------------------------------------------------------------------------
+/verification/freeze/           @arves-maintainers
+
+# ----------------------------------------------------------------------------
+# CI + freeze/review configuration (this lane). Maintainer review.
+# ----------------------------------------------------------------------------
+/.github/                       @arves-maintainers
+/Dockerfile                     @arves-maintainers

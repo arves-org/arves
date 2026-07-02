@@ -4,6 +4,14 @@ Regression test for the certification-harness audit gaps (verification/evidence/
   B3 — a gameable grader would CERTIFY a hollow adapter that only echoes published answers.
   B4 — certify_runtime.py must not crash on a Kit-only checkout (missing reference bins).
 
+It also covers the sound verifier's Rust arm (both reference runtimes graded inputs-only by
+ONE grader):
+
+  B3-rust — a BYTE-BROKEN / STALE Rust-style adapter (returns wrong ContentIds) must be
+            NOT SOUND-CERTIFIED under grade_sound(), exactly like a hollow Python echo.
+  B4-rust — a MISSING reference bin must degrade to RustUnavailable (a SKIPPED row), never
+            crash the verifier with FileNotFoundError.
+
 This test is the executable proof that B3 is caught by the sound verifier and B4 degrades
 gracefully. Run:  python verification/certification/test_harness_integrity.py
 """
@@ -59,6 +67,66 @@ if hollow["published"][0] != hollow["published"][1]:
     failures.append(f"(B3) hollow was expected to echo the published surface, got {hollow['published']}")
 
 
+# ---- B3-rust: a BYTE-BROKEN / STALE Rust-style adapter must be NOT SOUND-CERTIFIED ----
+#
+# Models a Rust bridge that drifted from the frozen bytes (e.g. wrong domain-tag framing or a
+# stale build): it hands back a plausible-looking but WRONG ContentId for every address and
+# mislabels decode verdicts. The grader owns the truth, so every answer mismatches and the
+# runtime is rejected — the same guarantee the real Rust arm relies on to stay honest.
+
+def broken_rust_addr(domain, body):
+    # Deterministic, well-formed 34-byte multihash prefix, but NOT the SHA-256 of the input:
+    # a byte-broken/stale adapter that never reproduces a real ContentId.
+    return "12" + "20" + "ba" * 32
+
+
+def broken_rust_rej(body):
+    # Stale decoder: claims ACCEPT for genuine core-negatives (wrong) and REJECT-with-bogus-
+    # reason for valid accept-probes (wrong) — inverts both gates.
+    return ("ACCEPT", "") if bytes(body) in _published_reason else ("REJECT", "stale-reason")
+
+
+broken_rust = S.grade_sound("broken-rust", broken_rust_addr, broken_rust_rej)
+if broken_rust["certified"]:
+    failures.append(f"SECURITY REGRESSION (B3-rust): byte-broken/stale Rust adapter was "
+                    f"SOUND-CERTIFIED: {broken_rust}")
+# It must miss every anti-gaming gate — nothing about a stale runtime can match.
+if broken_rust["published"][0] != 0:
+    failures.append(f"(B3-rust) stale adapter reproduced a published address it shouldn't: "
+                    f"{broken_rust['published']}")
+if broken_rust["fresh"][0] != 0:
+    failures.append(f"(B3-rust) stale adapter reproduced a fresh address: {broken_rust['fresh']}")
+if broken_rust["accept"][0] != 0:
+    failures.append(f"(B3-rust) stale adapter ACCEPTed a valid probe: {broken_rust['accept']}")
+
+
+# ---- B4-rust: a MISSING reference bin must degrade to RustUnavailable, not crash ----
+#
+# Simulate a Kit-only checkout by pointing the bridge bin at a path that does not exist. The
+# adapter builder MUST raise RustUnavailable (which main() turns into a SKIPPED row), never a
+# bare FileNotFoundError that would abort the whole verifier.
+_saved_bridge = S.RUST_BRIDGE
+try:
+    S.RUST_BRIDGE = os.path.join(S.ROOT, "runtime", "target", "debug", "does-not-exist")
+    try:
+        S.rust_build_adapters()
+        failures.append("(B4-rust) rust_build_adapters() did not degrade when the bridge bin "
+                        "is absent; it must raise RustUnavailable")
+    except S.RustUnavailable:
+        pass  # correct: degraded, not crashed
+    except FileNotFoundError as e:
+        failures.append(f"(B4-rust) rust_build_adapters() crashed with FileNotFoundError "
+                        f"instead of RustUnavailable: {e}")
+    # And main() as a whole must still return a normal exit code (SKIPPED row, run stays green
+    # on the still-available Python arm).
+    rc = S.main()
+    if rc not in (0, 1):
+        failures.append(f"(B4-rust) verify_runtime_sound.main() returned unexpected code {rc} "
+                        f"with a missing Rust bin")
+finally:
+    S.RUST_BRIDGE = _saved_bridge
+
+
 # ---- B4: certify_runtime.py must degrade (not crash) when a reference binary is absent ----
 
 _saved = C.RUST_BRIDGE
@@ -92,4 +160,4 @@ if failures:
         print("  - " + f)
     sys.exit(1)
 print("HARNESS-INTEGRITY OK: real=SOUND-CERTIFIED, hollow=REJECTED (B3), "
-      "missing-runtime=degraded-not-crashed (B4)")
+      "byte-broken-rust=REJECTED (B3-rust), missing-runtime=degraded-not-crashed (B4/B4-rust)")

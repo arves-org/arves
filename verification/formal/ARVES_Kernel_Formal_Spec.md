@@ -152,14 +152,23 @@ would be vacuously satisfied by a kernel that commits nothing).
 
 The module is **standalone TLA+** — it needs only TLC (or Apalache). Java and a
 TLA+ tool are the only prerequisites (neither ships in this repo; install
-locally). All commands are run from `verification/model-checking/`.
+locally). All commands are run from `verification/formal/` — the directory that
+holds `ARVES_Kernel.tla`, `ARVES_Kernel_MC.cfg`, and this document.
+
+> **No captured run is checked in (honest status).** This repository does **not**
+> vendor `tla2tools.jar` (Java + a TLA+ tool are external prerequisites), and no
+> TLC output log is committed. The commands below are the *reproducible recipe*
+> for a certifier to run TLC themselves; they are **not** evidence that TLC has
+> already been run here. Treat any "expected result" text as the claim under test,
+> to be confirmed by running the recipe — not as a captured verdict. See also
+> `verification/formal/README.md`.
 
 ### 5.1 TLC (reference model checker)
 Obtain `tla2tools.jar` (the TLA+ tools; the TLA+ Toolbox bundles it, or download
 the standalone jar), then:
 
 ```sh
-# From verification/model-checking/
+# From verification/formal/ (place tla2tools.jar here, or point -cp at it).
 java -XX:+UseParallelGC -cp tla2tools.jar tlc2.TLC \
      -config ARVES_Kernel_MC.cfg ARVES_Kernel.tla
 ```
@@ -184,7 +193,7 @@ oracle and for larger `Content`). It needs light type annotations; the safety
 core translates directly:
 
 ```sh
-# Safety only (Apalache does not check `~>` liveness):
+# From verification/formal/. Safety only (Apalache does not check `~>` liveness):
 apalache-mc check --inv=SafetyInv --length=10 ARVES_Kernel.tla
 ```
 
@@ -340,7 +349,7 @@ non-conformant.
     but does not check `~>` liveness; kept as the optional second oracle (§5.2).
   - *(E) Do nothing / keep prose.* Rejected — violates the corpus's own Reference
     Lifecycle Part 4 ("unfalsifiable claims do not advance") and forfeits R-05.
-- **Recommendation.** Land this as the first `verification/model-checking/`
+- **Recommendation.** Land this as the first `verification/formal/`
   artifact; wire the TLC run into CI as a required check; treat CS-1 as a CCP-GATE
   scenario and cross-link it to the `arves-kernel` `truth_hash` conformance test so
   model and runtime cannot drift silently. Sequence the larger `ARVES_Consensus.tla`
@@ -378,8 +387,9 @@ non-conformant.
 
 ---
 
-*Evidence path: `verification/model-checking/ARVES_Kernel_Formal_Spec.md`
-(module `ARVES_Kernel.tla`, instance `ARVES_Kernel_MC.cfg`). Ratification path
+*Evidence path: `verification/formal/ARVES_Kernel_Formal_Spec.md`
+(module `verification/formal/ARVES_Kernel.tla`, instance
+`verification/formal/ARVES_Kernel_MC.cfg`). Ratification path
 (Reference Lifecycle): DRAFT evidence → CCP-GATE (this document + `AKF-CS-1`) →
 Candidate → Ratified evidence. The frozen v1.0 corpus is unchanged (ED-001); this
 artifact is additive verification evidence, not normative specification.*

@@ -19,6 +19,31 @@ the frozen Kit contract:
 A runtime is SOUND-CERTIFIED iff it reproduces every published + fresh address and decides
 every core-negative + accept-probe correctly.
 
+TWO RUNTIMES, ONE GRADER (inputs-only)
+--------------------------------------
+This verifier grades BOTH reference runtimes under the identical non-gameable grader:
+
+  * ARVES Python (independent) — imported in-process (`acs001_address`, `acs002_decode`).
+  * ARVES Rust (reference)     — driven inputs-only over the shipped line-protocol bins
+    (`arves-bridge`, `acs_decode`). The grader hands the Rust process only INPUTS
+    (`<domain_hex> <body_hex>` to address, `<body_hex>` to decode) and recomputes/compares
+    every answer here. So the Rust arm is graded by the same fresh + accept + core-reject
+    probes; a byte-broken or stale Rust adapter that returns wrong ContentIds is NOT
+    CERTIFIED exactly like a hollow Python echo would be.
+
+The Rust adapters are GUARDED: on a Kit-only checkout the reference bins are not built, so
+the adapter probe degrades to an UNAVAILABLE / SKIPPED line (never a crash / FileNotFoundError)
+— mirroring certify_runtime.py's B4 behaviour. Unavailability is NOT a certification failure;
+it is reported as SKIPPED and does not turn the run red on its own.
+
+Adapter line protocols (frozen bins, read-only — see the bin source headers):
+  * arves-bridge:  stdin `<domain_hex> <body_hex>\n` -> stdout `<contentId_hex> <status> <idx>`
+                   (or `ERR <reason>`). The FIRST whitespace token of each output line is the
+                   ContentId hex; `ERR`/empty lines are treated as a non-matching answer.
+  * acs_decode:    stdin `<body_hex>\n` -> stdout `ACCEPT\t<hex>` | `REJECT\t<reason>` |
+                   `ERR\tbad-hex`. Tab/space split -> (verdict, reason). The reason column is
+                   the ACS-002 reason code, compared byte-for-byte against the negative vector.
+
 This is the contract proposed for a future Kit 0.2.1 (which would converge
 RUNTIME_AUTHORS_GUIDE + certify_runtime.py onto it — a maintainer-gated, frozen-Kit change).
 It ships here as a LIVING check so the Verification arm can gate on B3 today without any
@@ -29,6 +54,7 @@ Run:  python verification/certification/verify_runtime_sound.py
 
 import hashlib
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -155,25 +181,135 @@ def py_rej(body):
         return ("REJECT", e.reason)
 
 
+# ---- Rust reference runtime adapters (driven inputs-only over the shipped bins) ----
+#
+# The grader gives the Rust process INPUTS ONLY and recomputes every expected value itself,
+# so the Rust arm is exactly as non-gameable as the Python arm. Missing bins degrade to an
+# UNAVAILABLE probe (see RustUnavailable) rather than crashing the run (B4 parity).
+
+class RustUnavailable(Exception):
+    """The Rust reference bins are not built in this checkout; the arm is SKIPPED, not failed."""
+
+
+def _rust_exe(name):
+    p = os.path.join(ROOT, "runtime", "target", "debug", name)
+    return p + ".exe" if os.path.exists(p + ".exe") else p
+
+
+RUST_BRIDGE = _rust_exe("arves-bridge")   # address bin: first token of each line = ContentId hex
+RUST_DECODE = _rust_exe("acs_decode")     # decode bin:  ACCEPT/REJECT<TAB>reason | ERR<TAB>bad-hex
+
+
+def _run_bin(path, payload):
+    """
+    Feed `payload` (bytes) to the bin at `path` on stdin, return stdout lines (str).
+    Degrades to RustUnavailable if the binary is absent or cannot be launched — the
+    verifier must never die with FileNotFoundError on a Kit-only checkout (B4 parity).
+    """
+    if not os.path.exists(path):
+        raise RustUnavailable(path)
+    try:
+        out = subprocess.run([path], input=payload, stdout=subprocess.PIPE).stdout
+    except (FileNotFoundError, OSError) as e:  # e.g. wrong-arch bin / exec bit missing
+        raise RustUnavailable(str(e))
+    return out.decode("utf-8", "replace").splitlines()
+
+
+def rust_build_adapters():
+    """
+    Build (addresser, rejecter) that answer from the Rust bins' output, keyed by input.
+    All inputs are batched through ONE subprocess each (state persists across a bridge
+    session, which is harmless: the first output token is the ContentId whether the commit
+    is `committed` or `already-committed`). Raises RustUnavailable if a bin is missing so
+    main() can record a SKIPPED row instead of crashing.
+
+    Non-gameable: the runtime still only ever sees INPUTS; grade_sound() owns every expected
+    value and compares here. A stale / byte-broken bridge (wrong ContentIds) simply mismatches
+    and is NOT CERTIFIED — the fresh + accept probes cannot be echoed.
+    """
+    # Address inputs: the same set grade_sound() will address (golden + fresh), keyed exactly.
+    addr_inputs = [(d, b) for (_s, d, b, _c) in GOLDEN] + list(FRESH)
+    addr_payload = "".join("%02x %s\n" % (d, bytes(b).hex()) for (d, b) in addr_inputs).encode()
+    addr_lines = _run_bin(RUST_BRIDGE, addr_payload)
+    addr_map = {}
+    for (d, b), line in zip(addr_inputs, addr_lines):
+        tok = line.split()
+        addr_map[(d, bytes(b))] = tok[0].lower() if tok else ""   # ERR/empty -> non-matching
+
+    # Decode inputs: every core-negative input and every accept-probe body, keyed exactly.
+    dec_inputs = [inp for (inp, _r) in CORE] + list(ACCEPT_PROBES)
+    dec_payload = "".join(bytes(b).hex() + "\n" for b in dec_inputs).encode()
+    dec_lines = _run_bin(RUST_DECODE, dec_payload)
+    dec_map = {}
+    for b, line in zip(dec_inputs, dec_lines):
+        parts = line.replace("\t", " ").split()
+        verdict = parts[0] if parts else "ERR"
+        reason = parts[1] if len(parts) > 1 else ""
+        if verdict == "ACCEPT":
+            dec_map[bytes(b)] = ("ACCEPT", "")
+        elif verdict == "REJECT":
+            dec_map[bytes(b)] = ("REJECT", reason)
+        else:  # ERR / empty -> a non-ACCEPT, non-matching-reason answer
+            dec_map[bytes(b)] = ("ERR", reason)
+
+    def rust_addr(domain, body):
+        return addr_map.get((domain, bytes(body)), "")
+
+    def rust_rej(body):
+        return dec_map.get(bytes(body), ("ERR", ""))
+
+    return rust_addr, rust_rej
+
+
+def _print_record(rec):
+    p, pt = rec["published"]
+    fr, frt = rec["fresh"]
+    c, ct = rec["core_reject"]
+    a, at = rec["accept"]
+    print("  %-28s published %d/%d  fresh %d/%d  core-reject %d/%d  accept %d/%d  ->  %s"
+          % (rec["runtime"], p, pt, fr, frt, c, ct, a, at,
+             "SOUND-CERTIFIED" if rec["certified"] else "NOT CERTIFIED"))
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    rec = grade_sound("ARVES Python (independent)", py_addr, py_rej)
     print("ARVES Sound Runtime Verification - non-gameable (grader owns the truth)")
     print("=" * 70)
-    p, pt = rec["published"]
-    fr, frt = rec["fresh"]
-    c, ct = rec["core_reject"]
-    a, at = rec["accept"]
-    print(f"  {rec['runtime']:<28} published {p}/{pt}  fresh {fr}/{frt}  "
-          f"core-reject {c}/{ct}  accept {a}/{at}  ->  "
-          f"{'SOUND-CERTIFIED' if rec['certified'] else 'NOT CERTIFIED'}")
+
+    records = []   # graded records (each has "certified")
+    skipped = []   # (name, reason) for runtimes unavailable in this checkout
+
+    # ARVES Python (independent) — imported in-process, always available in this repo.
+    records.append(grade_sound("ARVES Python (independent)", py_addr, py_rej))
+
+    # ARVES Rust (reference) — driven inputs-only over the shipped bins; SKIPPED if unbuilt.
+    try:
+        rust_addr, rust_rej = rust_build_adapters()
+        records.append(grade_sound("ARVES Rust (reference)", rust_addr, rust_rej))
+    except RustUnavailable as e:
+        skipped.append(("ARVES Rust (reference)", str(e)))
+
+    for rec in records:
+        _print_record(rec)
+    for name, why in skipped:
+        print("  %-28s SKIPPED / UNAVAILABLE (reference bin not built in this checkout: %s)"
+              % (name, os.path.basename(str(why)) or why))
+
     print("-" * 70)
-    print("  Runtime given INPUTS ONLY; grader recomputed every ContentId and re-decoded")
+    print("  Runtimes given INPUTS ONLY; grader recomputed every ContentId and re-decoded")
     print("  every input. Fresh + accept probes defeat a hollow echo adapter (gap B3).")
-    return 0 if rec["certified"] else 1
+    graded_ok = all(rec["certified"] for rec in records)
+    print("  %d/%d graded runtime(s) SOUND-CERTIFIED under ONE grader%s -> %s"
+          % (sum(r["certified"] for r in records), len(records),
+             (" (%d SKIPPED)" % len(skipped)) if skipped else "",
+             "PASS" if graded_ok else "FAIL"))
+    if skipped:
+        print("  (SKIPPED != FAIL: build the reference bins to grade the Rust arm too.)")
+    # A run is green iff at least one runtime was graded and every graded runtime certified.
+    return 0 if (records and graded_ok) else 1
 
 
 if __name__ == "__main__":

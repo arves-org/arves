@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The G2 Challenge · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><a href="acs-001.html">ACS-001 Content Addressing</a><a href="acs-002.html">ACS-002 Canonical Serialization</a><a href="acs-003.html">ACS-003 Canonical Envelope</a><a href="acs-004.html">ACS-004 Universal Type Registry</a><a href="acs-005.html">ACS-005 Normative Language</a><a href="acs-ratification.html">ACS Ratification (CCP-GATE)</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="implementing-arves.html">Implementing ARVES (cold-start)</a><a href="challenge.html" class="active">The G2 Challenge</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><a href="rcr-002.html">RCR-002 (truth-store integrity)</a><a href="success.html">Success — the North Star</a><a href="failure.html">Why ARVES Could Fail</a><a href="releasing.html">Releasing (Growth Protocol)</a><a href="dx-baseline.html">Developer Journey (DX baseline)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="the-arves-g2-challenge-certify-a-runtime-we-never-helped-you">The ARVES G2 Challenge — certify a runtime we never helped you build</h1>
+<p>ARVES has one open exit gate. Everything else is done; this is the thing that is not, and <em>by design</em> we cannot do it for ourselves.</p>
+<h2 id="the-claim-we-are-trying-to-falsify">The claim we are trying to falsify</h2>
+<blockquote><p><strong>Anyone can build a conformant ARVES runtime and certify it from the published Standard alone — with zero contact with the authors.</strong></p></blockquote>
+<p>Independence is graded honestly:</p>
+<ul><li><strong>G1 (done):</strong> a runtime built inside this program / by the same team. The repo has two (Rust + Python), certified under one conformance. Real signal — but not proof.</li><li><strong>G2 (open — this is the challenge):</strong> a <strong>genuinely unrelated party</strong>, using <strong>only the files under <code>standard/</code></strong> (plus the certification harness under <code>verification/</code>), builds a runtime that reproduces every golden vector and rejects every core negative, and certifies it <strong>with no questions asked of us.</strong></li></ul>
+<p>If you do that, you are the evidence ARVES has been waiting for. Until someone does, the project's headline independence claim stays capped at <strong>G1</strong>, and we say so everywhere.</p>
+<h2 id="how-to-take-it">How to take it</h2>
+<ol><li><strong>Read the cold-start packet:</strong> <a href="implementing-arves.html">IMPLEMENTING_ARVES.md</a>. It routes you through <code>standard/</code> in order and gives the exact conformance checklist. Do <strong>not</strong> read our reference runtime under <code>runtime/</code> — a real G2 attempt builds from the spec, not our code.</li><li><strong>Build</strong>, in any language, two things: the ACS-001 addresser and the ACS-002 canonical serializer/decoder (then ACS-003/004 as dCBOR maps). No network, no keys, offline.</li><li><strong>Self-check</strong> against the frozen vectors with your own recompute-everything runner (mirror <code>verification/independent/reference-runner/run.mjs</code>).</li><li><strong>Certify:</strong> wire your runtime as an adapter and run <code>python verification/certification/certify_runtime.py</code>, then the non-gameable <code>python verification/certification/verify_runtime_sound.py</code> (grader owns the truth + fresh probes — this is the one that actually proves you did the work).</li><li><strong>Win condition:</strong> <code>SOUND-CERTIFIED</code> from the Kit alone, with no help from us.</li></ol>
+<h2 id="the-rules-they-are-the-point-not-red-tape">The rules (they are the point, not red tape)</h2>
+<ul><li><strong>We will not help you during the attempt.</strong> Questions, hints, and clarifications would collapse G2 back to G1. If the Kit is ambiguous, that ambiguity <em>is</em> a finding — record it.</li><li><strong>No reading <code>runtime/</code>.</strong> Build from the normative spec text; if you needed our code, the Kit failed and we want to know where.</li><li><strong>We grade honestly.</strong> A runtime built with our help is recorded as G1, not G2. We would rather report "still G1" truthfully than launder an assisted result.</li></ul>
+<h2 id="how-to-submit">How to submit</h2>
+<p>Open a <strong>G2 Runtime Certification</strong> issue (template: <code>.github/ISSUE_TEMPLATE/g2-runtime-certification.md</code>) with: your runtime + language, a link to its source, the verbatim <code>certify_runtime.py</code> <strong>and</strong> <code>verify_runtime_sound.py</code> output, a confirmation you had no contact with the authors, and every point where the Kit was ambiguous or forced a guess. The ambiguity list is as valuable as the pass — it hardens the Standard for the next party.</p>
+<h2 id="what-a-genuine-g2-pass-earns">What a genuine G2 pass earns</h2>
+<ul><li>Recorded as the <strong>first external member of the Independent Runtime Alliance</strong>.</li><li>A <strong>G2</strong> row in <code>verification/evidence/EVIDENCE_LEDGER.md</code> — the first time ARVES independence is reported above G1.</li><li>Every ambiguity you hit becomes a CCP Amendment, making the Standard stronger — which is the whole reason the Foundation exists: <em>to make this event possible without us.</em></li></ul>
+<p><em>Honest status: this challenge is open and unmet. Nothing in this repository claims G2 has been reached — reaching it is your part.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

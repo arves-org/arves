@@ -22,24 +22,31 @@ datastore/framework does not, for free:
 
 ## Quick start
 
+> **Repo-local preview.** This package is `private` and unpublished (`0.1.0-preview`, no npm
+> registry, no `exports` map yet), so a bare `@arves/sdk` specifier does **not** resolve —
+> importing it throws `ERR_MODULE_NOT_FOUND`. Until the SDK is published, import from the
+> **relative source path** shown below (that is exactly what the examples in `examples/` do).
+> The `@arves/sdk` name is the intended published identifier, not a working import today.
+
 ```js
-import { Arves, FactStore } from '@arves/sdk';
+// From this package dir; the runnable version lives at examples/fact-store.mjs.
+import { Arves, FactStore } from './src/arves.mjs';
 
 const arves = new Arves();
 const store = new FactStore();
 
 // Field order doesn't matter — identity is the content address.
-const id = store.commit({
+const fact = {
   type: 'uci.fact',
   claim: 'sky-is-blue',
   confidence: arves.float(0.5),   // floats are explicit (distinct ACS kind)
   observed_at: 1730000000000000000n,  // integers are BigInt — exact, never lossy
-});
+};
+const id = store.commit(fact);
 // id === '12204284f0acb42a4730633fa8d6cfbd9040d85b62ebe3769d8b7d59af4375bb363e'
 // Commit it again with keys reordered → same id → store.size stays 1.
 
-arves.verify(fact, id);      // integrity check
-arves.traceRoot([id, id2]);  // reproducible decision-trace root
+arves.verify(fact, id);      // integrity check → true
 ```
 
 Two deliberate ergonomics enforce ACS correctness so you can't create silent bugs:

@@ -24,6 +24,17 @@ const SPEC = path.join(ROOT, 'spec-markdown');
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 
+// A repo-relative link target that is NOT an emitted page but IS a real file/dir in the repo
+// (e.g. source code like bin/arves.mjs, certify_runtime.py, or a bare directory). Such a target
+// cannot be a page and would 404 on GitHub Pages (it lives outside docs-site/), so we render the
+// reference as plain <code> — the repo path stays visible, and nothing 404s. Purely bogus targets
+// (not a page AND not a real repo path) are left as <a> so the build-time link-gate flags them.
+function repoTargetExists(bare) {
+  const rel = bare.replace(/^(\.\.\/)+/, '').replace(/^\.\//, '').replace(/\/$/, '');
+  if (!rel) return false;
+  try { return fs.existsSync(path.join(ROOT, rel)); } catch { return false; }
+}
+
 function inline(s, linkMap) {
   s = esc(s);
   s = s.replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`);
@@ -32,9 +43,20 @@ function inline(s, linkMap) {
     const hashIdx = href.indexOf('#');
     const anchor = hashIdx >= 0 ? href.slice(hashIdx) : '';
     const bare = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+    // docs live one level down (docs/…) so their in-repo links carry a leading ../ ; normalize it
+    // away so a repo-relative path still matches the (un-prefixed) link map keys.
+    const norm = bare.replace(/^(\.\.\/)+/, '').replace(/^\.\//, '');
     if (/^https?:\/\//.test(bare)) { /* external */ }
     else if (linkMap[bare]) href = linkMap[bare] + anchor;
-    else { const base = bare.split('/').pop(); if (linkMap[base]) href = linkMap[base] + anchor; }
+    else if (linkMap[norm]) href = linkMap[norm] + anchor;
+    else {
+      const base = bare.split('/').pop();
+      if (linkMap[base]) href = linkMap[base] + anchor;
+      else if (/^(\.\.?\/|[^/]+\/)/.test(bare) && !bare.startsWith('#') && repoTargetExists(bare)) {
+        // real repo file/dir, but not a browsable page -> show the path, don't emit a dead link
+        return `<code>${t}</code>`;
+      }
+    }
     return `<a href="${href}">${t}</a>`;
   });
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -132,6 +154,8 @@ const PAGES = [
   { section: 'Products', slug: 'cognitive-memory', title: 'Cognitive Memory', src: 'products/arves-cognitive-memory/README.md' },
   { section: 'Products', slug: 'agent-runtime', title: 'Agent Runtime', src: 'products/arves-agent-runtime/README.md' },
   { section: 'Foundation', slug: 'foundation', title: 'Foundation', src: 'FOUNDATION.md' },
+  { section: 'Foundation', slug: 'implementing-arves', title: 'Implementing ARVES (cold-start)', src: 'IMPLEMENTING_ARVES.md' },
+  { section: 'Foundation', slug: 'challenge', title: 'The G2 Challenge', src: 'CHALLENGE.md' },
   { section: 'Foundation', slug: 'closure', title: 'Build Program Closure', src: 'ARVES_BUILD_PROGRAM_CLOSURE.md' },
   { section: 'Foundation', slug: 'rcr-001', title: 'RCR-001 (Runtime v1.1)', src: 'runtime/rcr/RCR-001.md' },
   { section: 'Foundation', slug: 'rcr-002', title: 'RCR-002 (truth-store integrity)', src: 'runtime/rcr/RCR-002.md' },
@@ -143,6 +167,11 @@ const PAGES = [
   { section: 'Getting Started', slug: 'deploy', title: 'Deploy (Docker)', src: 'docs/DEPLOY.md' },
   { section: 'Platform', slug: 'runtime-authors', title: 'Add Your Own Runtime (G2)', src: 'standard/RUNTIME_AUTHORS_GUIDE.md' },
   { section: 'Platform', slug: 'spec-starter', title: 'Spec — Read These First', src: 'docs/SPEC_STARTER.md' },
+  { section: 'Platform', slug: 'acs-001', title: 'ACS-001 Content Addressing', src: 'standard/acs/ACS-001_Content_Addressing.md' },
+  { section: 'Platform', slug: 'acs-002', title: 'ACS-002 Canonical Serialization', src: 'standard/acs/ACS-002_Canonical_Serialization.md' },
+  { section: 'Platform', slug: 'acs-003', title: 'ACS-003 Canonical Envelope', src: 'standard/acs/ACS-003_Canonical_Envelope.md' },
+  { section: 'Platform', slug: 'acs-004', title: 'ACS-004 Universal Type Registry', src: 'standard/acs/ACS-004_Universal_Type_Registry.md' },
+  { section: 'Platform', slug: 'acs-005', title: 'ACS-005 Normative Language', src: 'standard/acs/ACS-005_Normative_Language.md' },
   { section: 'Platform', slug: 'acs-ratification', title: 'ACS Ratification (CCP-GATE)', src: 'standard/acs/CCP-GATE-Ratification-v1.md' },
   { section: 'SDK & Ecosystem', slug: 'reasoning', title: 'AI Capability SDK', src: 'products/arves-ecosystem-sdk/REASONING.md' },
   { section: 'SDK & Ecosystem', slug: 'authoring-languages', title: 'Authoring Languages', src: 'docs/AUTHORING_LANGUAGES.md' },
@@ -341,4 +370,45 @@ for (const s of specPages) {
 
 fs.writeFileSync(path.join(OUT, 'search-index.json'), JSON.stringify(searchIndex));
 console.log(`docs-site: ${count} pages (${PAGES.length} primary + ${specPages.length} spec), ${searchIndex.length} indexed.`);
+
+// ---------- build-time link-gate ----------
+// Scan every emitted page's relative hrefs and FAIL the build on any that would 404 on GitHub
+// Pages (target missing under docs-site/, or escaping the served root). This is the mechanical
+// guarantee behind RELEASING.md's "links clean" claim — the site cannot ship a dead in-site link.
+function listHtml(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...listHtml(full));
+    else if (e.name.endsWith('.html')) out.push(full);
+  }
+  return out;
+}
+const OUT_ABS = path.resolve(OUT);
+const htmlFiles = listHtml(OUT);
+const broken = [];
+const hrefRe = /(?:href|src)="([^"]+)"/g;
+for (const file of htmlFiles) {
+  const dir = path.dirname(file);
+  const html = fs.readFileSync(file, 'utf8');
+  let m;
+  while ((m = hrefRe.exec(html)) !== null) {
+    const raw = m[1];
+    if (/^(https?:|mailto:|tel:|data:|#)/.test(raw)) continue; // external / anchor-only
+    const bare = raw.split('#')[0].split('?')[0];
+    if (bare === '') continue;
+    const target = path.resolve(dir, bare);
+    const rel = path.relative(ROOT, file);
+    if (!target.startsWith(OUT_ABS)) broken.push(`${rel}: "${raw}" escapes the site root`);
+    else if (!fs.existsSync(target)) broken.push(`${rel}: "${raw}" -> missing ${path.relative(OUT_ABS, target)}`);
+  }
+}
+if (broken.length) {
+  console.error(`\ndocs-site LINK-GATE FAILED: ${broken.length} broken relative link(s):`);
+  for (const b of broken) console.error('  - ' + b);
+  console.error('\nFix: point the link at a published page, an in-site target, or (for a repo');
+  console.error('source file/dir that is not a page) render it as `code` in the source Markdown.');
+  process.exit(1);
+}
+console.log(`link-gate: OK — 0 broken links across ${htmlFiles.length} pages.`);
 console.log(`open: docs-site/index.html   ·   deploy: point GitHub Pages at docs-site/`);

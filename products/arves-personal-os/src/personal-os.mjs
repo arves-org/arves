@@ -6,8 +6,17 @@
 // ChatGPT/LangGraph/n8n wrapper cannot provide.
 //
 // Runtime APIs consumed (all frozen v1.0): the SDK (content addressing) + the Kernel
-// Bridge (commit truth to the real Kernel). Every fact, decision, and briefing is truth
-// in the real Kernel — addressable, idempotent, replayable.
+// Bridge (commit truth to the real Kernel). Every fact, decision, and briefing is committed
+// as truth through the bridge to the WAL-backed Rust reference Kernel — addressable,
+// idempotent, replayable.
+//
+// SCOPE CAVEAT (honest): the durable persistence/replay/recovery claim holds ONLY along the
+// `#bridge` path, and ONLY when the `arves-bridge` binary is built and running (QUICKSTART
+// step 1) — otherwise `#bridge.commit(...)` rejects and nothing is committed. The queryable
+// world model this class exposes (`truths()`, the `#facts`/`#evidence` maps, dedup, and
+// contradiction detection) is an IN-MEMORY per-process index built via `class Arves` (a JS
+// `Map`, no WAL/recovery); it is NOT read back from the Kernel and is lost on process exit.
+// Reproducibility of the briefing id comes from content addressing, not from durable state.
 
 import { Arves } from '../../arves-sdk-ts/src/arves.mjs';
 

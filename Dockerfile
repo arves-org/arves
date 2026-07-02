@@ -12,11 +12,22 @@
 #     then ONLY the resulting binaries + the source tree land in the slim
 #     Node runtime image. The Rust toolchain never ships.
 #   * Layout preservation: the SDK resolves the bridge at
-#       runtime/target/debug/arves-bridge   (see products/arves-sdk-ts/src/bridge.mjs)
-#     and the Python harness resolves the same path (verification/certification/
-#     certify_runtime.py). We therefore place the built binaries at EXACTLY
-#     runtime/target/debug/ inside the image and copy the whole repo, so every
-#     relative path in QUICKSTART.md works unchanged.
+#       runtime/target/debug/arves-bridge   (see products/arves-sdk-ts/src/bridge.mjs
+#       line 17, a HARDCODED debug path) and the Python harness resolves the same
+#     path (verification/certification/certify_runtime.py). We therefore place the
+#     built binaries at EXACTLY runtime/target/debug/ inside the image and copy the
+#     whole repo, so every relative path in QUICKSTART.md works unchanged.
+#   * HONEST NOTE — this image ships a DEBUG build, on purpose. `cargo build`
+#     without `--release` writes to target/debug/, which is exactly the path the
+#     frozen SDK expects. Building with `--release` would emit target/release/
+#     binaries the SDK would NOT find (the resolver path is frozen under
+#     runtime/, changeable only via an RCR), so a release switch would break the
+#     on-ramp. Consequence: these are UNOPTIMIZED binaries — correct and
+#     deterministic (what the on-ramp needs), but not perf-tuned. A production
+#     deployment that wants optimized binaries must land an RCR that makes the
+#     SDK/harness resolve target/release/ (or a configurable path) first; until
+#     then, debug is the honest, working artifact. This is a deployment-image
+#     choice only — it does not touch or reinterpret anything under runtime/.
 #   * IDR-006 / freeze: this Dockerfile lives at the repo root (a Living file);
 #     it only *builds and invokes* the frozen runtime — it never edits runtime/
 #     or standard/.
@@ -46,6 +57,12 @@ COPY runtime/ ./runtime/
 #   * acs_decode    — the negative-vector decoder the cert harness drives.
 # Building these two packages pulls in the whole dependency subtree they need.
 # --locked enforces the committed Cargo.lock (no silent dependency drift).
+#
+# DEBUG on purpose: no `--release` here. The frozen SDK/harness resolve the
+# bridge at runtime/target/debug/arves-bridge (hardcoded), so we must emit to
+# target/debug/. These binaries are UNOPTIMIZED. Switching to `--release` would
+# put them in target/release/ where the SDK cannot find them and would break the
+# on-ramp; changing that resolver path is an RCR, not a Dockerfile edit.
 RUN cargo build --locked \
         --manifest-path runtime/Cargo.toml \
         -p arves-bridge   --bin arves-bridge \

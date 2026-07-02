@@ -1,0 +1,127 @@
+# ARVES — mechanical gates (CI)
+# =============================================================================
+# This workflow is the machine-checkable half of the ARVES freeze + evidence
+# discipline. Every job here runs a gate that already exists and passes locally;
+# wiring them into CI turns "the author ran it" into "the branch cannot merge
+# unless it passes".
+#
+# HONEST STATUS: no CI host is provisioned yet (this repo has no git remote).
+# This file is therefore the GATE DEFINITION, not a green badge. When the repo
+# is hosted on GitHub, these jobs run as-is; pair with branch protection that
+# marks the `freeze` job "Required" so freeze drift is a HARD merge blocker
+# (freeze_check.py exits non-zero on drift, which fails the step and the job).
+#
+# Gates (all present in-repo):
+#   * freeze     — verification/freeze/freeze_check.py check    (HARD: drift => fail)
+#   * robustness — products/robustness.test.mjs
+#   * certify    — verification/certification/certify_runtime.py
+#                  verification/certification/test_harness_integrity.py
+#   * evidence   — verification/evidence/evidence_probe.py
+#   * rust       — cargo test over the runtime workspace
+# =============================================================================
+
+name: ARVES mechanical gates
+
+"on":
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # --------------------------------------------------------------------------
+  # FREEZE — the load-bearing gate. Any silent edit to runtime/ or standard/
+  # (i.e. drift from verification/freeze/freeze_manifest.tsv) makes
+  # freeze_check.py exit 1, which fails this step and this job. Mark this job
+  # "Required" in branch protection so drift is a HARD merge blocker.
+  # --------------------------------------------------------------------------
+  freeze:
+    name: Freeze gate (runtime/ + standard/ must not drift)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Freeze self-test (prove the gate detects a tamper)
+        run: python verification/freeze/freeze_check.py selftest
+      - name: Freeze check (HARD FAIL on any drift)
+        run: python verification/freeze/freeze_check.py check
+
+  # --------------------------------------------------------------------------
+  # ROBUSTNESS — product robustness test (Node, zero external deps).
+  # --------------------------------------------------------------------------
+  robustness:
+    name: Product robustness test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run robustness test
+        run: node products/robustness.test.mjs
+
+  # --------------------------------------------------------------------------
+  # CERTIFY — runtime certification harness + its own integrity check. The
+  # integrity check guards the harness against being silently weakened.
+  # --------------------------------------------------------------------------
+  certify:
+    name: Certification harness + integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Certify runtime
+        run: python verification/certification/certify_runtime.py
+      - name: Test harness integrity
+        run: python verification/certification/test_harness_integrity.py
+
+  # --------------------------------------------------------------------------
+  # EVIDENCE — evidence-ledger probe (Standard Validation Era KPI is
+  # "Evidence Increased"; this keeps the ledger machine-checked).
+  # --------------------------------------------------------------------------
+  evidence:
+    name: Evidence probe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run evidence probe
+        run: python verification/evidence/evidence_probe.py
+
+  # --------------------------------------------------------------------------
+  # RUST — reference runtime workspace test suite. Uses the committed
+  # Cargo.lock (--locked) so no silent dependency drift enters the build.
+  # --------------------------------------------------------------------------
+  rust:
+    name: Runtime workspace tests (cargo test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cargo test (workspace)
+        run: cargo test --locked --manifest-path runtime/Cargo.toml --workspace

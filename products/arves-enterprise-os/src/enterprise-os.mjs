@@ -9,7 +9,17 @@
 // committed policy truths, violations blocked + audited), a tamper-evident COMPLIANCE
 // ledger, and cross-department CONSISTENCY (a conflicting decision is detected because all
 // decisions are addressable truths). Every fact, policy, decision, and compliance event is
-// truth in the real Kernel — auditable and replayable.
+// committed as truth through the bridge to the WAL-backed Rust reference Kernel — auditable
+// and replayable.
+//
+// SCOPE CAVEAT (honest): the durable persistence/replay/recovery claim holds ONLY along the
+// `#bridge` path, and ONLY when the `arves-bridge` binary is built and running (QUICKSTART
+// step 1) — otherwise `#bridge.commit(...)` rejects and nothing is committed. The policy
+// engine, dedup, evidence index, and cross-department conflict check run over IN-MEMORY
+// per-process maps (`#facts`/`#evidence`/`#policies`/`#decisions`) built via `class Arves` (a
+// JS `Map`, no WAL/recovery); that state is NOT read back from the Kernel and is lost on
+// process exit. The compliance "ledger" is tamper-evident only for as long as the process
+// holds it — durable, cross-process audit lives in the Kernel WAL, reached via the bridge.
 
 import { Arves } from '../../arves-sdk-ts/src/arves.mjs';
 

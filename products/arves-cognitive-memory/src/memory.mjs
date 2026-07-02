@@ -5,6 +5,20 @@
 //   Identity · Deduplication · Evidence · Truth · Audit (tamper-evident) · Replay,
 // plus provable reasoning. The insight throughout: identity IS the content address, so
 // facts from unrelated systems that mean the same thing collapse to one truth for free.
+//
+// SCOPE CAVEAT (honest): this module is an IN-MEMORY reference substrate built directly on
+// `class Arves` (a JS `Map`, plus a co-located hash chain `#log`/`#head`). It does NOT use
+// the Kernel bridge and has NO WAL, NO durable persistence, and NO crash recovery — all
+// state is lost on process exit and every claim below is per-process, not durable.
+//   - "Replay" means: re-ingesting the same observations recomputes the same content
+//     address. It is deterministic recomputation, not replay from a durable log.
+//   - "Audit (tamper-evident)" is a hash chain whose integrity is only as strong as its HEAD.
+//     `verifyChain()` detects tampering of any PAST entry ONLY relative to a head the verifier
+//     already trusts; an attacker who can rewrite the whole log AND the head produces a chain
+//     that verifies clean. Real tamper-evidence therefore requires an EXTERNALLY-TRUSTED head
+//     (anchored outside this process — e.g. committed to the real Kernel via `bridge.mjs`, or
+//     to another append-only authority). Co-located head + log is integrity, not attestation.
+// For durable, cross-process, WAL-backed truth, commit through `bridge.mjs` to the real Kernel.
 
 import { Arves } from '../../arves-sdk-ts/src/arves.mjs';
 

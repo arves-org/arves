@@ -21,8 +21,15 @@ Runtime Change Request**.
   (see the value model below).
 - **Certification** — `certifyCapability(cap, testInputs)`: manifest valid · **≥1 test
   input** (certification will NOT pass vacuously — an empty input set is rejected) · effects
-  target declared produces · effects ACS-canonical · **deterministic** (same input → same
-  effect addresses). Failing checks report a `detail` reason. Uncertified ⇒ cannot install.
+  target declared produces · effects ACS-canonical · **determinism probe**. Failing checks
+  report a `detail` reason. Uncertified ⇒ cannot install.
+  > **Determinism is a best-effort probe, not enforcement.** The check runs each *author-
+  > supplied* test input twice and compares the effect addresses. It catches obvious
+  > non-determinism (clocks, RNG, mutating counters) but **cannot prove purity**: input-scoped
+  > non-determinism (a branch on an input you didn't test) or delayed/Nth-call non-determinism
+  > will pass this probe and still certify + install. Read it as "no non-determinism observed
+  > over the supplied inputs", not "guaranteed pure". True, engine-enforced determinism is
+  > deferred **v1.1 RCR debt** (`runtime/RUNTIME_FREEZE_v1.0.md`).
 - **Packaging / signing** — `packageCapability(cap, testInputs)`: a versioned artifact whose
   **content address IS its signature**, taken over the manifest, the actual `execute` code
   (`codeHash`), **and the representative test inputs** (`testInputsHash`). Tamper with the
@@ -53,8 +60,15 @@ floats. Timestamps are integers (e.g. epoch-ms × `1_000_000n` for nanoseconds).
 
 ## Author + publish a capability (the 10-minute path)
 
+> **Repo-local preview.** This package is `private` and unpublished (`0.1.0-preview`, no npm
+> registry, no `exports` map), so a bare `@arves/ecosystem-sdk` specifier does **not** resolve
+> (`ERR_MODULE_NOT_FOUND`). In-repo, import from the **relative source path** below (the
+> `examples/*.capability.mjs` files use `../src/kit.mjs`, and `arves init` scaffolds a relative
+> import automatically). `@arves/ecosystem-sdk` is the intended published name — the import an
+> external author will use *after* the Kit is published, not a working import today.
+
 ```js
-import { defineCapability } from '@arves/ecosystem-sdk';
+import { defineCapability } from './src/kit.mjs';
 export const capability = defineCapability({
   name: 'invoice.ocr', version: '1.0.0', produces: ['uci.fact'],
   execute: (inv) => [{ target: 'uci.fact',

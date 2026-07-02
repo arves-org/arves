@@ -28,6 +28,20 @@ Combined with P6.5 (authoring) it answers the platform KPI — *how much value d
 create on ARVES?* Next: the **ARVES Foundation** (governance + registry + multiple certified
 runtimes behind one conformance), so the ecosystem outlives any single maintainer.
 
+## What "signed" means here (honest caveat)
+
+The "signature" is an **unkeyed ACS content address** of the artifact (`address({manifest,
+codeHash, testInputsHash})`) — a re-derivable content hash, **not** a cryptographic signature
+and **not** bound to any publisher identity. It proves **integrity** (the artifact's bytes match
+its id, and its code/test-inputs match the signed hashes), so a *silent* mutation is detected.
+It does **not** prove **authenticity**: there is no PKI, no key, no identity. Anyone who tampers
+with the code can simply re-derive the new content address and present a fresh, internally
+consistent "signed" artifact — the `publisher` field is an unverified self-claim. The gate that
+actually bites is **re-run certification** at publish/install (conformance is enforced, not
+attested); the content address only detects tampering *relative to a trusted id*. Do not read
+"signed, certified" as "authenticated by a known author." Identity binding (keyed signatures /
+a publisher trust root) is future work, not a property of this layer today.
+
 ## Boundary
 
 Consumes P6.5 + the frozen Runtime v1.0; edits no runtime or spec file. It is pure
