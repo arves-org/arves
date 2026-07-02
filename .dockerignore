@@ -7,5 +7,7 @@ runtime/target/
 **/__pycache__/
 **/*.pyc
 .git/
-*.docx
+**/*.docx
 docs-site/
+.arves-registry/
+.claude/

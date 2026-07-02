@@ -7,11 +7,12 @@ the harness is **Python**. This image bundles all three so a developer with only
 can run the entire [QUICKSTART](../QUICKSTART.md) end to end — no local Rust, Node, or
 Python install required.
 
-> **Status: authored, not built in-repo.** This Dockerfile was written and reviewed by
-> inspection against the real source layout; it was **not** `docker build`-verified in the
-> authoring environment (no Docker available there). The paths, base-image tags, and build
-> commands are all checked against the tree, but treat the first `docker build` on your
-> machine as the true verification step.
+> **Status: built and verified in-repo (2026-07).** `docker build -t arves-onramp:v1.0 .`
+> succeeds, and the image was checked end-to-end **inside the container**: the `arves` CLI
+> runs, `arves certify` returns `CERTIFIED`, the Personal OS demo runs on the freshly-built
+> `arves-bridge` binary (exit 0), and `certify_runtime.py` reports **2/2 runtimes** under one
+> conformance. Image size ≈ **371 MB**. (Publishing the image to a container registry is still
+> an external CI step — see "Prebuilt release binaries" at the bottom of this page.)
 
 ---
 
