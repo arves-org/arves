@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why ARVES Could Fail · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><a href="success.html">Success — the North Star</a><a href="failure.html" class="active">Why ARVES Could Fail</a><a href="releasing.html">Releasing (Growth Protocol)</a><a href="dx-baseline.html">Developer Journey (DX baseline)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="why-arves-could-fail">Why ARVES Could Fail</h1>
+<p>This document is not fear. It is focus. <a href="success.html">SUCCESS.md</a> is the compass — where we're going. This is the hazard map — what sinks the ship. ARVES v1.0 is <strong>no longer an engineering project; it is a platform awaiting independent validation</strong>, and at this stage every serious risk is an <em>adoption</em> risk, not a technical one. None of them is fixed by writing more core code.</p>
+<p>Each failure mode below has three parts: the <strong>risk</strong>, an <strong>early-warning signal you can measure</strong>, and the <strong>lever</strong> that answers it. Watch the signals; pull the levers; never pull the "add more runtime" lever unless a signal specifically demands it.</p>
+<hr>
+<h3 id="1-no-supply-nobody-writes-capabilities">1. No supply — nobody writes capabilities</h3>
+<p><strong>Risk:</strong> the marketplace stays empty because the metric that matters is <em>capability authors</em>, and there are none but us. <strong>Signal:</strong> independent-author count flat at zero after publish; the only capabilities are the reference ones we shipped. <strong>Lever:</strong> DX and the AI Developer Assistant (<code>arves create</code>), templates, and a ruthlessly short Time-to-First-Capability. Supply is a developer-experience problem, not a runtime one.</p>
+<h3 id="2-no-network-effect-publishes-without-installs">2. No network effect — publishes without installs</h3>
+<p><strong>Risk:</strong> a few capabilities get published but nobody installs anyone else's; no flywheel. <strong>Signal:</strong> publish count rises while cross-party install count stays ~0. <strong>Lever:</strong> seed genuinely useful capabilities; make discovery and install one command; reward the first vendors. A marketplace with no <em>demand</em> side is a directory, not an economy.</p>
+<h3 id="3-conceptual-overhead-too-high-too-complex-to-bother">3. Conceptual overhead too high — "too complex to bother"</h3>
+<p><strong>Risk:</strong> content-addressing, truth, replay, RCR, ACS — the mental model is heavier than a dev will pay for a first project. <strong>Signal:</strong> Time-to-First-Success climbing; docs-self-sufficiency falling; the same concept questioned again and again in the Developer Journey re-runs. <strong>Lever:</strong> the <strong>edges</strong> — docs, examples, playground — never the core. If the runtime is the thing they trip on, that is an RCR; if the <em>explanation</em> is, that is a docs fix. Almost always it's the explanation.</p>
+<h3 id="4-docs-fail-real-non-founder-users">4. Docs fail real (non-founder) users</h3>
+<p><strong>Risk:</strong> the docs work for us because we already know the answers; a stranger stalls. <strong>Signal:</strong> the rate of people asking <em>us</em> questions is not falling over time. <strong>Lever:</strong> when the first independent developer emails for help, <strong>do not just answer</strong> — first ask <em>"where did the documentation fail?"</em> The goal is not to give support; it is to make support unnecessary. Every question answered privately is a docs bug shipped publicly.</p>
+<h3 id="5-the-ai-landscape-outruns-the-provider-abstraction">5. The AI landscape outruns the provider abstraction</h3>
+<p><strong>Risk:</strong> models evolve faster than the <code>ReasoningProvider</code> contract — tools, streaming, multimodal, agentic loops — and every new model needs a runtime change to fit. <strong>Signal:</strong> new provider adapters keep forcing RCRs into the frozen core. <strong>Lever:</strong> hold the line that a provider's output is <em>recorded truth</em>, and evolve the provider <strong>contract at the edge</strong> (the SDK), not the Kernel. If the abstraction leaks into the core, the "the model can change, the truth cannot" moat is gone.</p>
+<h3 id="6-the-ecosystem-stays-single-vendor-only-us">6. The ecosystem stays single-vendor (only us)</h3>
+<p><strong>Risk:</strong> no genuine third party ever builds a runtime, publishes a capability, or governs — <strong>G2 never happens</strong>, and ARVES is a well-built product, not a standard. <strong>Signal:</strong> certified <em>independent</em> runtimes/vendors = 0 many months after publish. <strong>Lever:</strong> the runtime-vendor on-ramp, a genuinely neutral Foundation, and the discipline to <em>not hoard</em> — publish the standard, invite competitors, celebrate the first runtime that isn't ours. A standard owned by one team is not a standard.</p>
+<h3 id="7-the-honesty-discipline-erodes-under-adoption-pressure">7. The honesty discipline erodes under adoption pressure</h3>
+<p><strong>Risk:</strong> to look good at launch, claims quietly outrun evidence (the exact thing every audit this program ran was built to prevent). <strong>Signal:</strong> a public doc claims something not backed by a runnable command or graded proof; a "G1" result gets described as "proven." <strong>Lever:</strong> keep the grading (G1/G2), keep enforcement over documentation (bind and verify, don't just note the caveat), and keep re-running the audits. The credibility that earns adoption is the honesty — losing it loses everything.</p>
+<h3 id="8-death-by-not-publishing">8. Death by not-publishing</h3>
+<p><strong>Risk:</strong> the safest-feeling failure — keep polishing the inside, never ship, and the marginal value of each new line approaches zero while the opportunity cost rises. <strong>Signal:</strong> weeks pass; the repo is still private; the "five events" are all still zero. <strong>Lever:</strong> <strong>publish.</strong> The inside is done. The only information left is in real users, and you cannot get it from here.</p>
+<hr>
+<h2 id="the-one-line-reframe">The one-line reframe</h2>
+<blockquote><p>The proofs that remain — <em>did a stranger succeed? did an outside team certify a runtime? did someone earn money? did someone keep building ARVES without us?</em> — <strong>cannot be produced inside this repository.</strong> ARVES will now be validated by user behavior, not by code.</p></blockquote>
+<p>Read this file alongside <a href="success.html">SUCCESS.md</a> at the start of each Growth cycle: one names what we're steering toward, the other names the rocks. If a quarter goes by and none of the Success events moved while one of these Failure signals is flashing — that is where the next work is, and it is almost never in the runtime.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>
