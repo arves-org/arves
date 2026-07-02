@@ -77,8 +77,12 @@ def rust_rejects(neg):
 # ---- Independent Python runtime adapter (imported) ----
 
 sys.path.insert(0, PYDIR)
-from acs001_address import content_id as py_content_id   # noqa: E402
-from acs002_decode import decode as py_decode, Rejected  # noqa: E402
+try:  # B4: a Kit-only checkout may lack the in-repo Python reference — degrade, don't crash.
+    from acs001_address import content_id as py_content_id   # noqa: E402
+    from acs002_decode import decode as py_decode, Rejected  # noqa: E402
+    PY_AVAILABLE = True
+except ImportError:
+    PY_AVAILABLE = False
 
 
 def py_addresses(golden):
@@ -133,8 +137,11 @@ def main():
             records.append({"runtime": "ARVES Rust (reference)", "unavailable": True})
     else:
         records.append({"runtime": "ARVES Rust (reference)", "unavailable": True})
-    records.append(certify("ARVES Python (independent)", py_addresses(golden),
-                           py_rejects(neg), golden, neg))
+    if PY_AVAILABLE:
+        records.append(certify("ARVES Python (independent)", py_addresses(golden),
+                               py_rejects(neg), golden, neg))
+    else:
+        records.append({"runtime": "ARVES Python (independent)", "unavailable": True})
 
     print("ARVES Runtime Certification - against the frozen Standard alone")
     print("=" * 66)

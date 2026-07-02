@@ -72,6 +72,19 @@ except FileNotFoundError as e:
 finally:
     C.RUST_BRIDGE = _saved
 
+# B4 (Python arm): a Kit-only checkout without the in-repo Python reference must degrade to an
+# UNAVAILABLE row, not crash. Simulate the post-import "reference absent" state.
+_saved_py = C.PY_AVAILABLE
+try:
+    C.PY_AVAILABLE = False
+    rc = C.main()  # must return, not raise
+    if rc not in (0, 1):
+        failures.append(f"(B4-py) certify_runtime.main() returned unexpected code {rc}")
+except Exception as e:  # noqa: BLE001 — any crash here is the regression
+    failures.append(f"(B4-py) certify_runtime crashed when the Python reference is absent: {e}")
+finally:
+    C.PY_AVAILABLE = _saved_py
+
 
 if failures:
     print("HARNESS-INTEGRITY: FAIL")
