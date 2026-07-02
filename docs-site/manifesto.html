@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why ARVES Exists · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html" class="active">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="why-arves-exists">Why ARVES Exists</h1>
+<blockquote><p><strong>ARVES is a cognitive operating system that separates intelligence from execution, memory, governance, and truth — allowing any AI model to operate within a deterministic, auditable, replayable runtime.</strong></p>
+<p>The model can change. The truth cannot.</p></blockquote>
+<p>This document is the <em>why</em>, not the <em>how</em>. If you want the how, start at <a href="quickstart.html">QUICKSTART.md</a>. If you want to know whether ARVES deserves your attention at all, read on — and hold us to the honesty we claim: everything below is graded, and the things we have <strong>not</strong> proven are named as plainly as the things we have.</p>
+<hr>
+<h2 id="the-problem-nobody-in-ai-wants-to-say-out-loud">The problem nobody in AI wants to say out loud</h2>
+<p>Almost every AI system shipping today has the same shape:</p>
+<pre><code>prompt → LLM → answer</code></pre>
+<p>It works in a demo. Then it meets reality, and four questions arrive that this shape cannot answer:</p>
+<ol><li><strong>Can you reproduce it?</strong> Run the same input tomorrow and you may get a different answer.</li><li><strong>Can you audit it?</strong> When it made a decision, <em>why</em> — from what evidence, under what policy? There is no record you can defend.</li><li><strong>Can you replay it?</strong> To re-examine a past decision you must re-run the model and hope it lands the same way. It won't.</li><li><strong>Can you change the model without changing everything?</strong> The LLM is wired into the center; swapping it re-opens every assumption built on top of it.</li></ol>
+<p>Wrappers, agent frameworks, and workflow engines make the <code>prompt → LLM → answer</code> shape more elaborate. They do not change its nature. <strong>ARVES changes its nature.</strong></p>
+<hr>
+<h2 id="what-arves-is-not-and-why">What ARVES is <em>not</em>, and why</h2>
+<p>Being clear about what ARVES refuses to be is the fastest way to understand what it is.</p>
+<h3 id="why-not-a-chatbot">Why not a chatbot?</h3>
+<p>A chatbot's output is text for a human to read, then discard. ARVES's output is <strong>truth</strong>: a content-addressed, persisted, replayable fact in a ledger. A chatbot forgets; ARVES commits.</p>
+<h3 id="why-not-an-agent-framework-langgraph-autogen-crewai">Why not an agent framework (LangGraph, AutoGen, CrewAI)?</h3>
+<p>Agent frameworks orchestrate LLM calls into loops and roles. Useful — but the loop's state is in memory, the reasoning is re-run on every execution, and there is no authority that owns truth or enforces determinism. ARVES is not a way to <em>arrange</em> model calls; it is the <strong>substrate their results become truth in</strong>. An agent framework can run <em>on top of</em> ARVES; ARVES does not run on top of it.</p>
+<h3 id="why-not-a-workflow-engine-n8n-temporal-airflow">Why not a workflow engine (n8n, Temporal, Airflow)?</h3>
+<p>Workflow engines are excellent at <em>executing steps</em>. They are indifferent to what a step <em>means</em>. ARVES's unit is not a step; it is a <strong>content-addressed truth with an owner, a decision trace, and a replay guarantee</strong>. Determinism and audit are not features you bolt on — they are the type system of the platform (ACS-001..005).</p>
+<h3 id="why-not-a-memory-framework-a-vector-db-a-memory-layer">Why not a memory framework (a vector DB, a "memory layer")?</h3>
+<p>A vector store retrieves similar text. It has no notion of <em>identity</em> (the same fact from three sources is three rows), no notion of <em>truth ownership</em>, no <em>replay</em>, no <em>governance</em>. ARVES gives one fact one identity — its content address — so three sources collapse into one truth, deduplicated by construction, evidence-linked, and auditable.</p>
+<h3 id="why-not-just-a-wrapper-over-an-llm-sdk">Why not "just a wrapper" over an LLM SDK?</h3>
+<p>A wrapper puts the model in the center and glues effects around it. Change the model and the glue leaks everywhere. In ARVES the model sits <strong>below</strong> the runtime as a swappable <em>provider</em>. The runtime never learns which model produced a fact — only the fact's content address crosses the boundary. <strong>That inversion is the whole game.</strong></p>
+<hr>
+<h2 id="why-the-foundations-exist">Why the foundations exist</h2>
+<h3 id="why-a-runtime">Why a Runtime?</h3>
+<p>Because "AI application" without a runtime means every team re-invents identity, persistence, replay, and governance — incompatibly. A runtime is what turned "programs" into an <em>operating system</em>, and "servers" into a <em>cloud</em>. ARVES is the runtime layer for <em>cognition</em>. It is <strong>frozen</strong> (v1.0, single-node): products are its customers, never its co-authors, and it changes only through a governed Runtime Change Request. A stable center is what lets the edges move fast.</p>
+<h3 id="why-truth-content-addressing">Why Truth (content addressing)?</h3>
+<p>Because identity must be intrinsic, not assigned. A value's identity in ARVES is <code>ContentId = 0x12 0x20 || SHA-256(domain ‖ canonical-bytes)</code> (ACS-001/002). The same fact always has the same id — across machines, languages, and time — so deduplication, evidence links, and integrity are automatic, not hopeful. Three independent codec implementations (Rust, Python, TypeScript) agree on it; the Rust↔Python pair is differentially fuzzed over 13,807 inputs with zero divergences.</p>
+<h3 id="why-replay-and-why-it-s-the-moat">Why Replay — and why it's the moat</h3>
+<p>This is the sentence to remember:</p>
+<blockquote><p><strong>A provider's output is committed once as content-addressed truth. Replay reads the recorded trace by its ContentId; it never re-calls the model.</strong></p></blockquote>
+<p>Every <code>prompt → LLM → answer</code> system replays by <em>re-running inference</em> and praying for stability. ARVES replays by <em>reading what was recorded</em> (ORCH-003; ACS-005 GL-012). This is exactly what makes a <strong>non-deterministic</strong> LLM into a <strong>deterministic, auditable</strong> fact: the model runs once; the truth is permanent. A wrapper structurally cannot do this.</p>
+<h3 id="why-certification">Why Certification?</h3>
+<p>Because a standard that only its authors can implement is not a standard — it's a product. ARVES certifies <em>any</em> runtime against <code>standard/</code> alone: reproduce every golden ContentId, reject every negative with the right reason. A maintainer-independent harness runs it; two runtimes (Rust + Python) pass under one conformance today. (Honestly graded — see below.)</p>
+<h3 id="why-a-marketplace">Why a Marketplace?</h3>
+<p>Because a platform's value is created at its edges, by people who never met its makers. The marketplace distributes <strong>certified, signed</strong> capabilities: publish once, install anywhere, and the gate is <em>enforced</em> (certification is re-run at publish and install), not attested by a flag. Amazon was not made great by EC2; it was made great by everything built on top of it.</p>
+<h3 id="why-a-foundation">Why a Foundation?</h3>
+<p>Because a platform that depends on its founders is a project with good marketing. The Foundation owns the specification, the certification, and the registries so that no single person is required to certify, extend, or govern ARVES. The goal is uncomfortable on purpose: <strong>make the original team unnecessary.</strong></p>
+<hr>
+<h2 id="the-architecture-in-one-picture">The architecture, in one picture</h2>
+<pre><code>                         ARVES
+                           │
+                Cognitive Operating Layer
+                           │
+   Memory · Truth · Planning · Reasoning · Verification · Governance
+                           │
+     ┌─────────────────────┴─────────────────────┐
+     │   Cognitive Compute Providers (swappable)  │
+     │   Claude · GPT · Gemini · Llama · Local     │
+     └─────────────────────┬─────────────────────┘
+                           │
+        Tools · APIs · Humans · IoT · Enterprise Systems</code></pre>
+<p>The LLM is not the center. It is a compute provider <strong>below</strong> the runtime. Tomorrow, the same Reasoning Capability should run on Claude, GPT, Gemini, Llama, or a local model — and the runtime does not change. That is the AI-OS thesis, and its first stones are in the repo today (<code>products/arves-ecosystem-sdk/src/reasoning.mjs</code>): a provider abstraction with deterministic reference providers that certify and replay entirely offline.</p>
+<hr>
+<h2 id="what-arves-honestly-is-not-yet-the-part-that-earns-the-rest">What ARVES honestly is <em>not yet</em> (the part that earns the rest)</h2>
+<p>A manifesto that only lists strengths is marketing. Here is the graded truth:</p>
+<ul><li><strong>Independence is grade G1 (same-process), not G2.</strong> Everything proven so far was produced inside this program. The decisive proof — <em>a genuine outside team building a conformant runtime from the Kit alone, with no help</em> — has <strong>not happened yet</strong>. It is the open exit gate, and we say so on every relevant page.</li><li><strong>The runtime is single-node (I1).</strong> Distributed operation (per-shard Raft, cluster kernel, I2–I6) is designed but <strong>not built</strong>. v1.0's threat model is a trusted single host; the persisted store is content-addressed and append-only but not yet cryptographically tamper-proof against a hostile host (a recorded v1.1/v2.0 item).</li><li><strong>Cross-vendor "identical truth" is a claim, not yet a proof.</strong> The provider abstraction is real and offline-proven with deterministic reference providers; live GPT/Gemini/Claude adapters and the cross-vendor convergence test require integration and models we do not ship.</li><li><strong>Zero real-world adoption yet.</strong> No external developer, company, university, third-party runtime, or paying product exists on ARVES today — because it hasn't been published. That is the actual risk now, and it is not a technical one.</li></ul>
+<p>We did <strong>not</strong> build an LLM, a cloud, billing, or a hosted service — those are deliberately out of scope. ARVES is substrate; models and hosting are inputs to it.</p>
+<hr>
+<h2 id="the-one-test-that-matters">The one test that matters</h2>
+<p>We will not measure success by tests passed or lines written. One question decides whether ARVES is a well-designed platform or a living one:</p>
+<blockquote><p><strong>Can a stranger create real economic value on ARVES — download it, build something, publish it, get paid — without ever talking to the people who made it?</strong></p></blockquote>
+<p>The day that starts happening, ARVES stops being our project and becomes an ecosystem. Until then, everything here is a G1 rehearsal of that day.</p>
+<p>If you are that stranger: the front door is <a href="why-arves.html">README.md</a>, the ten-minute path is <a href="quickstart.html">QUICKSTART.md</a>, and you can author + certify your first capability with <strong>only Node — no Rust, no keys, no permission, and no conversation with us</strong>. That is the point.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

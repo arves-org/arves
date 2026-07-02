@@ -91,6 +91,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
 
 ## Build on ARVES
 
+- **Understand why** → [WHY_ARVES.md](WHY_ARVES.md) — the manifesto (start here)
 - **Use it** → [QUICKSTART.md](QUICKSTART.md)
 - **Publish a capability** → [products/arves-ecosystem-sdk/](products/arves-ecosystem-sdk/)
 - **Contribute / extend** → [CONTRIBUTING.md](CONTRIBUTING.md)

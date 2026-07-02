@@ -115,6 +115,7 @@ const plainText = (md) => md.replace(/```[\s\S]*?```/g, ' ').replace(/[#>*`_|-]/
 // ---------- site structure ----------
 const PAGES = [
   { section: 'Getting Started', slug: 'index', title: 'Home', landing: true },
+  { section: 'Getting Started', slug: 'manifesto', title: 'Why ARVES Exists', src: 'WHY_ARVES.md' },
   { section: 'Getting Started', slug: 'quickstart', title: 'Quickstart (10 min)', src: 'QUICKSTART.md' },
   { section: 'Getting Started', slug: 'why-arves', title: 'Why ARVES', src: 'README.md' },
   { section: 'Getting Started', slug: 'contributing', title: 'Contributing', src: 'CONTRIBUTING.md' },
@@ -212,7 +213,7 @@ const LANDING = `
   <p class="tagline">A cognitive computing platform: a frozen, certified runtime that turns AI reasoning into <em>truth</em> — deterministic, content-addressed, replayable, auditable — with an ecosystem of products and third-party capabilities on top.</p>
   <div class="cta">
     <a class="btn primary" href="quickstart.html">Get started</a>
-    <a class="btn" href="why-arves.html">Why ARVES?</a>
+    <a class="btn" href="manifesto.html">Why ARVES?</a>
     <a class="btn" href="foundation.html">Foundation</a>
   </div>
 </section>
