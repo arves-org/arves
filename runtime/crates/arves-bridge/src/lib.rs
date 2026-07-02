@@ -14,6 +14,8 @@
 //! is where the Kernel CONSUMES the standard.
 
 use arves_acs::{cbor, content_id};
+use arves_capability_fabric::{CapabilityId, CapabilityRegistry, ShardKey as CapShardKey};
+use arves_engine_fabric::Engine;
 use arves_kernel::{CommitError, ContentHash, Kernel, ProposedWrite, ShardKey, TruthRef};
 
 /// Commit a canonical ACS body as truth, addressed by its ACS-001 ContentId.
@@ -44,6 +46,84 @@ pub fn commit_value(
 /// predict identity locally and assert the Kernel agrees — the "one world" check.
 pub fn address(domain_tag: u8, body: &[u8]) -> Vec<u8> {
     content_id(domain_tag, body)
+}
+
+/// One committed proposed-effect: the ACS-addressed truth and whether it was newly
+/// committed (`fresh`) or resolved to already-existing truth (ORCH-004 idempotency).
+pub struct CommittedEffect {
+    pub truth: TruthRef,
+    pub fresh: bool,
+}
+
+/// The result of running the full cognitive work chain for one invocation.
+pub struct InvokeOutcome {
+    /// The resolved capability id.
+    pub capability: String,
+    /// The provider the capability was bound to (CAP-002).
+    pub provider: String,
+    /// The engine's inference output (opaque).
+    pub engine_output: Vec<u8>,
+    /// The proposed effects, each committed as ACS-001-addressed truth by the Kernel.
+    pub effects: Vec<CommittedEffect>,
+}
+
+/// Why the cognitive work chain did not run to a commit.
+#[derive(Debug)]
+pub enum InvokeError {
+    /// The capability had no active binding in the shard — execution is refused
+    /// (CAP-005). The Capability layer gates the chain: an unbound capability cannot run.
+    Unbound(String),
+    /// The Kernel refused to commit a proposed effect for a reason other than idempotency.
+    Commit(CommitError),
+}
+
+/// Run the REAL cognitive work chain for one capability invocation:
+///
+/// `Capability (resolve authoritative binding) → Engine (pure invoke) → Kernel (commit
+/// each ProposedEffect as ACS-001-addressed truth)`.
+///
+/// The Capability layer gates execution (an unbound capability is refused, CAP-005); the
+/// Engine is pure and only *proposes* effects (ENG-003); those proposals become truth
+/// ONLY through the Kernel commit gateway (ORCH-001), addressed by ACS-001 so the truth's
+/// identity is the same one the SDK computes. This is the seam the product era needs:
+/// SDK → Bridge → Capability → Engine → Kernel, one world.
+pub fn invoke<E>(
+    kernel: &impl Kernel,
+    registry: &impl CapabilityRegistry,
+    shard: ShardKey,
+    capability: &str,
+    engine: &E,
+    input: Vec<u8>,
+    domain_tag: u8,
+) -> Result<InvokeOutcome, InvokeError>
+where
+    E: Engine<Input = Vec<u8>>,
+{
+    // 1. Capability layer: resolve the authoritative binding (unbound → refuse).
+    let cap_shard = CapShardKey { tenant: shard.tenant.clone(), workspace: shard.workspace.clone() };
+    let binding = registry
+        .resolve(&cap_shard, &CapabilityId(capability.to_string()))
+        .map_err(|_| InvokeError::Unbound(capability.to_string()))?;
+
+    // 2. Engine layer: pure invocation → Inference (proposals only, ENG-003).
+    let inference = engine.invoke(input);
+
+    // 3. Kernel: commit each proposed effect as ACS-001-addressed truth.
+    let mut effects = Vec::new();
+    for effect in &inference.proposed_effects {
+        match commit_body(kernel, shard.clone(), domain_tag, &effect.payload) {
+            Ok(truth) => effects.push(CommittedEffect { truth, fresh: true }),
+            Err(CommitError::AlreadyCommitted(truth)) => effects.push(CommittedEffect { truth, fresh: false }),
+            Err(e) => return Err(InvokeError::Commit(e)),
+        }
+    }
+
+    Ok(InvokeOutcome {
+        capability: capability.to_string(),
+        provider: binding.provider.0,
+        engine_output: inference.output,
+        effects,
+    })
 }
 
 #[cfg(test)]
@@ -77,6 +157,60 @@ mod tests {
         );
         // And the address is exactly what a caller predicts locally.
         assert_eq!(tr.content.0, address(domain::COMMIT_CONTENT, &cbor::encode(&fact)));
+    }
+
+    // The full cognitive work chain: Capability (resolve) -> Engine (invoke) -> Kernel
+    // (commit the proposed effect as ACS-addressed truth). Unbound capability is refused;
+    // re-invocation is idempotent through the whole chain.
+    #[test]
+    fn invoke_runs_capability_engine_kernel_chain() {
+        use arves_capability_fabric::{
+            BindingVersion, CapabilityBinding, CapabilityId, EffectClass, InvocationContract,
+            MemRegistry, ProviderId, ShardKey as CapShard,
+        };
+        use arves_engine_fabric::PureEngine;
+
+        let k = MemKernel::new(MemWalStore::new());
+        let mut reg = MemRegistry::new();
+        let cshard = CapShard { tenant: "t1".into(), workspace: "w1".into() };
+        let cap = CapabilityId("derive.fact".into());
+        reg.register(&cshard, cap.clone()).unwrap();
+        reg.bind(CapabilityBinding {
+            capability: cap,
+            shard: cshard,
+            version: BindingVersion(1),
+            provider: ProviderId("engine:derive.fact@1.0.0".into()),
+            contract: InvocationContract {
+                input_schema: "acs:uci.fact".into(),
+                output_schema: "acs:uci.fact".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        })
+        .unwrap();
+
+        // A pure engine that admits its input as a proposed fact.
+        let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+
+        let out = invoke(&k, &reg, shard(), "derive.fact", &engine, b"hello-truth".to_vec(), domain::COMMIT_CONTENT)
+            .expect("chain runs");
+        assert_eq!(out.provider, "engine:derive.fact@1.0.0");
+        assert_eq!(out.effects.len(), 1);
+        assert!(out.effects[0].fresh);
+        // The proposed effect became ACS-001-addressed truth (the hello-truth golden id).
+        assert_eq!(
+            hex(&out.effects[0].truth.content.0),
+            "122056e30f71852b0e4c253cf05dab6be2bb5b8470ac878a52f10c5af2a40d69b76e"
+        );
+
+        // Re-invoke -> same truth, not fresh (ORCH-004 idempotency through the chain).
+        let again = invoke(&k, &reg, shard(), "derive.fact", &engine, b"hello-truth".to_vec(), domain::COMMIT_CONTENT).unwrap();
+        assert!(!again.effects[0].fresh);
+
+        // An unbound capability is refused — the Capability layer gates execution.
+        assert!(matches!(
+            invoke(&k, &reg, shard(), "nope", &engine, b"x".to_vec(), domain::COMMIT_CONTENT),
+            Err(InvokeError::Unbound(_))
+        ));
     }
 
     // ORCH-004 idempotency is now keyed on the ACS address: same body -> AlreadyCommitted.

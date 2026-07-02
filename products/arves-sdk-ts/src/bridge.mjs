@@ -56,5 +56,18 @@ export class KernelBridge {
     return { contentId, status, index: index === undefined ? undefined : Number(index) };
   }
 
+  /** Run the FULL cognitive work chain for a value through a capability:
+   *  Capability (resolve/authorize) → Engine (invoke) → Kernel (commit the proposed
+   *  effect as ACS truth). Throws if the capability is unbound (execution refused). */
+  async invoke(value, capability, domain = 'commit') {
+    const tag = DOMAIN[domain];
+    if (tag === undefined) throw new Error(`unknown domain '${domain}'`);
+    const domHex = tag.toString(16).padStart(2, '0');
+    const line = await this.#send(`invoke ${capability} ${domHex} ${hex(encode(value))}`);
+    const [contentId, status, index] = line.split(/\s+/);
+    if (contentId === 'ERR') throw new Error(`invoke refused: ${line} (capability '${capability}')`);
+    return { contentId, status, index: index === undefined ? undefined : Number(index) };
+  }
+
   close() { this.#proc.stdin.end(); }
 }

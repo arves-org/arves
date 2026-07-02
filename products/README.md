@@ -52,7 +52,7 @@ the constitution's own instrument for an engineering decision (not a silent edit
 |---|---------|---------------------------|-----------|
 | **P0** | **Developer SDK** ✅ | ergonomic content-addressing | Standard Kit |
 | **P1** | **Cognitive Memory** ✅ | Identity · Evidence · Replay · Truth · Audit · Deduplication | P0 |
-| **P2** | **Kernel Bridge** ✅ | one-world identity: SDK ↔ real Kernel commit under the SAME ACS address | P0, Kernel |
+| **P2** | **Runtime Bridge** ✅ | one-world identity **and the full cognitive work chain**: SDK → Capability (resolve/gate) → Engine (pure invoke) → Kernel (commit as ACS truth) | P0, Kernel/Engine/Capability |
 | **P3** | **Agent Runtime** ✅ | Reasoning · Planning · Capability selection · Execution · Truth update — **on the real Kernel** | P0–P2 |
 | P4 | Personal AI | Autonomy · Learning · Preferences · Scheduling · Decision support | P1–P3 |
 | P5 | Enterprise AI | Multi-Agent · Governance · Policy · Compliance · Security | P1–P3 |
@@ -101,8 +101,14 @@ products/
     src/bridge.mjs                P2 client — talks to the real Kernel
   arves-cognitive-memory/         P1 — Cognitive Memory ✅ (flagship)
   arves-agent-runtime/            P3 — Agent Runtime ✅ (reasons on the real Kernel)
-runtime/crates/arves-bridge/      P2 — the SDK↔Kernel bridge (PLATFORM side; Kernel consumes ACS)
+runtime/crates/arves-bridge/      P2 — Runtime Bridge (PLATFORM): Capability→Engine→Kernel, ACS-addressed
+runtime/crates/arves-engine-fabric/     concrete reference Engine (PureEngine)
+runtime/crates/arves-capability-fabric/ concrete reference CapabilityRegistry (MemRegistry)
 ```
+
+> **Chain status:** `Products → SDK → Bridge → Capability → Engine → Kernel` is now real
+> end-to-end (`node products/arves-sdk-ts/examples/engine-invoke.mjs`). P4 Personal AI
+> runs on this full chain, not just SDK→Kernel.
 
 Every product directory states, at its top, the platform version it pins and affirms it
 modifies no platform file (IDR-006).

@@ -284,6 +284,72 @@ pub trait Engine {
 }
 
 // ---------------------------------------------------------------------------
+// Reference engine: a concrete, pure engine over a deterministic transform.
+// ---------------------------------------------------------------------------
+
+/// A concrete reference [`Engine`]: a pure, deterministic transform
+/// `Fn(&[u8]) -> Vec<u8>` that emits its result as a single [`ProposedEffect`].
+///
+/// It owns no state and performs no I/O (ENG-001/002), returns proposals rather than
+/// committing (ENG-003), and is deterministic (ENG-005) — so it satisfies the ABI. The
+/// runtime (here, the bridge) commits its proposed effect(s) via the Kernel. This is the
+/// first executable Engine, used to run the real cognitive work chain.
+pub struct PureEngine<F> {
+    name: EngineName,
+    target: ResourceName,
+    transform: F,
+}
+
+impl<F> PureEngine<F> {
+    /// A pure engine named `name` that emits its transform's output as a proposed effect
+    /// targeting the declared `target` resource.
+    pub fn new(name: impl Into<EngineName>, target: impl Into<ResourceName>, transform: F) -> Self {
+        Self { name: name.into(), target: target.into(), transform }
+    }
+}
+
+impl<F: Fn(&[u8]) -> Vec<u8>> Engine for PureEngine<F> {
+    type Input = Vec<u8>;
+
+    fn manifest(&self) -> EngineManifest {
+        EngineManifest {
+            name: self.name.clone(),
+            version: "1.0.0".to_string(),
+            determinism: Determinism::Deterministic,
+            idempotency_key: IdempotencyKey("acs-002/1".to_string()),
+            reads: Vec::new(),
+            produces: vec![self.target.clone()],
+            capabilities_required: Vec::new(),
+        }
+    }
+
+    fn invoke(&self, input: Vec<u8>) -> Inference {
+        let output = (self.transform)(&input);
+        Inference {
+            key: IdempotencyKey::default(),
+            proposed_effects: vec![ProposedEffect { target: self.target.clone(), payload: output.clone() }],
+            output,
+        }
+    }
+}
+
+#[cfg(test)]
+mod pure_engine_tests {
+    use super::*;
+
+    #[test]
+    fn pure_engine_proposes_its_transform_output() {
+        let e = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+        let inf = e.invoke(b"hello".to_vec());
+        assert_eq!(inf.output, b"hello");
+        assert_eq!(inf.proposed_effects.len(), 1);
+        assert_eq!(inf.proposed_effects[0].target, "uci.fact");
+        assert_eq!(inf.proposed_effects[0].payload, b"hello");
+        assert_eq!(e.manifest().produces, vec!["uci.fact".to_string()]);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Compile-only sanity: skeleton wiring, no logic (I1).
 // ---------------------------------------------------------------------------
 

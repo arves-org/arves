@@ -255,3 +255,107 @@ pub trait CapabilityRegistry {
         capability: &CapabilityId,
     ) -> Result<CapabilityBinding, RegistryError>;
 }
+
+// =============================================================================
+// Reference implementation: an in-memory registry.
+// =============================================================================
+
+use std::collections::{HashMap, HashSet};
+
+fn key(shard: &ShardKey, cap: &CapabilityId) -> (String, String, String) {
+    (shard.tenant.clone(), shard.workspace.clone(), cap.0.clone())
+}
+
+/// A concrete in-memory [`CapabilityRegistry`] reference implementation. It owns only
+/// bindings (CAP-002), enforces declare-before-bind (CAP-001), one active binding per
+/// `(capability, shard)`, and strictly-monotonic supersession (CAP-003). It is pure
+/// configuration: it commits no truth (ORCH-001) and resolves as a side-effect-free read.
+#[derive(Default)]
+pub struct MemRegistry {
+    declared: HashSet<(String, String, String)>,
+    active: HashMap<(String, String, String), CapabilityBinding>,
+}
+
+impl MemRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl CapabilityRegistry for MemRegistry {
+    fn register(&mut self, shard: &ShardKey, capability: CapabilityId) -> Result<(), RegistryError> {
+        self.declared.insert(key(shard, &capability));
+        Ok(())
+    }
+
+    fn bind(&mut self, binding: CapabilityBinding) -> Result<CapabilityBinding, RegistryError> {
+        let k = key(&binding.shard, &binding.capability);
+        if !self.declared.contains(&k) {
+            return Err(RegistryError::UndeclaredCapability(binding.capability.clone()));
+        }
+        if let Some(current) = self.active.get(&k) {
+            if binding.version.0 <= current.version.0 {
+                return Err(RegistryError::NonMonotonicVersion {
+                    current: current.version,
+                    offered: binding.version,
+                });
+            }
+        }
+        self.active.insert(k, binding.clone());
+        Ok(binding)
+    }
+
+    fn resolve(&self, shard: &ShardKey, capability: &CapabilityId) -> Result<CapabilityBinding, RegistryError> {
+        self.active
+            .get(&key(shard, capability))
+            .cloned()
+            .ok_or_else(|| RegistryError::Unbound { capability: capability.clone(), shard: shard.clone() })
+    }
+}
+
+#[cfg(test)]
+mod mem_registry_tests {
+    use super::*;
+
+    fn shard() -> ShardKey {
+        ShardKey { tenant: "t1".into(), workspace: "w1".into() }
+    }
+
+    fn binding(v: u64) -> CapabilityBinding {
+        CapabilityBinding {
+            capability: CapabilityId("derive.fact".into()),
+            shard: shard(),
+            version: BindingVersion(v),
+            provider: ProviderId("engine:derive.fact@1.0.0".into()),
+            contract: InvocationContract {
+                input_schema: "acs:uci.fact".into(),
+                output_schema: "acs:uci.fact".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        }
+    }
+
+    #[test]
+    fn declare_bind_resolve_roundtrip() {
+        let mut r = MemRegistry::new();
+        // Binding before declaring is rejected (CAP-001).
+        assert!(matches!(r.bind(binding(1)), Err(RegistryError::UndeclaredCapability(_))));
+        r.register(&shard(), CapabilityId("derive.fact".into())).unwrap();
+        r.bind(binding(1)).unwrap();
+        let got = r.resolve(&shard(), &CapabilityId("derive.fact".into())).unwrap();
+        assert_eq!(got.provider, ProviderId("engine:derive.fact@1.0.0".into()));
+    }
+
+    #[test]
+    fn rebind_must_be_monotonic_and_unbound_reports() {
+        let mut r = MemRegistry::new();
+        r.register(&shard(), CapabilityId("derive.fact".into())).unwrap();
+        r.bind(binding(2)).unwrap();
+        assert!(matches!(r.bind(binding(2)), Err(RegistryError::NonMonotonicVersion { .. })));
+        r.bind(binding(3)).unwrap(); // strictly higher supersedes (CAP-003)
+        assert!(matches!(
+            r.resolve(&shard(), &CapabilityId("unbound".into())),
+            Err(RegistryError::Unbound { .. })
+        ));
+    }
+}

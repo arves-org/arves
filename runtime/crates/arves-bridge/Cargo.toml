@@ -13,3 +13,5 @@ publish = false
 arves-kernel = { path = "../arves-kernel" }
 arves-persistence = { path = "../arves-persistence" }
 arves-acs = { path = "../arves-acs" }
+arves-engine-fabric = { path = "../arves-engine-fabric" }
+arves-capability-fabric = { path = "../arves-capability-fabric" }
