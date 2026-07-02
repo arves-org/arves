@@ -13,7 +13,7 @@ Verify green, then publish. Every command below runs offline, no keys:
   [QUICKSTART.md](QUICKSTART.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · `docs-site/` (77 pages,
   links clean, GitHub-Pages-ready).
 - [x] **Green:** `node products/robustness.test.mjs` (43/43) ·
-  `cargo test --manifest-path runtime/Cargo.toml --workspace` (69/0) ·
+  `cargo test --manifest-path runtime/Cargo.toml --workspace` (71/0) ·
   `python verification/certification/certify_runtime.py` (2/2) ·
   `python verification/evidence/evidence_probe.py` (7/7).
 - [ ] **`CODE_OF_CONDUCT.md` + `SECURITY.md`** — standard community/security-policy files

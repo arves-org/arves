@@ -70,7 +70,7 @@ carrier now mandated (ACS-002 §5.2); (4) Kit self-containment leak in
 
 **Whole-system destroy → harden (product era, ED-006).** A six-lens destroy pass over the
 full stack confirmed **21 blocker/major** fragilities; all fixed with regression tests
-(`products/robustness.test.mjs` 40/40 + Rust gate test): SDK encoder depth/int-range/
+(`products/robustness.test.mjs` 43/43 + Rust gate test): SDK encoder depth/int-range/
 undefined guards; bridge client death/timeout/injection/malformed-response handling; Rust
 bin `MAX_LINE`; capability gate bound to engine identity; Cognitive Memory `verifyChain()`
 + immutable audit trail + false-merge fix; Agent order-independent planning + honest

@@ -325,7 +325,11 @@ gate passes.
   recorded as **proposed** (informative, grounded in the corpus, verified 0 contradictions) and
   must pass the CCP-GATE before they count as registered. Only `OWN/LAYER/SHARD-001` and
   `ORCH-001..004` are registered-normative.
-- **Proof status:** every invariant is currently `pending` (no runtime code exists yet); each
-  gains an executable runtime proof during its owning milestone.
+- **Proof status (updated 2026-07-02):** the I1 runtime now exists (`cargo test --workspace`
+  = 71/0). `LAYER-001`/`OWN-001` are enforced by the executable architecture gate and
+  `ORCH-003`/`ORCH-004` have executable Kernel tests; the remaining invariants stay `pending`
+  until their owning milestone lands. (The frozen Invariant Registry `.docx` mirror still reads
+  "no runtime code exists yet"; that mirror is corrected only via CCP / regeneration, not a
+  silent edit.)
 - **Frozen means frozen:** additions and corrections use the Change Management instruments above
   (CCP / Amendment / IDR / next major version) — never a silent edit.

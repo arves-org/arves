@@ -1,5 +1,17 @@
 # ARVES L1 Certification Attestation + Standard Lock Review
 
+> **⚠ SUPERSEDED IN PART — re-attestation addendum (2026-07-02, later the same day).** Three
+> conditions this review cites as *live* blockers were closed after it was written, and are NOT
+> current: (1) the ACS-005 §8 domain-tag `0x06/0x07` collision was fixed (ACS-005 now uses
+> `0x08`/`0x09`); (2) ACS-001..005 are no longer DRAFT — they are **RATIFIED v1.1** via CCP-GATE
+> (`standard/acs/CCP-GATE-Ratification-v1.md`, at grade G1); (3) the ACS-003/004/005 reject
+> surface now has reference validators proving the rules implementable
+> (`verification/independent/python/acs00{3,4,5}_*.py`), and the certification-harness gaps
+> B3/B4 are closed (`verify_runtime_sound.py`, guarded `certify_runtime.py`). This addendum does
+> **not** rewrite the original verdict below (a dated historical record); the **current** status
+> is `verification/evidence/G2_READINESS.md` + `verification/evidence/SYSTEM_GAP_ANALYSIS.md`.
+> Unchanged: independence is still **G1**; **G2 remains the open exit gate**.
+
 > **Instrument:** Certification Decision Matrix (Volume 6 — Certification & Review Manual v1.0, Part 16 / Table 11) applied to the Independent Architecture Review verdicts + the L1 Scenario-Conformance read, plus the synthesized **Standard Lock Review** (can independent teams implement + interoperate + be cross-certified from the frozen corpus + ratified ACS *today*?).
 >
 > **Authority:** ARVES Certification Authority + PMO (arms-length, per Manual Part 2 — Independence, Reproducibility, Traceability; verdicts drawn from invariants/properties, never golden output; certification never edits the frozen spec).

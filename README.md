@@ -83,7 +83,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
   — at grade **G1 (same-process)**. A genuine third-party (G2) runtime is the Growth
   Program's open exit gate.
 - **Robustness** — a whole-system destroy pass hardened the stack; the product robustness
-  suite is **40/40**, and the Rust workspace is **65/65** green.
+  suite is **43/43**, and the Rust workspace is **71/71** green.
 - **Ecosystem** — a cold, fresh-context developer (grade **G1**, same-process) authored +
   certified a capability from the Authoring Kit alone; a genuine external third party (G2)
   is pending.
@@ -93,6 +93,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
 
 - **Understand why** → [WHY_ARVES.md](WHY_ARVES.md) — the manifesto (start here)
 - **Use it** → [QUICKSTART.md](QUICKSTART.md)
+- **Build & certify your OWN runtime — the open G2 challenge** → [IMPLEMENTING_ARVES.md](IMPLEMENTING_ARVES.md) (cold-start packet) · [CHALLENGE.md](CHALLENGE.md) (the invitation + how to submit)
 - **Publish a capability** → [products/arves-ecosystem-sdk/](products/arves-ecosystem-sdk/)
 - **Contribute / extend** → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Govern / certify** → [FOUNDATION.md](FOUNDATION.md)

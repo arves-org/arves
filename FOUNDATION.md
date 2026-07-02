@@ -48,7 +48,7 @@ that the G2 third-party exit gate is **NOT YET MET**. This document does not con
   caller-supplied flag). **Demonstrated at G1: a cold, fresh-context (same-process) author
   certified a new capability with no help.**
 - **Certified Product** — conformance + the product's own destroy pass (ED-006). Demonstrated:
-  P4/P5 on the frozen runtime; product robustness suite 40/40.
+  P4/P5 on the frozen runtime; product robustness suite 43/43.
 
 ## The survivability mechanism (why this is a standard, not a project)
 
