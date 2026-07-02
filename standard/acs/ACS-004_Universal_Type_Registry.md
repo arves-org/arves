@@ -381,6 +381,14 @@ model" to this standard. ACS-004 resolves it as follows and this resolution is
 
 ## 8. Aspect binding (normative)
 
+**Canonical `aspects` order (normative).** The `aspects` array of a schema document
+**SHALL** list the five mandatory aspects in exactly this order:
+`[ "Identity", "Provenance", "Temporal", "Trust", "TenantScope" ]`. Array element order
+is content-address-bearing (ACS-002 §5.8), so this order is fixed by the standard; it is
+the order carried in the authoritative §11.2 schema body (ContentId `1220…6b3f99c6`). Any
+other ordering is a different, non-conformant document. The binding table below is grouped
+by carrier for readability and does **not** define the array order.
+
 Ontology Spec Part 4 mandates that the five shared aspects be *"defined ONCE as
 aspects and attached to every type — not copied per entity."* ACS-004 binds each
 aspect to a **fixed set of carrier fields** with fixed type codes. A type whose
@@ -700,7 +708,12 @@ other than clause 1; or diverges from any body or `ContentId` above.
   be validated, no instance can be content-addressed (ACS-001), and two "certified"
   runtimes are mutually unintelligible — the worst outcome for a standard. ACS-004
   turns the ontology from a taxonomy into a machine-checkable semantic contract and
-  makes ORCH-003/ORCH-004 provable at the *type* layer, not just the byte layer.
+  establishes the ORCH-003/ORCH-004 **precondition** (a well-defined, differentially
+  testable content address for every typed value) at the *type* layer as well as the
+  byte layer. ORCH-003 (replay) and ORCH-004 (idempotency) range over executions and
+  invocations; ACS provides the deterministic-identity precondition they require — it
+  does not by itself prove those runtime invariants, which are established by the
+  Kernel/Control-Plane conformance layer.
 - **Why CDDL/dCBOR (the decisive choice).** See §3. The data model is already
   dCBOR (ACS-002); CDDL is the IETF schema language for that exact model, so the
   schema and byte layers share one type universe. JSON Schema cannot name the

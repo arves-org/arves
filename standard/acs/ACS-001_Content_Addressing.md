@@ -78,8 +78,12 @@ ContentId = varint(hash_code) || varint(digest_len) || digest
   migration, but interoperability and certification **SHALL** be evaluated on
   SHA-256. Being self-describing, the address carries its own algorithm, so a
   future algorithm upgrade does not require re-addressing existing content.
-- The address **SHALL** be computed as `multihash(SHA-256, SHA256(domain_tag ||
-  body))`.
+- The address **SHALL** be computed as
+  `ContentId = 0x12 0x20 || SHA256(domain_tag || body)`, i.e. the multihash of a
+  **single** SHA-256 taken over the pre-image `domain_tag || body`. The pre-image is
+  the *data* passed to SHA-256; it is never itself pre-hashed. (There is exactly one
+  hash application — the earlier "self-describing multihash of the pre-image" and the
+  34-byte form `0x12 0x20 || SHA256(pre-image)` above state the same single hash.)
 
 ## 6. Idempotency binding to ORCH-004 (normative)
 

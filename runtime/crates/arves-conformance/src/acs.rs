@@ -240,6 +240,8 @@ fn negative_corpus() -> Vec<(&'static str, &'static str, Vec<u8>, &'static str)>
         ("text-invalid-utf8", "core", vec![0x61, 0xff], "reserved-or-unsupported"),
         // bare 'break' stop code at top level.
         ("top-level-break", "core", vec![0xff], "indefinite-length"),
+        // depth bomb: 200 nested definite arrays, past MAX_DEPTH=128 (ACS-002 §5.10).
+        ("nesting-too-deep", "core", { let mut v = vec![0x81u8; 200]; v.push(0x00); v }, "nesting-too-deep"),
         // "é" as base 'e' + combining acute (NFD) — MUST be rejected as non-NFC by
         // an implementation with a Unicode NFC facility; the dependency-free Rust
         // reference DEFERS this one rule (no Unicode table).
@@ -332,8 +334,8 @@ mod tests {
             assert!(n.pass, "{} [{}/{}]: {}", n.standard, n.tier, n.case, n.outcome);
         }
         assert!(negative_core_pass(&neg));
-        // 15 core rejection rules + 1 nfc-tier (deferred by this reference).
-        assert_eq!(neg.iter().filter(|n| n.tier == "core").count(), 15);
+        // 16 core rejection rules + 1 nfc-tier (deferred by this reference).
+        assert_eq!(neg.iter().filter(|n| n.tier == "core").count(), 16);
         assert_eq!(neg.iter().filter(|n| n.tier == "nfc").count(), 1);
     }
 }

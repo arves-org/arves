@@ -33,6 +33,7 @@ Reason codes (verbatim from CONFORMANCE.md line 38-41, sourced ACS-002 §5):
                                 and any major/ai not in the §4 value model
     truncated             (parse) input ends mid-item; the item is incomplete
     non-nfc-text          §5.4  text octets are valid UTF-8 but not NFC
+    nesting-too-deep      §5.10 structural nesting exceeds MAX_DEPTH (depth bomb)
 
 The value model (§4) is the ONLY thing that may appear in a canonical body:
 Null, Bool, Integer, Float, Text, Bytes, Array, Map. Anything else -> rejected.
@@ -69,6 +70,11 @@ _AI_RESERVED_28 = 28   # RFC 8949: 28-30 reserved
 _AI_RESERVED_29 = 29
 _AI_RESERVED_30 = 30
 _AI_INDEFINITE = 31    # ACS-002 §5.1: MUST be rejected
+
+# ACS-002 §5.10: maximum structural nesting depth. A conformant decoder MUST reject a
+# deeper body (a hostile depth bomb) rather than recurse into it; all implementations
+# share this exact bound so they agree on the canonical set.
+MAX_DEPTH = 128
 
 
 class _Reader:
@@ -200,8 +206,11 @@ def _decode_float64_payload(r):
 # else None. We recompute key encodings via our own encoder for the sort check.
 # ---------------------------------------------------------------------------
 
-def _decode_item(r):
+def _decode_item(r, depth=0):
     """Decode exactly one ARVES value (§4) at the cursor, validating §5 inline."""
+    if depth > MAX_DEPTH:                 # §5.10: reject a depth bomb, don't recurse.
+        raise Rejected("nesting-too-deep",
+                       "structural nesting exceeds MAX_DEPTH=%d (§5.10)" % MAX_DEPTH)
     ib = r.take1()                       # initial byte
     major = ib >> 5
     ai = ib & 0x1F
@@ -263,7 +272,7 @@ def _decode_item(r):
         _check_shortest(n, used_ai, "non-shortest-len")       # §5.1
         items = []
         for _ in range(n):
-            items.append(_decode_item(r))                     # order preserved (§5.8)
+            items.append(_decode_item(r, depth + 1))          # order preserved (§5.8)
         return items
 
     # ---- major 5: map (§4 kind 8, §5.6) ----
@@ -273,7 +282,7 @@ def _decode_item(r):
                            "maps SHALL be definite-length (§5.1)")
         n, used_ai = _read_argument(r, ai)
         _check_shortest(n, used_ai, "non-shortest-len")       # §5.1
-        return _decode_map_entries(r, n)
+        return _decode_map_entries(r, n, depth)
 
     # ---- major 6: tag — NOT in the §4 value model; RESERVED (§4) ----
     if major == 6:
@@ -324,7 +333,7 @@ def _decode_item(r):
     raise Rejected("reserved-or-unsupported", "unknown major type %d" % major)
 
 
-def _decode_map_entries(r, n):
+def _decode_map_entries(r, n, depth):
     """
     Decode `n` map entries and enforce ACS-002 §5.6:
       - keys are Text or Integer (§4 kind 8);
@@ -340,7 +349,7 @@ def _decode_map_entries(r, n):
     for _ in range(n):
         # A key is itself a full data item; decode it (this also validates the key
         # is canonical, e.g. a non-shortest integer key is rejected here).
-        key = _decode_item(r)
+        key = _decode_item(r, depth + 1)
         # §4 kind 8: map keys MUST be Text or Integer.
         if isinstance(key, str):
             key_enc = encode(key)
@@ -363,7 +372,7 @@ def _decode_map_entries(r, n):
                            % (key_enc.hex(), prev_key_enc.hex()))
         seen.add(key_enc)
         prev_key_enc = key_enc
-        val = _decode_item(r)
+        val = _decode_item(r, depth + 1)
         out[hkey] = val
     return _MapValue(out)
 
@@ -409,7 +418,7 @@ def decode(buf):
     if not isinstance(buf, (bytes, bytearray)):
         raise TypeError("decode expects bytes")
     r = _Reader(bytes(buf))
-    value = _decode_item(r)
+    value = _decode_item(r, 0)
     if r.remaining() != 0:
         # §5.9: exactly one top-level item, no trailing octets.
         raise Rejected("trailing-data",

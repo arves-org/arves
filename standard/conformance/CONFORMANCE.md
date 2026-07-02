@@ -38,8 +38,10 @@ tier, input_hex, reject_reason`):
 Reason codes (ACS-002 §5): `non-shortest-int`, `non-shortest-len`,
 `indefinite-length`, `unsorted-map-keys`, `duplicate-map-keys`, `float-not-float64`,
 `negative-zero-float`, `non-finite-float`, `trailing-data`, `reserved-or-unsupported`,
-`truncated`, `non-nfc-text`. An implementation passes the rejection check iff it
-rejects every `core` row with the matching reason. (`reserved-or-unsupported` is the
+`truncated`, `nesting-too-deep`, `non-nfc-text`. An implementation passes the rejection
+check iff it rejects every `core` row with the matching reason. (`nesting-too-deep` is
+emitted when structural nesting exceeds the ACS-002 §5.10 limit `MAX_DEPTH = 128`, so a
+hostile depth bomb is rejected rather than crashing the decoder. `reserved-or-unsupported` is the
 reason for anything not in the §4 value model: CBOR tags, the `undefined`/simple
 values, non-UTF-8 text octets, and a map key that is not a Text or Integer.)
 
@@ -86,9 +88,9 @@ thin re-implementation of the same two checks over the same TSV.
   always 64-bit; NFC text; bytewise-sorted map keys; shortest ints; definite
   lengths).
 - A conformant decoder MUST also REJECT non-canonical inputs (ACS-002 §5); the
-  rejection check above runs over `../vectors/acs_negative_vectors.tsv` (16 vectors:
-  15 `core` + 1 `nfc`-tier). Reference: `cargo run -p arves-conformance --bin conformance`
-  reports `ACS-002 negative vectors: 15/15 core REJECTED`.
+  rejection check above runs over `../vectors/acs_negative_vectors.tsv` (17 vectors:
+  16 `core` + 1 `nfc`-tier). Reference: `cargo run -p arves-conformance --bin conformance`
+  reports `ACS-002 negative vectors: 16/16 core REJECTED`.
 - This procedure covers the ACS interoperability layer. Runtime-behaviour
   conformance (the 12 Scenario axes, L1..L4) is the Certification process
   (`../certification/`).

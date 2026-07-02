@@ -22,24 +22,36 @@ Regenerate: `python verification/evidence/evidence_probe.py`
 | Claim | Dimensions | Level | Indep | Status | Metric | Reproduce |
 |-------|-----------|-------|-------|--------|--------|-----------|
 | ACS-001..005 golden vectors (encode + address) | Behaviour, Implementation | L2 | G1 | ✅ PASS | 12/12 | `cargo run -p arves-conformance --bin conformance` |
-| ACS-002 rejection / negative vectors (decode) | Differential, Implementation | L2 | G1 | ✅ PASS | 15/15 core REJECTED | `cargo run -p arves-conformance --bin conformance` |
+| ACS-002 rejection / negative vectors (decode) | Differential, Implementation | L2 | G1 | ✅ PASS | 16/16 core REJECTED | `cargo run -p arves-conformance --bin conformance` |
 | Independent Python reproduces golden vectors | Independent | L3 | **G1** | ✅ PASS | CONFORMANT | `python verification/independent/python/conformance.py` |
-| Independent Python reproduces rejection | Independent | L3 | **G1** | ✅ PASS | 16/16 REJECTED (enforces nfc) | `python verification/independent/python/conformance_negative.py` |
+| Independent Python reproduces rejection | Independent | L3 | **G1** | ✅ PASS | 17/17 REJECTED (16 core + nfc) | `python verification/independent/python/conformance_negative.py` |
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | **G1** | ✅ PASS | 13,807 inputs, **0 hard divergences** | `python verification/differential/acs002_differential_fuzz.py` |
 | Rust workspace tests (I1 runtime + gates + ACS) | Behaviour, Formal | L2 | G0 | ✅ PASS | 58 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
 
-## Section B — Declared evidence (destroy-office earned)
+## Section B — Declared evidence (destroy-office graded)
 
-| Dimension | Claim | Level | Status | Artifact |
-|-----------|-------|-------|--------|----------|
-| Formal | TLA+ kernel spec | L0→ | draft (not model-checked) | `verification/formal/` |
-| Behaviour/Architecture | LAYER-001 / OWN-001 executable gate | L2 | ✅ (in workspace tests) | `runtime/crates/arves-conformance/tests/architecture_gate.rs` |
-| Differential (adversarial) | ACS-002 red-team, 17→7 confirmed→fixed (2 real reference bugs) | L2 | ✅ | `verification/independent/DIFFERENTIAL_REPORT.md` |
-| Scientific | Is ARVES scientifically sound? | — | 🟡 Destroy Round 1 | (this round) |
-| Security | Break the codec (DoS, recursion, address assumptions) | — | 🟡 Destroy Round 1 | (this round) |
-| Performance/Robustness | Codec algorithmic robustness | — | 🟡 Destroy Round 1 | (this round) |
-| Academic | Would SOSP/OSDI/PLDI accept this? | — | 🟡 Destroy Round 1 | (this round) |
-| Standards | Would an IETF WG approve ACS-002? | — | 🟡 Destroy Round 1 | (this round) |
+**Destroy Round 1** (six adversarial offices, 29 agents, findings independently
+verified): grades are post-fix. Every `blocker`/`major` confirmed finding was fixed or
+is tracked below.
+
+| Dimension | Grade (Round 1) | Status | Notes |
+|-----------|-----------------|--------|-------|
+| Formal | — | draft | TLA+ kernel spec not model-checked (`verification/formal/`) |
+| Behaviour/Architecture | strong | ✅ | LAYER-001/OWN-001 executable gate (in workspace tests) |
+| Differential (adversarial) | strong | ✅ | ACS-002 red-team + Round-1 destroy; 2+1 real reference bugs fixed |
+| Security | weak → **moderate** | ✅ fixed | DoS depth-bomb **fixed** (§5.10 `MAX_DEPTH`, both impls); Security Considerations §11 added (SHA-256 reliance + agility, hostile-decoder model, NFC caveat) |
+| Robustness/Performance | weak → **moderate** | ✅ fixed | decode recursion now depth-bounded; huge-length pre-alloc was already defended |
+| Scientific | moderate | ✅ scoped | over-claim "ACS proves ORCH-003/004" corrected to **precondition, not proof** (ACS-004 §14) |
+| Independent-buildability | moderate → **stronger** | ✅ fixed | `aspects` array order fixed normatively (ACS-004 §8); ACS-001 §5 single-hash wording fixed |
+| Standards (IETF) | moderate | 🟡 partial | Security Considerations added; **IANA/registry policy still pending** (tracked) |
+| Academic (SOSP/OSDI/PLDI) | moderate | 🟡 tracked | would be rejected as a paper: **quantitative eval/ablation pending**; `dCBOR` naming citation pending; N=1 generality softened |
+
+**Tracked (Round 2 candidates, not yet done):** IANA/registry-policy section (domain-tag
+`0x0A–0x7F` + reason-code allocation authority); `dCBOR` name-collision citation
+(`draft-mcnally-deterministic-cbor`); a quantitative differential-ablation harness
+(measure what the ACS number/NFC/sort rules buy vs cbor2/JCS); ≥2 more worked types for
+generality; I-D structural formatting; **NFC full-enforcement in the dependency-free
+reference** (currently deferred, documented).
 
 ## Section C — Independence ledger (the honesty gate)
 

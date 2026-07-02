@@ -126,8 +126,11 @@ non-finite Float. Negative zero **SHALL** be normalized to positive zero
 decoder **MUST** reject `fb8000000000000000`.
 
 ### 5.4 Text strings — UTF-8, NFC
-A Text value **SHALL** be Unicode-normalized to **Normalization Form C (NFC)** and
-then encoded as its UTF-8 octets (major 3). Two inputs that denote the same
+A Text value **SHALL** be Unicode-normalized to **Normalization Form C (NFC)** —
+**per UAX #15, Unicode 16.0.0** — and then encoded as its UTF-8 octets (major 3).
+Conformant runtimes **MUST** normalize against that pinned Unicode version so two
+implementations cannot disagree on whether a string is NFC; a later Unicode version
+is a new profile introduced via CCP (§7). Two inputs that denote the same
 abstract text under Unicode canonical equivalence (e.g. the same string supplied
 decomposed, NFD, versus precomposed, NFC) **SHALL** produce identical canonical
 bytes. An encoder **MUST NOT** emit non-NFC text; a decoder **MUST** reject a text
@@ -166,6 +169,15 @@ future ACS.)
 A canonical body **SHALL** consist of exactly one top-level CBOR data item with no
 leading or trailing bytes. A decoder **MUST** reject any input with trailing
 octets after the top-level item.
+
+### 5.10 Maximum nesting depth
+A canonical body **SHALL NOT** nest Arrays and Maps deeper than **`MAX_DEPTH = 128`**
+structural levels (the top-level item is depth 0; each Array element and each Map key
+or value is one level deeper). A decoder **MUST** reject a body that exceeds this
+depth with reason `nesting-too-deep`, **before** recursing into it, so that a hostile
+"depth bomb" cannot exhaust the decoder's stack. The bound is a fixed constant shared
+by all implementations so they agree on the canonical set; 128 is ~30× the deepest
+structure any ACS type reaches. (See Security Considerations, §11.)
 
 ## 6. Determinism, round-trip, and decoder validation (normative)
 
@@ -357,6 +369,34 @@ diverges from any body/`ContentId` above.
   Control Plane v2 Part 5 (ORCH-003, ORCH-004); Invariant Registry v1 (ENG-005,
   CAP-003 content-addressable manifests); Engine Graph Specification v1 (manifests
   and graphs are content-addressable).
+
+## 11. Security Considerations (normative)
+
+A canonical decoder is exposed to hostile, attacker-chosen bytes; the following are
+part of the standard, not implementation advice.
+
+- **Hostile-decoder threat model.** A decoder **MUST** treat every input as adversarial
+  and fail safely (return a rejection) rather than abort, over-allocate, or recurse
+  without bound. Specifically: (a) it **MUST** enforce the §5.10 `MAX_DEPTH` limit
+  *before* recursing, so a nested "depth bomb" cannot exhaust the stack; (b) it **MUST**
+  bounds-check every declared length against the remaining input *before* allocating or
+  copying, so a large declared length (e.g. a header claiming `2^63` elements) cannot
+  drive unbounded allocation; a length exceeding the input is `truncated`.
+- **Parser-differential / canonicalization attacks.** Because identity is the ContentId,
+  two implementations that disagree on whether a body is canonical would assign
+  different identities to "the same" value — an attack on ORCH-004 idempotency and on
+  interoperability, not merely a cosmetic difference. The rejection rules (§5, §6) and
+  the shared negative-vector corpus exist to close this: a conformant decoder rejects
+  every non-canonical body, so no non-canonical body is ever addressed. The one
+  **residual** gap is the NFC tier (§5.4): a *core-conformant* decoder that defers NFC
+  (no Unicode table) may accept a non-NFC body that a *fully-conformant* decoder rejects.
+  The two therefore agree only over NFC (valid) inputs; a runtime that must be safe
+  against non-NFC inputs **MUST** be fully conformant (enforce §5.4).
+- **Hash reliance and agility.** ACS-001's "equal ContentId ⇒ same value" identity
+  relies on the **second-preimage and collision resistance of SHA-256**. Should SHA-256
+  weaken, the self-describing multihash prefix (`0x12 0x20`) is the agility mechanism: a
+  new hash is introduced as a new multihash code via CCP, and both codes may coexist
+  during migration. Truncating or reusing the digest is forbidden.
 
 ---
 

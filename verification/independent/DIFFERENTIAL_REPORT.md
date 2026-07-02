@@ -65,8 +65,8 @@ disagree on whether a byte string is canonical.
   `arves_acs::cbor::decode_canonical` and the independent Python `acs002_decode.decode`
   (Kit-only authorship). Each accepts a byte string only if it is in the exact
   canonical form and returns a stable ACS-002 reason code otherwise.
-- The Kit gained `vectors/acs_negative_vectors.tsv` — **16 rejection vectors**
-  (15 `core` + 1 `nfc`-tier) — and `conformance/CONFORMANCE.md` gained the rejection
+- The Kit gained `vectors/acs_negative_vectors.tsv` — **17 rejection vectors**
+  (16 `core` + 1 `nfc`-tier) — and `conformance/CONFORMANCE.md` gained the rejection
   procedure and the core-vs-full **verdict-tier semantics**.
 
 ## Result — DIFFERENTIAL PASS (both directions)
@@ -109,11 +109,40 @@ vector; the independent Python already rejected all three with the exact reasons
 fixes aligned Rust to — direct confirmation the reference now matches a spec-faithful
 peer.
 
+## Standard Validation Era — Destroy Round 1 (six offices)
+
+After entering the Standard Validation Era, six destroy-offices (Security, Scientific,
+Academic, Standards/IETF, Independent-buildability, Robustness) attacked the codec and
+standard; findings were independently verified (17 candidates → 7 confirmed). Confirmed
+and **fixed** this round:
+- **[blocker, Security+Robustness] Unbounded decode recursion → stack-overflow DoS**
+  (`0x81`×5000+`0x00` aborted the process). Fixed: normative **ACS-002 §5.10
+  `MAX_DEPTH = 128`**, enforced (reject `nesting-too-deep`) in *both* the Rust and the
+  independent Python decoder, plus a shared negative vector — the 16th core vector.
+- **[major, Buildability] ACS-004 `aspects` array order** was address-bearing but
+  unspecified (prose swapped Trust/Temporal). Fixed: normative order clause (ACS-004 §8).
+- **[major, Buildability] ACS-001 §5** stated the address three ways; one read as a
+  double hash. Fixed: single-SHA-256 wording.
+- **[major, Standards+Security] No Security Considerations.** Added ACS-002 §11
+  (hostile-decoder model, SHA-256 reliance + multihash agility, NFC caveat).
+- **[major, Scientific] Over-claim** that ACS "proves" ORCH-003/004. Corrected to
+  *precondition, not proof* (ACS-004 §14).
+- **[major, Scientific] NFC version unpinned.** Pinned Unicode 16.0.0 (ACS-002 §5.4).
+
+Both decoders now reject the depth bomb (`17/17` Python; `16/16` core Rust); the
+differential fuzzer re-ran clean (**13,807 inputs, 0 hard divergences**). Tracked for
+Round 2 (Evidence Ledger §B): IANA/registry policy, `dCBOR` naming citation, a
+quantitative ablation harness, more worked types, and NFC full-enforcement in the
+dependency-free reference.
+
 ## Conclusion (Report #2)
 The ACS-002 codec is now **differentially validated in both directions** (encode and
-decode) across two independent implementations, over a curated 16-vector rejection
-corpus and ~13.8k fuzzed inputs, after an adversarial pass that found and fixed two
-real reference bugs. Evidence Level for the ACS-002 codec: **L3 (Reproduced).**
+decode) across two independent implementations, over a curated 17-vector rejection
+corpus and ~13.8k fuzzed inputs, after two adversarial passes (red-team + Destroy
+Round 1) that found and fixed three real reference bugs (integer range, map-key kind,
+recursion DoS) and hardened the standard. Evidence Level for the ACS-002 codec:
+**L3 — but independence grade G1** (same-process); the G2 third-party gate is the
+frontier. Nothing here is "Done"; it holds a level.
 
 **Not yet covered (honest scope):** runtime-behaviour conformance (the 12 Scenario
 axes, L1..L4 over a live Kernel/Query/Engine), and a second full *runtime* (not just

@@ -152,7 +152,16 @@ pub enum DecodeError {
     Truncated,
     /// Bytes remain after a complete top-level item.
     TrailingData,
+    /// Structural nesting deeper than the ACS-002 limit (`MAX_DEPTH`) — rejected so a
+    /// hostile "depth bomb" cannot exhaust the decoder's stack.
+    NestingTooDeep,
 }
+
+/// Maximum structural nesting depth of a canonical body (ACS-002 §5.10). A conformant
+/// decoder MUST reject a deeper body rather than recurse into it; every implementation
+/// shares this exact bound so they agree on the canonical set. 128 is ~30x the deepest
+/// structure any ACS type reaches, yet bounds decoder stack use against a depth bomb.
+pub const MAX_DEPTH: usize = 128;
 
 impl DecodeError {
     /// Stable machine reason code (shared by the Kit corpus + every runner).
@@ -169,6 +178,7 @@ impl DecodeError {
             DecodeError::NonFiniteFloat => "non-finite-float",
             DecodeError::Truncated => "truncated",
             DecodeError::TrailingData => "trailing-data",
+            DecodeError::NestingTooDeep => "nesting-too-deep",
         }
     }
 }
@@ -200,7 +210,7 @@ impl<'a> Cursor<'a> {
 /// the specific reason the bytes are non-canonical. Whole input must be one item.
 pub fn decode_canonical(bytes: &[u8]) -> Result<Value, DecodeError> {
     let mut c = Cursor { b: bytes, i: 0 };
-    let v = read_value(&mut c)?;
+    let v = read_value(&mut c, 0)?;
     if c.i != bytes.len() {
         return Err(DecodeError::TrailingData);
     }
@@ -248,7 +258,10 @@ fn read_arg(c: &mut Cursor, ai: u8, as_len: bool) -> Result<u64, DecodeError> {
     }
 }
 
-fn read_value(c: &mut Cursor) -> Result<Value, DecodeError> {
+fn read_value(c: &mut Cursor, depth: usize) -> Result<Value, DecodeError> {
+    if depth > MAX_DEPTH {
+        return Err(DecodeError::NestingTooDeep);
+    }
     let ib = c.next_u8()?;
     let major = ib >> 5;
     let ai = ib & 0x1f;
@@ -283,7 +296,7 @@ fn read_value(c: &mut Cursor) -> Result<Value, DecodeError> {
             let n = arg as usize;
             let mut items = Vec::with_capacity(n.min(64));
             for _ in 0..n {
-                items.push(read_value(c)?);
+                items.push(read_value(c, depth + 1)?);
             }
             Ok(Value::Array(items))
         }
@@ -293,7 +306,7 @@ fn read_value(c: &mut Cursor) -> Result<Value, DecodeError> {
             let mut prev_key: Option<Vec<u8>> = None;
             for _ in 0..n {
                 let key_start = c.i;
-                let k = read_value(c)?;
+                let k = read_value(c, depth + 1)?;
                 // §4 kind 8: a map key MUST be a Text or an Integer. A Null/Bool/
                 // Float/Bytes/Array/Map key is not a valid ARVES map, so the body is
                 // non-canonical and MUST be rejected.
@@ -301,7 +314,7 @@ fn read_value(c: &mut Cursor) -> Result<Value, DecodeError> {
                     return Err(DecodeError::ReservedOrUnsupported);
                 }
                 let key_bytes = c.b[key_start..c.i].to_vec();
-                let val = read_value(c)?;
+                let val = read_value(c, depth + 1)?;
                 if let Some(prev) = &prev_key {
                     match key_bytes.as_slice().cmp(prev.as_slice()) {
                         core::cmp::Ordering::Less => return Err(DecodeError::UnsortedMapKeys),
@@ -510,5 +523,18 @@ mod tests {
                 Ok(v) => panic!("{name}: expected rejection {want:?}, decoded {v:?}"),
             }
         }
+    }
+
+    // A hostile depth bomb (nested definite arrays) must be REJECTED, not crash the
+    // decoder's stack; a body within MAX_DEPTH still decodes.
+    #[test]
+    fn decode_rejects_depth_bomb() {
+        let mut bomb = vec![0x81u8; MAX_DEPTH + 200]; // arrays-of-1, well past the limit
+        bomb.push(0x00);
+        assert_eq!(decode_canonical(&bomb), Err(DecodeError::NestingTooDeep));
+
+        let mut ok = vec![0x81u8; 100]; // 100 < MAX_DEPTH: still canonical
+        ok.push(0x00);
+        assert!(decode_canonical(&ok).is_ok());
     }
 }
