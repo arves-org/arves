@@ -1,0 +1,13 @@
+[package]
+name = "arves-acs"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# ARVES Core Standards codec (ACS-001 content addressing, ACS-002 dCBOR to follow).
+# Dependency-free on purpose: an independent implementation must be derivable from
+# the spec alone, so the reference computes SHA-256 + the multihash itself. This is
+# the runtime's adoption of ACS (Lock-Review gap G4) and the executable golden-vector
+# corpus (gap G3) that a second (e.g. Go) runtime must match byte-for-byte.
+
+[dependencies]

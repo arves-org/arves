@@ -26,6 +26,7 @@ use std::path::{Path, PathBuf};
 fn layer_rank(name: &str) -> Option<i32> {
     Some(match name {
         "arves-ontology" | "arves-invariants" => 10, // foundation (pure defs)
+        "arves-acs" => 15,                           // content-addressing codec (ACS)
         "arves-persistence" => 20,                   // durable substrate (WAL)
         "arves-consensus" => 30,                     // replication over persistence
         "arves-kernel" => 40,                        // sole truth owner

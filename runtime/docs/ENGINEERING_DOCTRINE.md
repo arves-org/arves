@@ -93,3 +93,27 @@ answered — it IS the Definition of Done:
 
 The last row is the ultimate bar: **the standard is real only when independent
 implementations converge.** Ratified at the opening of the Standardization era.
+
+---
+
+## ED-005 — Prove the architecture; the single KPI is Independent Runtime
+
+> ARVES no longer lacks knowledge; it lacks **evidence**. The motto is
+> **"Prove the architecture,"** not "Define the architecture."
+
+- **Single KPI — Independent Runtime.** Judge every decision by one question:
+  *does this make a second, fully-independent implementation (from the frozen spec
+  + ratified ACS alone) that produces the SAME conformance results easier?* If not,
+  it is probably not a priority.
+- **NO NEW DOCUMENTS** unless implementation, verification, or certification
+  requires them. Produce code, tests, proofs, and byte-exact vectors — not more
+  prose or org. (Codifying a binding rule in this doctrine is permitted; new
+  elaborate documents are not.)
+- **Evidence-first.** Each milestone ends with a claim→evidence table
+  (claim | evidence kind | ✅/🟡/❌); the PMO manages evidence, not backlog volume.
+- **Maturity model:** Specified → Implemented → **Verified** → **Reproduced** →
+  **Independent** → Standard. Verified (mechanized proof) and Reproduced (a second
+  runtime matches byte-for-byte) are the hard, currently-missing levels.
+
+*Ratified after the L1 attestation + Standard Lock Review (Lock = CONDITIONAL):
+the gap to a standard is evidence and a second implementation, not more design.*

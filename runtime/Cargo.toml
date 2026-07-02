@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/arves-ontology",
     "crates/arves-invariants",
+    "crates/arves-acs",
     "crates/arves-kernel",
     "crates/arves-persistence",
     "crates/arves-lcw",
