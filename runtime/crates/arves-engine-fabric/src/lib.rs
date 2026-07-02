@@ -7,7 +7,12 @@
 //! *proposed effect* only. Whether those effects ever become truth is decided
 //! elsewhere (Control Plane plans it; only the Kernel commits it).
 //!
-//! Governing: ENG-001..005 (proposed), ORCH-004; Engine Graph Spec.
+//! Governing (registered-normative): ORCH-001 (only the Kernel owns truth),
+//! ORCH-003 (replay from decision trace), ORCH-004 (idempotent +
+//! content-addressable invocation), LAYER-001. Grounded-in (proposed, NOT yet
+//! ratified — carry no conformance weight): ENG-001..005, G-001, QUERY-001,
+//! CAP-001..009 of the Invariant Registry v1.0. Frozen source: ARVES Engine
+//! Graph Specification v1.0.
 //! Layer: Data Plane (Engine layer of LAYER-001).
 //!
 //! ## Position in the ARVES layering (LAYER-001)
@@ -29,25 +34,36 @@
 //!
 //! ## Governing invariants (cited inline throughout)
 //!
-//! - **ENG-001 (proposed): Engine purity.** `invoke` is a pure function of its
-//!   input and the declared read-set; no hidden side effects, no ambient I/O.
-//! - **ENG-002 (proposed): Engines own no persistent state.** Engines are
-//!   stateless between invocations (aligns with OWN-001: one owner per state —
-//!   and it is never an engine).
-//! - **ENG-003 (proposed): Writes are proposals, not commits.** An engine emits
-//!   [`ProposedEffect`]s; it can never itself mutate truth (defers commit to
-//!   the Kernel per G-001 / ORCH-001).
-//! - **ENG-004 (proposed): Declared reads/produces.** An engine declares what it
+//! Cited by their **registered-normative** IDs (Invariant Registry v1.0, Part 2).
+//! The engine properties named below are the fabric's *engineering expression*
+//! of these invariants; they are NOT the frozen `ENG-00n` statements (Registry
+//! Part 4). The frozen `ENG-00n` numbering differs from any earlier draft use in
+//! this crate — do not read a property here as "ENG-001", etc. Where a proposed
+//! invariant is the nearest grounding it is cited as "(proposed)" and carries no
+//! conformance weight until it passes the CCP-GATE.
+//!
+//! - **Engine purity (Engine Graph Spec Part 4; grounds proposed ENG-001).**
+//!   `invoke` is a pure function of its input and the declared read-set; no
+//!   hidden side effects, no ambient I/O.
+//! - **Engines own no persistent state (OWN-001; grounds proposed ENG-001).**
+//!   Engines are stateless between invocations — one owner per state, and it is
+//!   never an engine.
+//! - **Writes are proposals, not commits (ORCH-001; grounds proposed ENG-002).**
+//!   An engine emits [`ProposedEffect`]s; it can never itself mutate truth
+//!   (commit is the Kernel's alone, ORCH-001 / proposed G-001).
+//! - **Declared reads/produces (Engine Graph Spec Part 3; grounds proposed
+//!   ENG-005).** An engine declares what it
 //!   [`reads`](EngineManifest::reads) and [`produces`](EngineManifest::produces)
 //!   up front in its [`EngineManifest`]; the declaration is a contract the
 //!   fabric can check against.
-//! - **ENG-005 (proposed): Declared determinism + required capabilities.** An
-//!   engine declares its [`Determinism`] class and the
+//! - **Declared determinism + required capabilities (Engine Graph Spec
+//!   Parts 3/6; grounds proposed ENG-004/ENG-005).** An engine declares its
+//!   [`Determinism`] class and the
 //!   [`capabilities_required`](EngineManifest::capabilities_required) to run.
-//! - **ORCH-004: Idempotent + content-addressable invocation.** Every engine
-//!   invocation is keyed by an [`IdempotencyKey`] derived from
+//! - **ORCH-004 (registered): Idempotent + content-addressable invocation.**
+//!   Every engine invocation is keyed by an [`IdempotencyKey`] derived from
 //!   `(manifest identity, canonicalized input, read-snapshot)`, so replaying the
-//!   same invocation yields the same [`Inference`] (supports ORCH-003 replay
+//!   same invocation yields the same [`Inference`] (supports ORCH-003: replay
 //!   from recorded decision trace, not recomputation).
 //!
 //! ## STATUS
@@ -68,8 +84,8 @@
 /// A stable, human-readable engine name (e.g. `"summarize.text"`).
 ///
 /// The `(name, version)` pair identifies an engine implementation for the
-/// purposes of the [`EngineManifest`] and idempotency keying (ENG-004,
-/// ORCH-004).
+/// purposes of the [`EngineManifest`] and idempotency keying (Engine Graph Spec
+/// Part 3 Identity group; ORCH-004).
 pub type EngineName = String;
 
 /// A version string for an engine implementation.
@@ -79,16 +95,19 @@ pub type EngineName = String;
 pub type EngineVersion = String;
 
 /// A declared, content-addressable name of a state slice an engine reads or
-/// produces (ENG-004).
+/// produces (Engine Graph Spec Part 3 Type-contract group).
 ///
-/// Reads name inputs pulled through the read-only Query layer (QUERY-001);
-/// produces name the *shapes* of [`ProposedEffect`]s the engine may emit. These
-/// are declarations, not handles: naming a resource here does not grant an
-/// engine authority over it (ORCH-001 / OWN-001).
+/// Reads name inputs pulled through the read-only Query layer (proposed
+/// QUERY-001); produces name the *shapes* of [`ProposedEffect`]s the engine may
+/// emit — which, per the Engine Graph Spec Part 3, are the spec's "Writes"
+/// (proposed effects), NOT the spec's distinct "Produces" (output-artifact
+/// types); see [`EngineManifest::produces`]. These are declarations, not
+/// handles: naming a resource here does not grant an engine authority over it
+/// (ORCH-001 / OWN-001).
 pub type ResourceName = String;
 
-/// A declared capability an engine requires in order to run (ENG-005,
-/// CAP-001..009 proposed).
+/// A declared capability an engine requires in order to run (Engine Graph Spec
+/// Part 3 "Capabilities Required"; proposed CAP-001..009).
 ///
 /// The Capability layer (one layer *below* Engine consumers, one *above* in the
 /// call sense) binds these names to concrete grants; the Engine layer only
@@ -110,10 +129,11 @@ pub type CapabilityName = String;
 pub struct IdempotencyKey(pub String);
 
 // ---------------------------------------------------------------------------
-// Determinism classification (ENG-005)
+// Determinism classification (Engine Graph Spec Parts 3/6)
 // ---------------------------------------------------------------------------
 
-/// The determinism class an engine declares for itself (ENG-005).
+/// The determinism class an engine declares for itself (Engine Graph Spec
+/// Part 3 Determinism field; drives replay per Part 6 / ORCH-003).
 ///
 /// This is a *promise the engine makes to the fabric*, not something the fabric
 /// infers. It governs how the runtime may treat repeat invocations and replay
@@ -139,34 +159,55 @@ pub enum Determinism {
 
 impl Default for Determinism {
     /// Default to the strongest promise so that an unspecified engine is treated
-    /// conservatively as reproducible (ENG-005).
+    /// conservatively as reproducible (Engine Graph Spec Part 6).
     fn default() -> Self {
         Determinism::Deterministic
     }
 }
 
 // ---------------------------------------------------------------------------
-// Manifest (ENG-004, ENG-005)
+// Manifest (Engine Graph Spec Part 3 — PARTIAL / I1 subset)
 // ---------------------------------------------------------------------------
 
-/// The self-description an engine publishes to the fabric (ENG-004, ENG-005).
+/// The self-description an engine publishes to the fabric (Engine Graph Spec
+/// Part 3 — the Engine Node Contract / ABI).
 ///
 /// The manifest is a *contract*: it declares identity, determinism, the
 /// idempotency-key scheme, and the read/produce/capability sets up front so the
 /// fabric can plan, key, and audit invocations without executing them. A
 /// manifest describes intent and shape only — it grants no authority and owns no
 /// state (ORCH-001, OWN-001).
+///
+/// **SCOPE NOTE — this is an I1 SUBSET of the Part-3 manifest, not the full ABI.**
+/// The frozen Engine Graph Specification Part 3 defines the following normative
+/// manifest fields that this struct DOES NOT yet model; they are **DEFERRED**
+/// and MUST NOT be read as intentionally absent from the ABI:
+///
+/// - **Preconditions** (Type contract) — conditions that must hold before invocation.
+/// - **Produces** (Type contract) — inference/ontology *output-artifact types*,
+///   distinct from this struct's [`produces`](EngineManifest::produces) which
+///   maps to the spec's **Writes** (proposed effects). See that field's note.
+/// - **Failure Policy** (Execution) — behaviour on failure (fail/degrade/escalate).
+/// - **Retry Policy** (Execution) — retry count, backoff, recovery.
+/// - **Timeout** (Execution) — max execution bound.
+/// - **Confidence** (Planning metadata) — declared/estimated output confidence.
+/// - **Cost** (Planning metadata) — declared/estimated cost (token/compute).
+/// - **Latency** (Planning metadata) — declared/estimated latency.
+///
+/// Modelling these is a runtime-forward item (v1.1+ per RUNTIME_FREEZE_v1.0.md),
+/// not a spec gap — the frozen spec is correct and complete; this crate carries
+/// a deliberate I1 subset. Do not treat this struct as the full manifest ABI.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct EngineManifest {
     /// Stable engine name; with `version`, identifies the implementation
-    /// (ENG-004).
+    /// (Engine Graph Spec Part 3 Identity group).
     pub name: EngineName,
 
     /// Implementation version; a bump is a distinct engine and invalidates
-    /// prior idempotency keys (ORCH-004).
+    /// prior idempotency keys (Engine Graph Spec Parts 3/11; ORCH-004).
     pub version: EngineVersion,
 
-    /// Declared determinism class (ENG-005). See [`Determinism`].
+    /// Declared determinism class (Engine Graph Spec Part 3). See [`Determinism`].
     pub determinism: Determinism,
 
     /// The scheme/version tag describing how this engine's [`IdempotencyKey`] is
@@ -175,42 +216,57 @@ pub struct EngineManifest {
     pub idempotency_key: IdempotencyKey,
 
     /// Declared read-set: the resources this engine may read, pulled through the
-    /// read-only Query layer (ENG-004, QUERY-001). Reading outside this set is a
-    /// contract violation.
+    /// read-only Query layer (Engine Graph Spec Part 3 "Reads"; proposed
+    /// QUERY-001). Reading outside this set is a contract violation.
     pub reads: Vec<ResourceName>,
 
     /// Declared produce-set: the shapes of [`ProposedEffect`]s this engine may
-    /// emit (ENG-004). Producing anything outside this set is a contract
-    /// violation; nothing here is a commitment to *persist* (ENG-003).
+    /// emit. Producing anything outside this set is a contract violation;
+    /// nothing here is a commitment to *persist* (ORCH-001).
+    ///
+    /// **SCOPE NOTE — maps to the spec's "Writes", not "Produces".** In the
+    /// frozen Engine Graph Specification Part 3 these are two distinct manifest
+    /// fields: **Writes** = "PROPOSED state effects to be committed by Kernel
+    /// (never direct truth)", and **Produces** = "Inference/ontology artifacts
+    /// emitted as output". Despite its Rust name, THIS field is the spec's
+    /// **Writes** (proposed effects; see [`ProposedEffect`]). The spec's distinct
+    /// **Produces** (output-artifact *types*) is **DEFERRED / undeclared** in this
+    /// crate — the [`Inference::output`] bytes carry the artifact, but its
+    /// ontology type is not declared here. Renaming this field to `writes` is a
+    /// Runtime Change Request (out of scope for this doc-only alignment).
     pub produces: Vec<ResourceName>,
 
-    /// Declared capabilities required to run (ENG-005, CAP-001..009 proposed).
-    /// Resolved by the Capability layer; the Engine layer only declares them.
+    /// Declared capabilities required to run (Engine Graph Spec Part 3
+    /// "Capabilities Required"; proposed CAP-001..009). Resolved by the
+    /// Capability layer; the Engine layer only declares them.
     pub capabilities_required: Vec<CapabilityName>,
 }
 
 // ---------------------------------------------------------------------------
-// Proposed effects (ENG-003)
+// Proposed effects (Engine Graph Spec Parts 3/4 — the spec's "Writes")
 // ---------------------------------------------------------------------------
 
 /// A write an engine *wishes* to see happen — a proposal, never a commit
-/// (ENG-003).
+/// (Engine Graph Spec Part 4; ORCH-001).
 ///
-/// Engines are pure and own no persistent state (ENG-001, ENG-002, OWN-001), so
-/// they cannot mutate truth. Instead they emit `ProposedEffect`s naming the
-/// intended change. Whether a proposal becomes truth is decided by the Control
-/// Plane (as a plan, ORCH-002) and committed exclusively by the Kernel through
-/// the shard leader (G-001, ORCH-001; IDR: engines run anywhere, commit only via
-/// shard leader).
+/// This is the concrete form of a spec **Write** (Engine Graph Spec Part 3:
+/// "PROPOSED state effects to be committed by Kernel (never direct truth)").
+/// Engines are pure and own no persistent state (Engine Graph Spec Part 4;
+/// OWN-001), so they cannot mutate truth. Instead they emit `ProposedEffect`s
+/// naming the intended change. Whether a proposal becomes truth is decided by
+/// the Control Plane (as a plan, ORCH-002) and committed exclusively by the
+/// Kernel through the shard leader (ORCH-001; proposed G-001; IDR: engines run
+/// anywhere, commit only via shard leader).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct ProposedEffect {
     /// The declared resource this effect targets; MUST appear in the engine
-    /// manifest's [`produces`](EngineManifest::produces) set (ENG-004).
+    /// manifest's [`produces`](EngineManifest::produces) set (Engine Graph Spec
+    /// Part 3).
     pub target: ResourceName,
 
     /// Opaque, serialized payload describing the proposed change. The Engine
     /// layer treats this as inert bytes; interpretation and commit belong to the
-    /// Kernel (ENG-003, G-001).
+    /// Kernel (Engine Graph Spec Part 4; ORCH-001; proposed G-001).
     pub payload: Vec<u8>,
 }
 
@@ -225,7 +281,7 @@ pub struct ProposedEffect {
 /// (ORCH-004). It carries no authority: it is a claim about what *could* follow,
 /// which the Control Plane may plan on and the Kernel may (or may not) commit.
 /// Persisting an `Inference`'s effects is out of scope for this layer
-/// (ENG-003).
+/// (Engine Graph Spec Part 4; ORCH-001).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Inference {
     /// The idempotency key this inference was computed under; ties the output to
@@ -233,32 +289,36 @@ pub struct Inference {
     pub key: IdempotencyKey,
 
     /// Opaque, serialized primary output of the engine (the "inference" proper).
+    /// Carries the artifact of the spec's **Produces** (Engine Graph Spec
+    /// Part 3), but as inert bytes — the artifact's ontology *type* is not
+    /// declared in this I1 manifest subset (see [`EngineManifest`] scope note).
     pub output: Vec<u8>,
 
-    /// Proposed effects the engine would like committed — proposals only
-    /// (ENG-003).
+    /// Proposed effects the engine would like committed — proposals only; the
+    /// spec's **Writes** (Engine Graph Spec Parts 3/4; ORCH-001).
     pub proposed_effects: Vec<ProposedEffect>,
 }
 
 // ---------------------------------------------------------------------------
-// The Engine ABI (ENG-001..005, ORCH-004)
+// The Engine ABI (Engine Graph Spec Parts 3/4; ORCH-004)
 // ---------------------------------------------------------------------------
 
-/// The pure Engine ABI (ENG-001, ORCH-004).
+/// The pure Engine ABI (Engine Graph Spec Part 4; ORCH-004).
 ///
 /// An `Engine` is a **pure**, **stateless** computation: given an input (and,
 /// implicitly, the read-snapshot addressed by the [`IdempotencyKey`]) it returns
 /// an [`Inference`]. Implementations MUST honour the following contract:
 ///
-/// - **Purity (ENG-001).** [`invoke`](Engine::invoke) has no side effects beyond
-///   returning its result. No ambient I/O, no clocks, no RNG except a recorded
-///   seed for [`Determinism::Seeded`] (ENG-005).
-/// - **No ownership (ENG-002, OWN-001).** The engine holds no persistent state
-///   across invocations; `&self` is configuration/identity only.
-/// - **Proposals, not commits (ENG-003).** Any desired write is returned as a
-///   [`ProposedEffect`] inside the [`Inference`]; the engine never commits truth
-///   (G-001, ORCH-001).
-/// - **Declared surface (ENG-004, ENG-005).** Behaviour stays within the
+/// - **Purity (Engine Graph Spec Part 4).** [`invoke`](Engine::invoke) has no
+///   side effects beyond returning its result. No ambient I/O, no clocks, no RNG
+///   except a recorded seed for [`Determinism::Seeded`] (Engine Graph Spec
+///   Part 6).
+/// - **No ownership (OWN-001).** The engine holds no persistent state across
+///   invocations; `&self` is configuration/identity only.
+/// - **Proposals, not commits (Engine Graph Spec Part 4; ORCH-001).** Any
+///   desired write is returned as a [`ProposedEffect`] inside the [`Inference`];
+///   the engine never commits truth (ORCH-001; proposed G-001).
+/// - **Declared surface (Engine Graph Spec Part 3).** Behaviour stays within the
 ///   engine's [`EngineManifest`]: it reads only declared `reads`, produces only
 ///   declared `produces`, and requires only declared
 ///   `capabilities_required`.
@@ -272,16 +332,18 @@ pub trait Engine {
     /// The engine-specific, deserialized input type.
     type Input;
 
-    /// Return this engine's manifest (ENG-004, ENG-005). Pure, cheap, and
+    /// Return this engine's manifest (Engine Graph Spec Part 3). Pure, cheap, and
     /// invariant across invocations.
     fn manifest(&self) -> EngineManifest;
 
-    /// Purely compute an [`Inference`] from `input` (ENG-001, ORCH-004).
+    /// Purely compute an [`Inference`] from `input` (Engine Graph Spec Part 4;
+    /// ORCH-004).
     ///
     /// Implementations MUST NOT mutate external truth, perform ambient I/O, or
     /// retain state; all intended writes are returned as
-    /// [`ProposedEffect`]s (ENG-003). The returned [`Inference::key`] MUST match
-    /// the idempotency key of this invocation (ORCH-004).
+    /// [`ProposedEffect`]s (Engine Graph Spec Part 4; ORCH-001). The returned
+    /// [`Inference::key`] MUST match the idempotency key of this invocation
+    /// (ORCH-004).
     fn invoke(&self, input: Self::Input) -> Inference;
 }
 
@@ -292,10 +354,17 @@ pub trait Engine {
 /// A concrete reference [`Engine`]: a pure, deterministic transform
 /// `Fn(&[u8]) -> Vec<u8>` that emits its result as a single [`ProposedEffect`].
 ///
-/// It owns no state and performs no I/O (ENG-001/002), returns proposals rather than
-/// committing (ENG-003), and is deterministic (ENG-005) — so it satisfies the ABI. The
-/// runtime (here, the bridge) commits its proposed effect(s) via the Kernel. This is the
-/// first executable Engine, used to run the real cognitive work chain.
+/// It owns no state and performs no I/O (Engine Graph Spec Part 4; OWN-001),
+/// returns proposals rather than committing (Engine Graph Spec Part 4;
+/// ORCH-001), and is deterministic (Engine Graph Spec Part 6) — so it satisfies
+/// the *purity/ownership* shape of the ABI. It is a **minimal reference example**
+/// used to exercise the wiring; it is **not** a full-fidelity engine and does not
+/// on its own demonstrate an end-to-end cognitive work chain. The runtime (here,
+/// the bridge) is what commits its proposed effect(s) via the Kernel.
+///
+/// **NON-CONFORMANT re: ORCH-004.** As written, [`invoke`](PureEngine::invoke)
+/// does not honour the [`Engine::invoke`] key contract (see the note on its
+/// body). Treat this type as illustrative, not as a conformant reference engine.
 pub struct PureEngine<F> {
     name: EngineName,
     target: ResourceName,
@@ -327,6 +396,14 @@ impl<F: Fn(&[u8]) -> Vec<u8>> Engine for PureEngine<F> {
 
     fn invoke(&self, input: Vec<u8>) -> Inference {
         let output = (self.transform)(&input);
+        // NON-CONFORMANT PLACEHOLDER (ORCH-004; violates the Engine::invoke
+        // contract documented above — "the returned Inference::key MUST match
+        // the idempotency key of this invocation"). This returns an empty
+        // IdempotencyKey::default() instead of a key derived from
+        // (manifest identity, canonicalized input, read-snapshot), so it is NOT
+        // content-addressable and MUST NOT be relied on for replay/dedupe. Left
+        // as a placeholder for the I1 CONTRACT-ONLY milestone; deriving the real
+        // key is a runtime-forward item, not a doc change.
         Inference {
             key: IdempotencyKey::default(),
             proposed_effects: vec![ProposedEffect { target: self.target.clone(), payload: output.clone() }],

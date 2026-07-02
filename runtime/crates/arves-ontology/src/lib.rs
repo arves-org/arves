@@ -49,6 +49,14 @@
 //! O-principle; it derives from the frozen temporal model and supports `O-003`
 //! (provenance is time-situated) and `ORCH-003` (replay from a recorded trace).
 //!
+//! ACS-004 alignment (ratified): [`RootType`] exposes the 8 composed categories
+//! that ACS-004 §6.1 canonicalizes as the `root` vocabulary (`Observation`,
+//! `Event`, `Fact`, `Goal`, `Entity`, `Relation`, `Inference`, `Policy`); the
+//! Ontology Spec Part 6's 18 root-type URNs are reconciled onto this 8-name
+//! `RootType` space there (a domain subtype sets `root` to its is-a root). The
+//! Identity / Provenance / Trust / Temporal / TenantScope aspect field sets are
+//! the ratified ACS-004 §8 binding (fixed carrier fields + type codes per aspect).
+//!
 //! STATUS: CONTRACT-ONLY (by design). Defines the Universal Cognitive Ontology
 //! interfaces/aspect types; method bodies are omitted and the few defaulted/const
 //! bodies present are trivial and carry no logic. Frozen specification governs;

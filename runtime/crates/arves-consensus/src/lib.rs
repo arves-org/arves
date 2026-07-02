@@ -1,7 +1,7 @@
 //! ARVES :: arves-consensus
 //!
 //! Purpose: Per-shard Raft: CP truth replication (leader/followers, joint consensus).
-//! Governing: IDR-001..004; SHARD-001 (partition by tenant/workspace).
+//! Governing: IDR-001..005; SHARD-001 (partition by tenant/workspace).
 //! Layer: cross-cutting (truth path; serves the Kernel's commit gateway).
 //!
 //! STATUS: CONTRACT-ONLY — distributed consensus is genuinely DEFERRED to I2+.
@@ -27,12 +27,13 @@
 //!   [`ShardConsensus::propose`]. This is why the type replicated by this crate is
 //!   an outcome payload, never an engine call. It aligns with ORCH-004
 //!   (idempotent + content-addressable invocation) held upstream by the Kernel.
-//! - **IDR-003** - The Raft log **is** the Write-Ahead Log **is** the decision
-//!   trace. A single append-only sequence serves durability, replication, and
-//!   replay (ORCH-003: replay from the recorded trace, never recomputation). See
-//!   [`LogIndex`], [`Term`], and [`LogEntry`]. Engines may run anywhere, but the
-//!   only path to truth is a commit through the shard leader.
-//! - **IDR-004** - Membership changes use **joint consensus** (two-phase
+//! - **IDR-005** - The Raft log **is** the Write-Ahead Log **is** the decision
+//!   trace (an **IDR-001 refinement**: IDR-001 + IDR-005 + ORCH-003 converge on one
+//!   ordered source for replay). A single append-only sequence serves durability,
+//!   replication, and replay (ORCH-003: replay from the recorded trace, never
+//!   recomputation). See [`LogIndex`], [`Term`], and [`LogEntry`]. Engines may run
+//!   anywhere, but the only path to truth is a commit through the shard leader.
+//! - **IDR-003** - Membership changes use **joint consensus** (two-phase
 //!   C_old,new -> C_new); there is **no cross-shard atomic commit** (cross-shard
 //!   effects are coordinated by sagas above this layer, not by 2PC here). See
 //!   [`Membership`] and [`ShardConsensus::change_membership`].
@@ -98,7 +99,7 @@ impl ShardId {
 }
 
 // ---------------------------------------------------------------------------
-// Raft primitives (IDR-003: log = WAL = decision trace)
+// Raft primitives (IDR-005: log = WAL = decision trace)
 // ---------------------------------------------------------------------------
 
 /// A Raft term - a logical clock that increments once per election.
@@ -106,17 +107,17 @@ impl ShardId {
 /// Terms totally order leadership: a higher term always wins. Used to reject
 /// stale leaders and stale proposals.
 ///
-/// Governing: IDR-003 (append-only log), IDR-004 (per-shard leader election).
+/// Governing: IDR-005 (append-only log), IDR-004 (per-shard leader election).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct Term(pub u64);
 
 /// A position in the shard's append-only replicated log.
 ///
-/// Because the Raft log *is* the WAL *is* the decision trace (**IDR-003**), this
+/// Because the Raft log *is* the WAL *is* the decision trace (**IDR-005**), this
 /// single monotonic index addresses durability, replication progress, and replay
 /// position simultaneously. Indices are dense and never reused.
 ///
-/// Governing: IDR-003 (log = WAL = decision trace; append-only), ORCH-003 (replay
+/// Governing: IDR-005 (log = WAL = decision trace; append-only), ORCH-003 (replay
 /// keys off the recorded trace).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub struct LogIndex(pub u64);
@@ -127,7 +128,7 @@ pub struct LogIndex(pub u64);
 /// shard group. The same physical node may host many shards (many groups); this
 /// id names its role *within one group*.
 ///
-/// Governing: IDR-001 (one group per shard), IDR-004 (membership).
+/// Governing: IDR-001 (one group per shard), IDR-003 (membership).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct NodeId(pub String);
 
@@ -168,20 +169,20 @@ pub struct Outcome {
     pub payload: Vec<u8>,
 }
 
-/// One entry in the append-only shard log (log = WAL = decision trace, IDR-003).
+/// One entry in the append-only shard log (log = WAL = decision trace, IDR-005).
 ///
 /// Every committed entry carries the term under which it was proposed, its dense
 /// index, and either an [`Outcome`] (the normal case, IDR-002) or a membership
-/// transition (IDR-004). The log is append-only: entries are never mutated in
+/// transition (IDR-003). The log is append-only: entries are never mutated in
 /// place, which is what makes the log usable as the decision trace for replay
 /// (ORCH-003).
 ///
-/// Governing: IDR-003, IDR-002, IDR-004, ORCH-003.
+/// Governing: IDR-005, IDR-002, IDR-003, ORCH-003.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogEntry {
-    /// Election term this entry was created under (IDR-003/IDR-004).
+    /// Election term this entry was created under (IDR-005/IDR-004).
     pub term: Term,
-    /// Dense, monotonic position in the log (IDR-003).
+    /// Dense, monotonic position in the log (IDR-005).
     pub index: LogIndex,
     /// The replicated content of this entry.
     pub kind: EntryKind,
@@ -190,10 +191,10 @@ pub struct LogEntry {
 /// The two things a shard log can carry.
 ///
 /// Normal traffic is [`EntryKind::Outcome`] (IDR-002). Reconfiguration is
-/// [`EntryKind::Membership`], applied via joint consensus (IDR-004). No variant
+/// [`EntryKind::Membership`], applied via joint consensus (IDR-003). No variant
 /// carries an engine invocation, by construction.
 ///
-/// Governing: IDR-002, IDR-004.
+/// Governing: IDR-002, IDR-003.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EntryKind {
     /// A committed outcome to be applied to the shard state machine.
@@ -211,9 +212,9 @@ pub enum EntryKind {
 /// Only the [`Role::Leader`] may accept proposals (see [`ShardConsensus::propose`]);
 /// this is the single-writer property that makes the shard's log a total order.
 /// Engines may run anywhere, but the only route to truth is a commit through the
-/// leader (IDR-003).
+/// leader (IDR-005).
 ///
-/// Governing: IDR-004 (per-shard leader election), IDR-003.
+/// Governing: IDR-004 (per-shard leader election), IDR-005.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Role {
     /// Sole proposer/committer for the current term.
@@ -246,31 +247,31 @@ pub enum Leadership {
 }
 
 // ---------------------------------------------------------------------------
-// Membership via joint consensus; no cross-shard atomicity (IDR-004)
+// Membership via joint consensus; no cross-shard atomicity (IDR-003)
 // ---------------------------------------------------------------------------
 
 /// A shard's membership configuration, capturing the joint-consensus phase.
 ///
-/// **IDR-004** mandates joint consensus for reconfiguration: the group transits
+/// **IDR-003** mandates joint consensus for reconfiguration: the group transits
 /// through a combined `C_old,new` phase (where quorums of *both* old and new
 /// configurations are required) before committing to `C_new`. This enum makes
 /// that two-phase transition explicit rather than mutating a member set in place.
 ///
 /// Note: there is deliberately **no cross-shard membership**; each `Membership`
 /// scopes exactly one [`ShardId`]. Cross-shard effects are handled by sagas above
-/// this layer, never by an atomic multi-shard commit (IDR-004).
+/// this layer, never by an atomic multi-shard commit (IDR-003).
 ///
-/// Governing: IDR-004.
+/// Governing: IDR-003.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Membership {
     /// A single, stable configuration.
     Stable {
         /// Voting members of the shard group.
         voters: Vec<NodeId>,
-        /// Non-voting catch-up members (IDR-004 learner phase).
+        /// Non-voting catch-up members (IDR-003 learner phase).
         learners: Vec<NodeId>,
     },
-    /// The transitional joint configuration `C_old,new` (IDR-004).
+    /// The transitional joint configuration `C_old,new` (IDR-003).
     Joint {
         /// The outgoing voter set.
         old_voters: Vec<NodeId>,
@@ -311,10 +312,10 @@ pub enum ReadTier {
 ///
 /// These name the *contractual* outcomes callers must handle; exhaustive wire-level
 /// error taxonomy is deferred. Notably [`ConsensusError::NotLeader`] enforces the
-/// single-writer route to truth (IDR-003/IDR-004), and there is no variant for a
-/// cross-shard atomic commit because none exists (IDR-004).
+/// single-writer route to truth (IDR-005/IDR-004), and there is no variant for a
+/// cross-shard atomic commit because none exists (IDR-003).
 ///
-/// Governing: IDR-003, IDR-004.
+/// Governing: IDR-005, IDR-004, IDR-003.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConsensusError {
     /// This replica is not the leader; the caller should redirect to `leader`
@@ -337,7 +338,7 @@ pub enum ConsensusError {
 pub type ConsensusResult<T> = Result<T, ConsensusError>;
 
 // ---------------------------------------------------------------------------
-// The core contract (IDR-001..004, SHARD-001)
+// The core contract (IDR-001..005, SHARD-001)
 // ---------------------------------------------------------------------------
 
 /// Per-shard Raft consensus: propose, commit, and observe leadership for a shard.
@@ -347,8 +348,8 @@ pub type ConsensusResult<T> = Result<T, ConsensusError>;
 /// shards, where **one Raft group exists per [`ShardId`]** (IDR-001). The trait
 /// replicates **committed outcomes, not invocations** (IDR-002) through an
 /// **append-only log that is simultaneously the WAL and the decision trace**
-/// (IDR-003), with **joint-consensus membership and no cross-shard atomic commit**
-/// (IDR-004), all partitioned by the **immutable `(tenant, workspace)` key**
+/// (IDR-005), with **joint-consensus membership and no cross-shard atomic commit**
+/// (IDR-003), all partitioned by the **immutable `(tenant, workspace)` key**
 /// (SHARD-001).
 ///
 /// The Kernel remains the sole owner of truth and the commit gateway
@@ -360,8 +361,8 @@ pub type ConsensusResult<T> = Result<T, ConsensusError>;
 /// Method signatures only; no default bodies are provided. This is a contracts
 /// crate for the I1 milestone (Distributed Runtime); implementations arrive later.
 ///
-/// Governing: IDR-001, IDR-002, IDR-003, IDR-004, SHARD-001; ORCH-001, ORCH-003,
-/// ORCH-004, OWN-001.
+/// Governing: IDR-001, IDR-002, IDR-003, IDR-004, IDR-005, SHARD-001; ORCH-001,
+/// ORCH-003, ORCH-004, OWN-001.
 pub trait ShardConsensus {
     /// Propose an already-decided [`Outcome`] for replication on `shard`.
     ///
@@ -369,12 +370,12 @@ pub trait ShardConsensus {
     /// (engines run anywhere; IDR-002) and be content-addressed (ORCH-004). This
     /// call *replicates* it; it does not execute anything. Only the current
     /// leader may accept a proposal - non-leaders return
-    /// [`ConsensusError::NotLeader`] so the caller can redirect (IDR-003/IDR-004).
+    /// [`ConsensusError::NotLeader`] so the caller can redirect (IDR-005/IDR-004).
     ///
     /// On success, returns the [`LogIndex`] the outcome was appended at; the entry
     /// is not yet necessarily committed (see [`ShardConsensus::await_commit`]).
     ///
-    /// Governing: IDR-002 (outcomes not invocations), IDR-003 (append-only log),
+    /// Governing: IDR-002 (outcomes not invocations), IDR-005 (append-only log),
     /// IDR-004 (leader-only), ORCH-004 (content-addressable), SHARD-001.
     fn propose(&self, shard: &ShardId, outcome: Outcome) -> ConsensusResult<LogIndex>;
 
@@ -382,11 +383,11 @@ pub trait ShardConsensus {
     /// replicated to a quorum) and return its committed [`LogEntry`].
     ///
     /// "Committed" means the entry has been agreed by a quorum and is therefore a
-    /// permanent part of the decision trace (IDR-003), eligible for apply/replay
+    /// permanent part of the decision trace (IDR-005), eligible for apply/replay
     /// (ORCH-003). Bodies are deferred; the signature fixes that commit is a
     /// distinct step from proposal.
     ///
-    /// Governing: IDR-003, ORCH-003, IDR-001.
+    /// Governing: IDR-005, ORCH-003, IDR-001.
     fn await_commit(&self, shard: &ShardId, index: LogIndex) -> ConsensusResult<LogEntry>;
 
     /// Report the current [`Leadership`] for `shard`, if any is established.
@@ -415,14 +416,14 @@ pub trait ShardConsensus {
 
     /// Begin a joint-consensus membership change for `shard`.
     ///
-    /// Per **IDR-004**, the group transits through a [`Membership::Joint`] phase
+    /// Per **IDR-003**, the group transits through a [`Membership::Joint`] phase
     /// before committing the target [`Membership::Stable`] configuration. The
     /// change itself is replicated as an [`EntryKind::Membership`] log entry
-    /// (IDR-003) and is scoped to exactly one shard - there is **no cross-shard
-    /// atomic reconfiguration** (IDR-004).
+    /// (IDR-005) and is scoped to exactly one shard - there is **no cross-shard
+    /// atomic reconfiguration** (IDR-003).
     ///
-    /// Governing: IDR-004 (joint consensus; no cross-shard atomic commit),
-    /// IDR-003, SHARD-001.
+    /// Governing: IDR-003 (joint consensus; no cross-shard atomic commit),
+    /// IDR-005, SHARD-001.
     fn change_membership(
         &self,
         shard: &ShardId,

@@ -7,8 +7,10 @@
 //! (that is the Control Plane's plan, ORCH-002) and it never records *what happened*
 //! (that is the Kernel's truth, ORCH-001).
 //!
-//! Governing: CAP-001..009 (proposed); Vol 9 Part 3. Cross-cut: ORCH-001, ORCH-002,
-//! ORCH-004, OWN-001, LAYER-001, SHARD-001.
+//! Governing: Vol 9 Part 3. Registered-normative invariants this crate upholds: ORCH-001,
+//! ORCH-002, ORCH-004, OWN-001, LAYER-001, SHARD-001. (The proposed CAP-001..009 identifiers
+//! in ARVES_00_Invariant_Registry_v1 Part 4 are informative and pending CCP-GATE; this crate
+//! does not re-state or enforce them.)
 //!
 //! Layer: Capability (Data Plane). Per LAYER-001 the layering is downward-only:
 //! `Reality -> Information Platform -> Kernel -> Persistence -> LCW -> Query -> Engine ->
@@ -22,9 +24,11 @@
 //! `products/` (see RUNTIME_FREEZE_v1.0.md, guarantee alignment). Frozen specification
 //! governs; this crate *implements* the spec and never changes it (Theory -> Spec ->
 //! Contracts -> Behaviour -> Conformance -> Implementation). Any `fn` bodies present are
-//! trivial placeholders that exist only so the contract compiles; they encode no logic. The identifiers CAP-001..009 are PROPOSED (informative, pending
-//! CCP-GATE) and MUST NOT be enforced as registered invariants until ratified; they are
-//! cited here to anchor intent, not to bind.
+//! trivial placeholders that exist only so the contract compiles; they encode no logic. The
+//! CAP-001..009 identifiers in the Invariant Registry are PROPOSED (informative, pending
+//! CCP-GATE) and MUST NOT be enforced as registered invariants until ratified; this crate
+//! therefore cites only the registered-normative invariants it actually upholds and does not
+//! reproduce the proposed CAP-00n statements.
 //!
 //! # What this crate owns (and, emphatically, does not)
 //!
@@ -42,19 +46,19 @@
 //!   (via [`InvocationContract`]) that lets callers construct idempotent,
 //!   content-addressable invocations, but it does not perform the invocation itself.
 //!
-//! # Design-principle citations (CAP-001..009, proposed)
+//! # Registered-normative invariants this crate upholds
 //!
-//! Grounded in the frozen corpus but pending ratification; each `CAP-00n` tag below marks
-//! the interface element it motivates:
-//! - CAP-001: capabilities are *declared* under a stable, immutable logical identity.
-//! - CAP-002: a capability resolves to at most one active provider per shard (owner-per-state).
-//! - CAP-003: bindings are versioned; rebinding supersedes, never mutates in place.
-//! - CAP-004: every binding carries an explicit [`InvocationContract`] (inputs/outputs/effects).
-//! - CAP-005: resolution is a *read* over owned bindings and is side-effect free.
-//! - CAP-006: bindings are partitioned by shard key (tenant/workspace) per SHARD-001.
-//! - CAP-007: the fabric holds no truth and issues no commits (ORCH-001).
-//! - CAP-008: the fabric produces no plans and no persistent outcome state (ORCH-002).
-//! - CAP-009: capability invocations MUST be idempotent + content-addressable (ORCH-004).
+//! The crate's interface elements are motivated only by the frozen, registered-normative
+//! invariants (Invariant Registry Part 2 + Part 3 Amendments); the proposed CAP-00n IDs are
+//! deliberately NOT reproduced here (their frozen statements concern invocation semantics
+//! owned by the Control Plane / Engine / Kernel, not this binding registry):
+//! - OWN-001: this crate is the single owner of binding state and nothing else.
+//! - SHARD-001: bindings are partitioned by an immutable (tenant, workspace) shard key.
+//! - LAYER-001: downward-only layering; the fabric never reaches sideways or upward.
+//! - ORCH-001: the fabric owns no truth and issues no commits (only the Kernel owns truth).
+//! - ORCH-002: the fabric produces no plans and no persistent outcome/decision state.
+//! - ORCH-004: the fabric exposes the metadata that lets callers build idempotent,
+//!   content-addressable invocations; it performs none itself.
 
 #![forbid(unsafe_code)]
 
@@ -64,27 +68,26 @@
 
 /// Stable, immutable logical identity of a declared capability.
 ///
-/// CAP-001: a capability is named by identity, not by its current provider. The string is
+/// A capability is named by identity, not by its current provider. The string is
 /// a namespaced logical name (e.g. `"arves.text.summarize"`), never a physical address.
 /// Callers treat it as opaque; equality and hashing are by exact bytes. The identity is
-/// immutable once declared -- rebinding a capability (CAP-003) never changes its
-/// [`CapabilityId`], only the [`CapabilityBinding`] it resolves to.
+/// immutable once declared -- rebinding a capability never changes its [`CapabilityId`],
+/// only the [`CapabilityBinding`] it resolves to (OWN-001: one owner per state).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CapabilityId(pub String);
 
 /// Monotonic supersession version of a binding for a given [`CapabilityId`].
 ///
-/// CAP-003: rebinding produces a strictly higher `BindingVersion`; existing versions are
+/// Rebinding produces a strictly higher `BindingVersion`; existing versions are
 /// never mutated in place. This mirrors the append-only, supersession discipline of the
 /// WAL (IDR-005) even though the fabric itself persists nothing -- versions are what make
-/// a binding safely content-addressable for the invocations built atop it (ORCH-004 /
-/// CAP-009).
+/// a binding safely content-addressable for the invocations built atop it (ORCH-004).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct BindingVersion(pub u64);
 
 /// Immutable shard key partitioning bindings by tenant/workspace.
 ///
-/// SHARD-001 / CAP-006: bindings are partitioned by an immutable shard key. A binding
+/// SHARD-001: bindings are partitioned by an immutable shard key. A binding
 /// resolved in one shard is never visible from another; there is no cross-shard binding
 /// namespace (mirroring "no cross-shard atomic commit", IDR-004). The key is immutable once
 /// assigned to the state it addresses.
@@ -98,7 +101,7 @@ pub struct ShardKey {
 
 /// Identity of a concrete provider that can service a capability.
 ///
-/// CAP-002: this names *what* is invoked (an engine, an execution adapter, an external tool
+/// This names *what* is invoked (an engine, an execution adapter, an external tool
 /// endpoint) without describing *how*. The fabric stores the reference; it never
 /// dereferences or invokes it -- invocation belongs to the Execution layer (LAYER-001).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -110,15 +113,15 @@ pub struct ProviderId(pub String);
 
 /// Declared effect class of invoking a capability.
 ///
-/// CAP-004 / CAP-009: the fabric records the *declared* effect so callers (the Control
-/// Plane when planning, Execution when acting) can uphold idempotency and content-addressing
-/// (ORCH-004). The fabric neither validates nor performs the effect; the declaration is a
-/// contract the caller must honour, not behaviour this crate enforces.
+/// The fabric records the *declared* effect so callers (the Control Plane when planning,
+/// Execution when acting) can uphold idempotency and content-addressing (ORCH-004). The
+/// fabric neither validates nor performs the effect; the declaration is a contract the
+/// caller must honour, not behaviour this crate enforces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum EffectClass {
     /// No observable side effects; safe to elide, cache, and replay freely (read-only).
     Pure,
-    /// Side-effecting but idempotent under a content-addressable key (ORCH-004 / CAP-009):
+    /// Side-effecting but idempotent under a content-addressable key (ORCH-004):
     /// re-invoking with identical content yields the same effect exactly once.
     IdempotentEffect,
     /// May propose a write toward the Kernel commit gateway; the commit is the Kernel's,
@@ -129,10 +132,10 @@ pub enum EffectClass {
 
 /// The contract a binding advertises for invoking its provider.
 ///
-/// CAP-004: every [`CapabilityBinding`] carries an explicit contract describing the shape of
+/// Every [`CapabilityBinding`] carries an explicit contract describing the shape of
 /// inputs, outputs, and the effect class. This is descriptive metadata only -- it is the
 /// interface the fabric *publishes*, not logic it *runs*. Callers use it to build idempotent,
-/// content-addressable invocations (CAP-009 / ORCH-004). Schema references are opaque
+/// content-addressable invocations (ORCH-004). Schema references are opaque
 /// (e.g. content-addressed schema ids) so the skeleton stays std-only and does not model the
 /// ontology; richer typing arrives once `arves-ontology` is wired in.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,7 +144,7 @@ pub struct InvocationContract {
     pub input_schema: String,
     /// Opaque schema reference for produced outputs.
     pub output_schema: String,
-    /// Declared effect class governing replay/idempotency expectations (CAP-009).
+    /// Declared effect class governing replay/idempotency expectations (ORCH-004).
     pub effect: EffectClass,
 }
 
@@ -151,25 +154,25 @@ pub struct InvocationContract {
 
 /// A resolved mapping from a logical capability to a concrete provider plus its contract.
 ///
-/// This struct is the *only* state the Capability Fabric owns (OWN-001, CAP-002). It is
+/// This struct is the *only* state the Capability Fabric owns (OWN-001). It is
 /// pure configuration: it carries no truth (ORCH-001) and no plan (ORCH-002). A binding is
 /// immutable once created; supersession is expressed by issuing a new binding at a higher
-/// [`BindingVersion`] (CAP-003), never by editing an existing one.
+/// [`BindingVersion`], never by editing an existing one.
 ///
 /// Because a binding is fully described by `(capability, shard, version, provider,
 /// contract)`, it is content-addressable, which is what lets the invocations layered atop it
-/// satisfy CAP-009 / ORCH-004.
+/// satisfy ORCH-004.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CapabilityBinding {
-    /// Logical capability this binding resolves (CAP-001).
+    /// Logical capability this binding resolves.
     pub capability: CapabilityId,
-    /// Partition this binding lives in; never crosses shards (SHARD-001 / CAP-006).
+    /// Partition this binding lives in; never crosses shards (SHARD-001).
     pub shard: ShardKey,
-    /// Supersession version; strictly increases on rebind (CAP-003).
+    /// Supersession version; strictly increases on rebind.
     pub version: BindingVersion,
-    /// Concrete provider to invoke (CAP-002).
+    /// Concrete provider to invoke.
     pub provider: ProviderId,
-    /// Published invocation contract (CAP-004).
+    /// Published invocation contract.
     pub contract: InvocationContract,
 }
 
@@ -185,15 +188,15 @@ pub struct CapabilityBinding {
 /// validation surface, not an actuator.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RegistryError {
-    /// The requested capability has no active binding in the given shard (CAP-005).
+    /// The requested capability has no active binding in the given shard.
     Unbound {
         /// Capability that failed to resolve.
         capability: CapabilityId,
         /// Shard the lookup was scoped to (SHARD-001).
         shard: ShardKey,
     },
-    /// A rebind was rejected because its version did not strictly supersede the current one
-    /// (CAP-003): monotonicity is required so supersession stays well-ordered and
+    /// A rebind was rejected because its version did not strictly supersede the current one:
+    /// monotonicity is required so supersession stays well-ordered and
     /// content-addressable (ORCH-004).
     NonMonotonicVersion {
         /// Version currently held for the capability in this shard.
@@ -202,7 +205,7 @@ pub enum RegistryError {
         offered: BindingVersion,
     },
     /// The capability was bound before being declared, or its declaration is unknown in this
-    /// shard (CAP-001).
+    /// shard.
     UndeclaredCapability(CapabilityId),
 }
 
@@ -212,15 +215,14 @@ pub enum RegistryError {
 
 /// The contract for owning and resolving capability bindings.
 ///
-/// CAP-002 / CAP-005 / CAP-007 / CAP-008: an implementor owns bindings and resolves them as
-/// side-effect-free reads. It MUST NOT own truth (ORCH-001), MUST NOT persist outcomes or
-/// emit plans (ORCH-002), and MUST honour one active binding per capability per shard
-/// (OWN-001 / SHARD-001 / CAP-002).
+/// An implementor owns bindings and resolves them as side-effect-free reads. It MUST NOT own
+/// truth (ORCH-001), MUST NOT persist outcomes or emit plans (ORCH-002), and MUST honour one
+/// active binding per capability per shard (OWN-001 / SHARD-001).
 ///
 /// Method bodies are intentionally absent in this skeleton -- the signatures *are* the
 /// contract.
 pub trait CapabilityRegistry {
-    /// Declare a capability so it may later be bound (CAP-001).
+    /// Declare a capability so it may later be bound.
     ///
     /// Declaration establishes identity only within `shard`; it selects no provider and has
     /// no side effects beyond recording the (immutable) identity. Binding an undeclared
@@ -233,11 +235,11 @@ pub trait CapabilityRegistry {
 
     /// Bind (or rebind) a declared capability to a concrete provider under a contract.
     ///
-    /// CAP-002 / CAP-003: establishes the single active binding for the capability in
-    /// `binding.shard`. If a binding already exists, `binding.version` MUST strictly exceed
-    /// the current version (else [`RegistryError::NonMonotonicVersion`]); the prior binding
-    /// is superseded, never mutated (append-only supersession, cf. IDR-005). Returns the
-    /// now-active binding.
+    /// Establishes the single active binding for the capability in `binding.shard`
+    /// (OWN-001: one owner per state). If a binding already exists, `binding.version` MUST
+    /// strictly exceed the current version (else [`RegistryError::NonMonotonicVersion`]); the
+    /// prior binding is superseded, never mutated (append-only supersession, cf. IDR-005).
+    /// Returns the now-active binding.
     ///
     /// This records configuration only: it commits no truth (ORCH-001; G-001 proposed) and
     /// produces no plan or persistent outcome (ORCH-002).
@@ -248,7 +250,7 @@ pub trait CapabilityRegistry {
 
     /// Resolve the currently active binding for a capability in a shard.
     ///
-    /// CAP-005: a pure read over owned state. It MUST be side-effect free and MUST NOT invoke
+    /// A pure read over owned state. It MUST be side-effect free and MUST NOT invoke
     /// the provider. Returns [`RegistryError::Unbound`] if no active binding exists in
     /// `shard` (SHARD-001 scopes the lookup; other shards are never consulted).
     fn resolve(
@@ -269,8 +271,8 @@ fn key(shard: &ShardKey, cap: &CapabilityId) -> (String, String, String) {
 }
 
 /// A concrete in-memory [`CapabilityRegistry`] reference implementation. It owns only
-/// bindings (CAP-002), enforces declare-before-bind (CAP-001), one active binding per
-/// `(capability, shard)`, and strictly-monotonic supersession (CAP-003). It is pure
+/// bindings (OWN-001), enforces declare-before-bind, one active binding per
+/// `(capability, shard)`, and strictly-monotonic supersession. It is pure
 /// configuration: it commits no truth (ORCH-001) and resolves as a side-effect-free read.
 #[derive(Default)]
 pub struct MemRegistry {
@@ -340,7 +342,7 @@ mod mem_registry_tests {
     #[test]
     fn declare_bind_resolve_roundtrip() {
         let mut r = MemRegistry::new();
-        // Binding before declaring is rejected (CAP-001).
+        // Binding before declaring is rejected (declare-before-bind).
         assert!(matches!(r.bind(binding(1)), Err(RegistryError::UndeclaredCapability(_))));
         r.register(&shard(), CapabilityId("derive.fact".into())).unwrap();
         r.bind(binding(1)).unwrap();
@@ -354,7 +356,7 @@ mod mem_registry_tests {
         r.register(&shard(), CapabilityId("derive.fact".into())).unwrap();
         r.bind(binding(2)).unwrap();
         assert!(matches!(r.bind(binding(2)), Err(RegistryError::NonMonotonicVersion { .. })));
-        r.bind(binding(3)).unwrap(); // strictly higher supersedes (CAP-003)
+        r.bind(binding(3)).unwrap(); // strictly higher supersedes (monotonic supersession)
         assert!(matches!(
             r.resolve(&shard(), &CapabilityId("unbound".into())),
             Err(RegistryError::Unbound { .. })

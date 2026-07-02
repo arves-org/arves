@@ -71,6 +71,12 @@ While building products, if the runtime is found lacking:
    (ED-006) and a version bump. Products keep running on their pinned runtime version
    until they choose to adopt the new one.
 
+> **Applied RCRs (v1.1), records under `runtime/rcr/`:** RCR-001 (closure-audit #6/#7/#9),
+> RCR-002 (truth-store tamper-evidence, #8 partial), **RCR-003** (contract-crate citation /
+> traceability corrections from `verification/evidence/CONTRACT_CRATE_AUDIT.md` — doc-only across
+> 6 crates + one `arves-invariants` `Layer`-helper logic fix with tests; `cargo test --workspace`
+> 71→**75/0**; freeze baseline re-advanced via `freeze_check.py update`).
+
 ## Organization (three teams, three mandates)
 
 - **Runtime Team** — *never break.* Owns `runtime/` + `standard/`; guards the guarantees

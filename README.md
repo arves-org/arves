@@ -83,7 +83,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
   — at grade **G1 (same-process)**. A genuine third-party (G2) runtime is the Growth
   Program's open exit gate.
 - **Robustness** — a whole-system destroy pass hardened the stack; the product robustness
-  suite is **43/43**, and the Rust workspace is **71/71** green.
+  suite is **43/43**, and the Rust workspace is **75/75** green.
 - **Ecosystem** — a cold, fresh-context developer (grade **G1**, same-process) authored +
   certified a capability from the Authoring Kit alone; a genuine external third party (G2)
   is pending.

@@ -16,7 +16,7 @@ Verify green, then publish. Every command below runs offline, no keys:
   fails (non-zero exit) on any broken in-site relative link; the checklist is green only when that
   build exits 0 (`link-gate: OK — 0 broken links`).
 - [x] **Green:** `node products/robustness.test.mjs` (43/43) ·
-  `cargo test --manifest-path runtime/Cargo.toml --workspace` (71/0) ·
+  `cargo test --manifest-path runtime/Cargo.toml --workspace` (75/0) ·
   `python verification/certification/certify_runtime.py` (2/2) ·
   `python verification/evidence/evidence_probe.py` (8/8) ·
   `python verification/certification/verify_runtime_sound.py` (2/2 SOUND-CERTIFIED) ·

@@ -22,6 +22,6 @@ One crate per architecture component; each crate's module header cites its gover
 - `crates/arves-execution` - Execution layer: performs actions; routes outcomes as proposed writes to the Kernel.
 - `crates/arves-consensus` - Per-shard Raft: CP truth replication (leader/followers, joint consensus).
 - `crates/arves-conformance` - Scenario Conformance harness: 12 axes -> reference scenarios -> node probes -> verdict.
-- `crates/arves-runtime` - Binary: wires the single-shard walking skeleton (I1 entry point).
+- `crates/arves-runtime` - Runnable binary (single-node I1 entry point): a single-node commit gateway over a durable append-only WAL with cross-process recovery. Subcommands `write` / `recover` / `checkpoint` drive the cross-process restart proofs; with no subcommand it runs the in-memory demo. Run via `cargo run -p arves-runtime`.
 
-Status: **I1 skeleton** - interfaces only. Build: `cd runtime && cargo check`.
+Status: **I1 runtime core IMPLEMENTED and runnable** - single-node commit gateway + durable WAL + deterministic cross-process recovery (per `RUNTIME_FREEZE_v1.0.md`; frozen at tag `runtime-v1.0`). Build: `cd runtime && cargo check`.

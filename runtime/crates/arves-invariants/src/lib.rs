@@ -181,9 +181,13 @@ pub mod catalog {
     /// `LAYER-001`: Layer dependencies are downward-only.
     ///
     /// The stack is Reality -> Information Platform -> Kernel -> Persistence ->
-    /// LCW -> Query -> Engine -> Capability -> Execution, alongside the Control
+    /// LCW -> Engine -> Query -> Capability -> Execution, alongside the Control
     /// Plane. A layer may depend only on layers below it; upward or cyclic
-    /// dependencies are violations. See [`LayerRank`].
+    /// dependencies are violations. Per the frozen Layer Responsibility Matrix
+    /// (Amendment-003, `ARVES_00_Amendments_CCP_Batch_1_v1`), Engine "Reads:
+    /// State via Query" while Query "Writes: NOTHING (read-only)", so Engine sits
+    /// above Query: Engine -> Query is legal, Query -> Engine is not. See
+    /// [`LayerRank`].
     pub const LAYER_001: &str = "LAYER-001";
 
     /// `SHARD-001`: State is partitioned by tenant/workspace, and the shard key
@@ -291,10 +295,14 @@ pub enum Layer {
     Persistence = 3,
     /// LCW: owns Working Memory (proposed `LCW-001`).
     Lcw = 4,
-    /// Query: read-only projection layer (proposed `QUERY-001`).
-    Query = 5,
-    /// Engine: derivation/compute over queried state.
-    Engine = 6,
+    /// Engine: derivation/compute; pure, owns nothing persistent. Reads state
+    /// *via Query* (frozen matrix, Amendment-003), so Engine sits ABOVE Query in
+    /// the stack and legally depends downward on it.
+    Engine = 5,
+    /// Query: read-only projection layer (proposed `QUERY-001`). Reads
+    /// Kernel/LCW/Persistence and writes NOTHING (frozen matrix, Amendment-003);
+    /// it therefore never depends on Engine (Query -> Engine is illegal).
+    Query = 6,
     /// Capability: schedulable capability surface above execution.
     Capability = 7,
     /// Execution: bottom of the primary stack; runs invocations.
@@ -325,6 +333,21 @@ impl Layer {
     /// downward-only ordering; a full implementation gates it separately (it
     /// owns no truth per `ORCH-001`). This scaffold implements only the linear
     /// comparison for the primary stack.
+    ///
+    /// # Agreement with the enforced Architecture Gate
+    ///
+    /// This is a *reference* helper over the abstract [`Layer`] stack; the
+    /// *enforced* build-time gate lives in
+    /// `arves-conformance/tests/architecture_gate.rs` and runs over the real
+    /// Cargo crate graph. The two agree on the legality of the frozen
+    /// "Engine Reads: State via Query" edge: the enforced gate ranks
+    /// `arves-query` and `arves-engine-fabric` as peers (both rank 60) — i.e. it
+    /// treats them as the same architectural tier and does not forbid the
+    /// Engine -> Query read — while this helper orders `Engine` above `Query`
+    /// (`Engine` rank 5, `Query` rank 6) so that `Engine.may_depend_on(Query)`
+    /// is `true` and `Query.may_depend_on(Engine)` is `false`. Neither treats
+    /// Query -> Engine as legal, matching the frozen matrix (Query writes
+    /// NOTHING; Amendment-003, `ARVES_00_Amendments_CCP_Batch_1_v1`).
     pub const fn may_depend_on(self, other: Layer) -> bool {
         (self.rank() as u16) < (other.rank() as u16)
     }
@@ -468,4 +491,73 @@ pub trait PropertyCheck {
 pub trait Suite {
     /// The registered invariant ids this suite promises to uphold.
     fn obligations(&self) -> &'static [&'static str];
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RCR-CCA-07 (F-9/F-10): the frozen Layer Responsibility Matrix
+    /// (Amendment-003, `ARVES_00_Amendments_CCP_Batch_1_v1`) states that Engine
+    /// "Reads: State via Query" and Query "Writes: NOTHING (read-only)". Hence a
+    /// directed Engine -> Query dependency is LEGAL and Query -> Engine is
+    /// ILLEGAL. This locks the corrected [`Layer`] ordering against regression.
+    #[test]
+    fn engine_may_depend_on_query_but_not_vice_versa() {
+        assert!(
+            Layer::Engine.may_depend_on(Layer::Query),
+            "frozen matrix: Engine Reads State via Query, so Engine -> Query is legal"
+        );
+        assert!(
+            !Layer::Query.may_depend_on(Layer::Engine),
+            "frozen matrix: Query writes NOTHING (read-only), so Query -> Engine is illegal"
+        );
+    }
+
+    /// The Engine/Query fix must be expressed as a rank ordering: Engine sits
+    /// above Query (strictly smaller rank), so the downward-only comparison
+    /// yields the correct directional verdict.
+    #[test]
+    fn engine_ranks_above_query() {
+        assert!(
+            Layer::Engine.rank() < Layer::Query.rank(),
+            "Engine must rank above Query (Engine {} < Query {})",
+            Layer::Engine.rank(),
+            Layer::Query.rank()
+        );
+    }
+
+    /// A layer never depends on itself, and the check is antisymmetric for the
+    /// Engine/Query pair (exactly one direction is legal).
+    #[test]
+    fn engine_query_edge_is_antisymmetric_and_irreflexive() {
+        assert!(!Layer::Engine.may_depend_on(Layer::Engine));
+        assert!(!Layer::Query.may_depend_on(Layer::Query));
+        assert_ne!(
+            Layer::Engine.may_depend_on(Layer::Query),
+            Layer::Query.may_depend_on(Layer::Engine),
+            "exactly one direction of the Engine/Query edge may be legal"
+        );
+    }
+
+    /// The registered catalog still enumerates exactly the frozen registered
+    /// set, in ID order — the logic fix must not disturb the public catalog API.
+    #[test]
+    fn registered_catalog_unchanged() {
+        let ids: Vec<&str> = catalog::REGISTERED.iter().map(|d| d.id).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "ORCH-001", "ORCH-002", "ORCH-003", "ORCH-004", "OWN-001",
+                "LAYER-001", "SHARD-001",
+            ]
+        );
+        assert!(catalog::REGISTERED
+            .iter()
+            .all(|d| d.status == InvariantStatus::Registered));
+    }
 }

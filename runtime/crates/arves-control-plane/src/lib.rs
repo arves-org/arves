@@ -37,7 +37,8 @@
 //!
 //! Because the Orchestrator holds no persistent state, its recovery story is
 //! **replay from a recorded decision trace, not recomputation** (ORCH-003).
-//! The Raft log doubles as the WAL and the decision trace (IDR-004), so a
+//! The Raft log doubles as the WAL and the decision trace
+//! (IDR-001 (Engineering Refinement)), so a
 //! resumed Orchestrator reconstructs where it was by reading committed
 //! [`DecisionRecord`]s rather than re-running engines. See [`DecisionTrace`].
 //!
@@ -79,8 +80,9 @@ use std::fmt;
 /// Governing: SHARD-001 (partition by tenant/workspace; key immutable),
 /// IDR-001 (one Raft group per tenant/workspace). Every plan the Orchestrator
 /// builds is scoped to exactly one shard, because commits happen only via that
-/// shard's leader (IDR-003) and there is no cross-shard atomic commit -
-/// multi-shard work is a saga, not a transaction (IDR-005).
+/// shard's leader (IDR-001 (Engineering Refinement)) and there is no cross-shard
+/// atomic commit - multi-shard work is a saga, not a transaction
+/// (IDR-001 (Engineering Refinement)).
 ///
 /// The key is immutable once assigned (SHARD-001); this type is therefore
 /// treated as an opaque, comparable value with no mutators.
@@ -115,7 +117,8 @@ pub struct NodeId(pub u64);
 
 /// Monotonic index into the decision trace / Raft log.
 ///
-/// Governing: ORCH-003, IDR-004 (Raft log = WAL = decision trace). This is the
+/// Governing: ORCH-003, IDR-001 (Engineering Refinement) (Raft log = WAL =
+/// decision trace). This is the
 /// position at which a [`DecisionRecord`] was appended; replay proceeds in
 /// ascending `TraceIndex` order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -134,8 +137,8 @@ pub struct TraceIndex(pub u64);
 /// the [`DecisionTrace`] (ORCH-003).
 #[derive(Clone, Debug)]
 pub struct Plan {
-    /// The shard this plan is confined to (SHARD-001, IDR-005: no cross-shard
-    /// atomic commit).
+    /// The shard this plan is confined to (SHARD-001,
+    /// IDR-001 (Engineering Refinement): no cross-shard atomic commit).
     pub shard: ShardKey,
     /// The graph of engine/capability invocations that this plan expands into.
     pub graph: EngineGraph,
@@ -159,8 +162,8 @@ pub struct Plan {
 ///   `arves-capability-fabric`; proposed CAP-001..009).
 ///
 /// Neither kind may own truth (ORCH-001); results flow back to the Kernel,
-/// which is the sole commit gateway (IDR-003: engines run anywhere, commit only
-/// via the shard leader).
+/// which is the sole commit gateway (IDR-001 (Engineering Refinement): engines
+/// run anywhere, commit only via the shard leader).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NodeKind {
     /// A pure engine invocation. Stateless, replay-safe, produces inference.
@@ -350,7 +353,8 @@ pub struct Outcome {
 /// A single decision the Orchestrator made, recorded so it can be replayed.
 ///
 /// Governing: ORCH-003 (replay from recorded decision trace, not recomputation)
-/// and IDR-004 (Raft log = WAL = decision trace; append-only). Each variant is
+/// and IDR-001 (Engineering Refinement) (Raft log = WAL = decision trace;
+/// append-only). Each variant is
 /// a *decision*, never a mutation of truth (ORCH-001). Replaying the trace in
 /// `TraceIndex` order reconstructs the exact plan state without re-running any
 /// engine.
@@ -389,7 +393,8 @@ pub enum Decision {
 
 /// One append-only entry in the decision trace.
 ///
-/// Governing: ORCH-003, IDR-004 (append-only WAL). Pairs a monotonic
+/// Governing: ORCH-003, IDR-001 (Engineering Refinement) (append-only WAL).
+/// Pairs a monotonic
 /// [`TraceIndex`] with the [`Decision`] recorded at that position.
 #[derive(Clone, Debug)]
 pub struct DecisionRecord {
@@ -402,7 +407,8 @@ pub struct DecisionRecord {
 /// The append-only record of Orchestrator decisions for one shard.
 ///
 /// Governing: ORCH-003 (replay source of truth for *decisions*, not cognitive
-/// truth), IDR-004 (Raft log = WAL = decision trace). The Control Plane owns no
+/// truth), IDR-001 (Engineering Refinement) (Raft log = WAL = decision trace).
+/// The Control Plane owns no
 /// persistent state (ORCH-002); the durable log lives below (Persistence via
 /// the Kernel / the shard's Raft group, IDR-001). This type is the read/append
 /// contract the Orchestrator uses; it is *observability-adjacent* but the
@@ -413,9 +419,10 @@ pub trait DecisionTrace {
 
     /// Append a decision to the trace, returning its assigned index.
     ///
-    /// Governing: ORCH-003, IDR-004. Append-only: entries are never mutated or
+    /// Governing: ORCH-003, IDR-001 (Engineering Refinement). Append-only:
+    /// entries are never mutated or
     /// deleted. In a real deployment this append is a Raft commit through the
-    /// shard leader (IDR-003).
+    /// shard leader (IDR-001 (Engineering Refinement)).
     fn append(&mut self, decision: Decision) -> Result<TraceIndex, Self::Error>;
 
     /// Replay all records at or after `from`, in ascending index order.
@@ -451,7 +458,8 @@ pub trait DecisionTrace {
 ///
 /// * **ORCH-001** - hold no truth. Every fact consulted comes from the Kernel;
 ///   every result committed goes back to the Kernel (the sole commit gateway,
-///   proposed G-001 / IDR-003). Nothing here is authoritative state.
+///   proposed G-001 / IDR-001 (Engineering Refinement)). Nothing here is
+///   authoritative state.
 /// * **ORCH-002** - produce plans, not persistent state. The `Plan`/`EngineGraph`
 ///   are transient values; the only durable artefact touched is the
 ///   append-only [`DecisionTrace`], which is a *log of decisions*, not owned
@@ -490,7 +498,8 @@ pub trait Orchestrator {
     /// Governing: ORCH-004 (idempotent + content-addressable): dispatching the
     /// same [`InvocationKey`] twice is a no-op that resolves to the same
     /// outcome. Recorded as [`Decision::NodeDispatched`]. Engines/capabilities
-    /// run anywhere but commit only via the shard leader (IDR-003).
+    /// run anywhere but commit only via the shard leader
+    /// (IDR-001 (Engineering Refinement)).
     fn dispatch(&mut self, plan: &mut Plan, node: NodeId) -> Result<(), Self::Error>;
 
     /// Accept a committed [`Outcome`] for a node, advancing plan state.
@@ -506,6 +515,10 @@ pub trait Orchestrator {
     /// grow the [`EngineGraph`] as decisions unfold. Content-addressing
     /// (ORCH-004) keeps expansion idempotent under replay (ORCH-003). Recorded
     /// as [`Decision::NodeExpanded`].
+    ///
+    /// SCOPE (DEFERRED): bounded graph-expansion - a termination policy of
+    /// max-depth / budget / no-new-subgoal (Vol 9 Part 6/7) - is a documented
+    /// DEFERRED policy in this contract-only skeleton; not enforced here.
     fn expand(
         &mut self,
         plan: &mut Plan,
