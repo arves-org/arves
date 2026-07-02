@@ -196,3 +196,32 @@ backstop; Group 3 opens/derisks the G2 on-ramp; Group 4 is mechanical hygiene.
    surface a G2 party will stand on* — they do not, and cannot, substitute for a genuine external
    party building and certifying from `standard/` alone. **G2 remains external, unmet, and the
    Foundation-era exit gate.**
+
+---
+
+## 7. Remediation log (2026-07-02) — Bucket A executed, freeze-clean
+
+The freeze-clean **Bucket A** was executed the same day, in five commits; the freeze-diff gate
+(`freeze_check.py`) confirms **0 drift** across all 148 frozen files after every commit — no
+`standard/` or `runtime/` byte was touched. Each item was independently re-verified (not trusted
+from a lane self-report).
+
+| Commit | Gaps closed |
+|--------|-------------|
+| `3acb6b9` | #5 (L1 SUPERSEDED addendum) · #10/#34/#35 (count sweep 71/0, 43/43) · #15 (G2 on-ramp: CHALLENGE.md + README link + intake template) · #30 (CLAUDE "no runtime code exists yet", living half) |
+| `884a3a5` | #16 (mechanical **freeze-diff gate** — `freeze_check.py` + manifest; `selftest` bites) |
+| `1abe659` | #12 (certify_runtime.py Python-import guard — B4 Python arm) |
+| `f3a7e86` | #4 (REAL-Kernel scoped honestly) · #6/#9 (Section A.1/A.2 re-tier + sound verifier wired into probe, 8/8 + `--check` drift gate) · #7/#8 (verify_runtime_sound.py grades **both** runtimes; B3-rust/B4-rust regressions) · #11 (determinism reworded to best-effort probe) · #13 (SDK import runs) · #14/#32/#33 (docs-site **build-time link-gate**, 0 broken across 90 pages, RELEASING honest) · #16 (CODEOWNERS + CI gate definition) · #17/#27 (marketplace/memory caveats) · #24 (ACS-005 §9.3 lint, reference-checker half) · #28 (bridge.mjs comment) · #38/#39 (container debug-note, TLA+ repro path) |
+
+**Bucket A residual (minor, freeze-clean, deferred):** #37 (a dedicated "certify YOUR runtime"
+QUICKSTART snippet — the G2 runtime on-ramp is already covered by CHALLENGE.md + the README
+Build-on-ARVES link + the `implementing-arves`/`runtime-authors` site pages) and #36 (the
+Documentation-Index "current" marker, if a living index exists; the corpus/spec-markdown mirror
+is CCP-gated).
+
+**Bucket B (frozen — unchanged) and Bucket C (external/G2 — unchanged) are NOT touched by this
+log.** Every Bucket-B item still requires its sanctioned instrument (CCP / RCR / Kit-packaging)
+with explicit maintainer authorization; Bucket C is external by definition. The single
+highest-leverage Bucket-B item remains **#1 — the ACS-001/003/004/005 negative-vector CCP**, for
+which the living reference validators (`acs003_envelope.py` / `acs004_instance.py` /
+`acs005_checker.py`, + the §9.3 lint) are now the ready **oracle**.
