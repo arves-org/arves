@@ -6,19 +6,24 @@
 //
 // This is what turns "we built products" into "others ship products others install."
 
-import { verifyArtifact } from '../../arves-ecosystem-sdk/src/kit.mjs';
+import { verifyArtifact, certifyCapability, codeHash } from '../../arves-ecosystem-sdk/src/kit.mjs';
 
 export class Marketplace {
-  #catalog = new Map(); // "name@version" → { pkg, cap, cert, publisher }
+  #catalog = new Map(); // "name@version" → { pkg, cap, publisher }
 
-  /** Publish a packaged capability. Refused unless it is certified and its signature
-   *  verifies; a version, once published, is immutable (supersede with a new version). */
-  publish({ pkg, cap, cert, publisher }) {
-    if (!cert || !cert.certified) throw new Error('marketplace: refuse uncertified capability');
+  /** Publish a packaged capability. The certification gate is ENFORCED, not attested: the
+   *  marketplace re-runs certification itself against the artifact's own tamper-evident test
+   *  inputs (a forged `certified:true` is worthless here). It also refuses a tampered/unsigned
+   *  artifact and a capability whose code does not match the signed artifact; a version, once
+   *  published, is immutable (supersede with a new version). */
+  publish({ pkg, cap, publisher }) {
     if (!verifyArtifact(pkg)) throw new Error('marketplace: refuse tampered/unsigned artifact');
+    if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('marketplace: capability code does not match the signed artifact');
+    const cert = certifyCapability(cap, pkg.testInputs);
+    if (!cert.certified) throw new Error('marketplace: refuse uncertified capability (' + cert.checks.filter((c) => !c.ok).map((c) => c.name).join(', ') + ')');
     const key = `${cap.manifest.name}@${cap.manifest.version}`;
     if (this.#catalog.has(key)) throw new Error(`marketplace: ${key} already published (versions are immutable)`);
-    this.#catalog.set(key, { pkg, cap, cert, publisher: publisher ?? 'unknown' });
+    this.#catalog.set(key, { pkg, cap, publisher: publisher ?? 'unknown' });
     return pkg.id;
   }
 
@@ -31,11 +36,12 @@ export class Marketplace {
 
   fetch(name, version) { return this.#catalog.get(`${name}@${version}`) ?? null; }
 
-  /** A consumer installs a published capability into ITS OWN host (cert-gated +
-   *  signature-verified by the host). The publisher and the consumer never coordinate. */
+  /** A consumer installs a published capability into ITS OWN host. The host independently
+   *  re-verifies the signature AND re-runs certification (enforced, not attested). The
+   *  publisher and the consumer never coordinate. */
   install(name, version, host) {
     const e = this.fetch(name, version);
     if (!e) throw new Error(`marketplace: ${name}@${version} not found`);
-    return host.install(e.pkg, e.cap, e.cert);
+    return host.install(e.pkg, e.cap);
   }
 }

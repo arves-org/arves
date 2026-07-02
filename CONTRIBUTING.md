@@ -51,6 +51,6 @@ Registry allocations (domain tags, hash codes, reason codes) are Specification-R
 
 ## Before public release (maintainer action)
 
-- **Choose and add a `LICENSE`** (Apache-2.0 recommended for a foundation-governed standard).
-- Add a code of conduct and security-reporting policy.
+- **License:** the repo is released under the **Apache License 2.0** — see [LICENSE](LICENSE).
+- Still outstanding: a code of conduct and a security-reporting policy.
 - These are outward-facing decisions for the maintainers, not code.

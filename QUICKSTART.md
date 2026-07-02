@@ -71,7 +71,8 @@ python verification/certification/certify_runtime.py
 ```
 
 Certifies runtimes against `standard/` alone — no maintainer required. Two runtimes
-(Rust + Python) pass under one conformance.
+(Rust + Python) pass under one conformance — at grade **G1** (same-process); a genuine
+third-party (G2) runtime is the open goal.
 
 ## Where next
 

@@ -22,6 +22,11 @@ import re
 import subprocess
 import sys
 
+try:  # keep em-dashes legible on legacy Windows console codepages
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 MANIFEST = os.path.join(ROOT, "runtime", "Cargo.toml")

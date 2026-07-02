@@ -135,23 +135,25 @@ console.log('Ecosystem SDK & Authoring Kit (P6.5):');
   // Cold-build fix: certification must NOT pass vacuously with no test inputs.
   ok('empty testInputs is rejected (no vacuous certification)', certifyCapability(good, []).certified === false);
 
-  // Content-addressed signature over the ACTUAL code: verifies, and tamper is detected.
-  const pkg = packageCapability(good);
+  // Content-addressed signature over the ACTUAL code + test inputs: verifies, tamper detected.
+  const pkg = packageCapability(good, [{ k: 1 }, { k: 2 }]);
   ok('artifact signature verifies', verifyArtifact(pkg) === true);
   const tampered = { ...pkg, artifact: { ...pkg.artifact, codeHash: 'deadbeef' } };
   ok('tampered artifact is detected', verifyArtifact(tampered) === false);
 
   const host = new CapabilityHost(null);
+  // The gate is ENFORCED: the host re-runs certification, so a non-conformant capability is
+  // refused even if its author forges certified:true. Prove it with the nondeterministic cap.
+  const nondetPkg = packageCapability(nondet, [{}, {}]);
   let refusedUncert = false;
-  try { host.install(pkg, good, { certified: false, checks: [] }); } catch { refusedUncert = true; }
-  ok('host refuses to install an uncertified capability', refusedUncert);
+  try { host.install(nondetPkg, nondet); } catch { refusedUncert = true; }
+  ok('host re-runs certification and refuses a non-conformant capability', refusedUncert);
 
-  // Cold-build fix: the host refuses code that does not match the signed artifact.
+  // The host refuses code that does not match the signed artifact (swap attack).
   const impostor = defineCapability({ name: 'good.cap', version: '1.0.0', produces: ['uci.fact'],
     execute: (i) => [{ target: 'uci.fact', value: { type: 'uci.fact', k: BigInt(i.k), evil: true } }] });
-  const impostorCert = certifyCapability(impostor, [{ k: 1 }]);
   let refusedSwap = false;
-  try { host.install(pkg, impostor, impostorCert); } catch { refusedSwap = true; }
+  try { host.install(pkg, impostor); } catch { refusedSwap = true; }
   ok('host refuses code that does not match the signed artifact', refusedSwap);
 }
 
@@ -159,18 +161,38 @@ console.log('Marketplace (P7):');
 {
   const cap = defineCapability({ name: 'ticket.triage', version: '1.0.0', produces: ['uci.fact'],
     execute: (t) => [{ target: 'uci.fact', value: { type: 'uci.fact', entity: `ticket:${t.id}` } }] });
-  const cert = certifyCapability(cap, [{ id: 'T1' }]);
-  const pkg = packageCapability(cap);
+  const pkg = packageCapability(cap, [{ id: 'T1' }]);
   const market = new Marketplace();
-  market.publish({ pkg, cap, cert, publisher: 'Acme' });
+  market.publish({ pkg, cap, publisher: 'Acme' });
   ok('published capability is discoverable', market.list().length === 1);
   let rU = false; let rT = false; let rD = false;
-  try { market.publish({ pkg, cap, cert: { certified: false, checks: [] }, publisher: 'x' }); } catch { rU = true; }
-  try { market.publish({ pkg: { ...pkg, artifact: { ...pkg.artifact, codeHash: 'x' } }, cap, cert, publisher: 'x' }); } catch { rT = true; }
-  try { market.publish({ pkg, cap, cert, publisher: 'x' }); } catch { rD = true; }
-  ok('marketplace refuses uncertified publish', rU);
+  // Enforced gate: a non-conformant capability is refused at publish (no caller flag to forge).
+  const badCap = defineCapability({ name: 'bad.triage', version: '1.0.0', produces: ['uci.fact'],
+    execute: () => [{ target: 'uci.UNDECLARED', value: { type: 'uci.fact' } }] });
+  const badPkg = packageCapability(badCap, [{ id: 'X' }]);
+  try { market.publish({ pkg: badPkg, cap: badCap, publisher: 'x' }); } catch { rU = true; }
+  try { market.publish({ pkg: { ...pkg, artifact: { ...pkg.artifact, codeHash: 'x' } }, cap, publisher: 'x' }); } catch { rT = true; }
+  try { market.publish({ pkg, cap, publisher: 'x' }); } catch { rD = true; }
+  ok('marketplace re-runs certification and refuses a non-conformant publish', rU);
   ok('marketplace refuses tampered artifact', rT);
   ok('marketplace refuses duplicate version', rD);
+}
+
+console.log('Closure audit fixes (2026-07):');
+{
+  // The self-attestation hole is closed: certification is RE-RUN at the trust boundary, so a
+  // capability that fails conformance cannot be installed or published — install/publish no
+  // longer accept a caller-supplied cert, so there is no flag left to forge.
+  const badCap = defineCapability({ name: 'sneaky.cap', version: '1.0.0', produces: ['uci.fact'],
+    execute: () => [{ target: 'uci.UNDECLARED', value: { type: 'uci.fact' } }] });
+  const badPkg = packageCapability(badCap, [{ n: 1 }]);
+  const host = new CapabilityHost(null);
+  threw('enforced gate: host refuses a non-conformant capability at install', () => host.install(badPkg, badCap), 'certification');
+  const market = new Marketplace();
+  threw('enforced gate: marketplace refuses a non-conformant capability at publish', () => market.publish({ pkg: badPkg, cap: badCap, publisher: 'x' }), 'uncertified');
+  // The signed test inputs are tamper-evident: swapping them to weaker inputs breaks the signature.
+  const swapped = { ...badPkg, testInputs: [] };
+  ok('swapping the signed test inputs breaks verifyArtifact', verifyArtifact(swapped) === false);
 }
 
 console.log(`\n${n}/${n} robustness regressions PASS`);

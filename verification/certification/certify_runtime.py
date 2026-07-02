@@ -111,6 +111,10 @@ def certify(name, addresses, rejects, golden, neg):
 
 
 def main():
+    try:  # keep output legible on legacy Windows console codepages
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
     golden = load_golden()
     neg = load_negative()
 
@@ -119,7 +123,7 @@ def main():
         certify("ARVES Python (independent)", py_addresses(golden), py_rejects(neg), golden, neg),
     ]
 
-    print("ARVES Runtime Certification — against the frozen Standard alone")
+    print("ARVES Runtime Certification - against the frozen Standard alone")
     print("=" * 66)
     for r in records:
         p, pt = r["positive"]

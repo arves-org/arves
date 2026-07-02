@@ -23,7 +23,8 @@ if (cmd === 'certify') {
   for (const chk of c.checks) console.log(`  ${chk.ok ? '✓' : '✗'} ${chk.name}`);
   process.exit(c.certified ? 0 : 1);
 } else {
-  const p = packageCapability(capability, source ?? '');
+  void source; // author's human-readable source note; the artifact binds code + test inputs
+  const p = packageCapability(capability, testInputs ?? []);
   console.log(`package ${capability.manifest.name}@${p.version}`);
   console.log(`  artifact ${p.id}`);
   process.exit(0);

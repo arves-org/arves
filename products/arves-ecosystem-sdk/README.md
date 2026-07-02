@@ -23,11 +23,13 @@ Runtime Change Request**.
   input** (certification will NOT pass vacuously — an empty input set is rejected) · effects
   target declared produces · effects ACS-canonical · **deterministic** (same input → same
   effect addresses). Failing checks report a `detail` reason. Uncertified ⇒ cannot install.
-- **Packaging / signing** — `packageCapability(cap)`: a versioned artifact whose **content
-  address IS its signature**, taken over the manifest **and the actual `execute` code**
-  (`codeHash`). Tamper with the manifest *or the code* ⇒ different id ⇒ `verifyArtifact`
-  fails, and the host additionally refuses code that doesn't match the signed artifact. No
-  PKI — identity is integrity.
+- **Packaging / signing** — `packageCapability(cap, testInputs)`: a versioned artifact whose
+  **content address IS its signature**, taken over the manifest, the actual `execute` code
+  (`codeHash`), **and the representative test inputs** (`testInputsHash`). Tamper with the
+  manifest, the code, *or the test inputs* ⇒ different id ⇒ `verifyArtifact` fails. The
+  certification gate is **enforced, not attested**: `publish` and `CapabilityHost.install`
+  **re-run certification** against those signature-bound test inputs (never a caller-supplied
+  flag) and refuse code that doesn't match the signed artifact. No PKI — identity is integrity.
 
 ## The ARVES value model (what an effect `value` may be)
 

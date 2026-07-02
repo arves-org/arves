@@ -8,7 +8,7 @@
 // Run: node examples/third-party-capability.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge)
 
 import thirdParty from './invoice-ocr.capability.mjs';
-import { certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from '../src/kit.mjs';
+import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from '../src/kit.mjs';
 import { KernelBridge } from '../../arves-sdk-ts/src/bridge.mjs';
 
 const { capability, testInputs, source } = thirdParty;
@@ -20,8 +20,9 @@ const cert = certifyCapability(capability, testInputs);
 console.log('[certify]', capability.manifest.name, '→', cert.certified ? 'CERTIFIED' : 'REJECTED');
 for (const c of cert.checks) console.log('           ', c.ok ? '✓' : '✗', c.name);
 
-// 2. Package (content-addressed signing).
-const pkg = packageCapability(capability, source);
+// 2. Package (content-addressed signing over code + test inputs).
+void source; // author's human-readable note; the artifact binds the real code + test inputs
+const pkg = packageCapability(capability, testInputs);
 console.log('[package] signed artifact', pkg.id.slice(0, 20) + '…', `v${pkg.version}`);
 console.log('[verify]  signature verifies:', verifyArtifact(pkg));
 
@@ -29,17 +30,21 @@ console.log('[verify]  signature verifies:', verifyArtifact(pkg));
 const tampered = { ...pkg, artifact: { ...pkg.artifact, manifest: { ...pkg.artifact.manifest, name: 'evil.ocr' } } };
 console.log('[tamper]  altered artifact detected:', !verifyArtifact(tampered));
 
-// 3. Install (certification-gated) + 4. Invoke through the frozen runtime.
+// 3. Install (certification ENFORCED by the host) + 4. Invoke through the frozen runtime.
 const bridge = new KernelBridge();
 const host = new CapabilityHost(bridge);
-host.install(pkg, capability, cert);
+host.install(pkg, capability); // host re-runs certification itself — no caller flag is trusted
 const r = await host.invoke('invoice.ocr', { vendor: 'acme', amountUsd: 1234n, date: 1751468400000 });
 // Idempotent: invoking again commits the same truth (already-committed).
 const r2 = await host.invoke('invoice.ocr', { vendor: 'acme', amountUsd: 1234n, date: 1751468400000 });
 
-// An UNCERTIFIED capability must be refused installation.
+// A NON-CONFORMANT capability must be refused installation — even if its author forges a
+// certified:true, because the host re-runs certification against the signed test inputs.
 let refusedUncertified = false;
-try { host.install(pkg, capability, { certified: false, checks: [] }); } catch { refusedUncertified = true; }
+const badCap = defineCapability({ name: 'evil.ocr', version: '1.0.0', produces: ['uci.fact'],
+  execute: () => [{ target: 'uci.NOT-declared', value: { type: 'uci.fact' } }] });
+const badPkg = packageCapability(badCap, [{ vendor: 'x', amountUsd: 1n, date: 1751468400000 }]);
+try { host.install(badPkg, badCap); } catch { refusedUncertified = true; }
 bridge.close();
 
 console.log('\n[invoke]  invoice.ocr → truth', r.truths[0].id.slice(0, 20) + '…', `(${r.truths[0].status})`);

@@ -19,11 +19,13 @@ const cap = defineCapability({
   name: 'ticket.triage', version: '1.0.0', produces: ['uci.fact'],
   execute: (t) => [{ target: 'uci.fact', value: { type: 'uci.fact', entity: `ticket:${t.id}`, event: `priority-${t.priority}` } }],
 });
-const cert = certifyCapability(cap, [{ id: 'T1', priority: 'high' }, { id: 'T2', priority: 'low' }]);
-const pkg = packageCapability(cap);
+const testInputs = [{ id: 'T1', priority: 'high' }, { id: 'T2', priority: 'low' }];
+const cert = certifyCapability(cap, testInputs); // the author certifies locally...
+console.log('[author]    certified locally:', cert.certified);
+const pkg = packageCapability(cap, testInputs); // ...and the test inputs travel in the signed artifact
 
 const market = new Marketplace();
-market.publish({ pkg, cap, cert, publisher: 'Acme Support Inc.' });
+market.publish({ pkg, cap, publisher: 'Acme Support Inc.' }); // ...the marketplace RE-certifies
 console.log('[publisher] published:', market.list().map((x) => `${x.id} by ${x.publisher}`).join(', '));
 
 // ---- CONSUMER: a DIFFERENT org installs from the marketplace and runs it ----
@@ -34,14 +36,19 @@ const r = await host.invoke('ticket.triage', { id: 'T1', priority: 'high' });
 bridge.close();
 console.log('[consumer]  installed + invoked → truth', r.truths[0].id.slice(0, 18) + '…', `(${r.truths[0].status})`);
 
-// ---- The marketplace refuses bad publishes ----
+// ---- The marketplace refuses bad publishes (the gate is ENFORCED, not attested) ----
 let rejUncertified = false;
 let rejTampered = false;
 let rejDuplicate = false;
-try { market.publish({ pkg, cap, cert: { certified: false, checks: [] }, publisher: 'x' }); } catch { rejUncertified = true; }
+// A non-conformant capability (undeclared effect target) is refused even though nobody can
+// hand the marketplace a "certified:true" flag anymore — it re-runs certification itself.
+const badCap = defineCapability({ name: 'evil.triage', version: '1.0.0', produces: ['uci.fact'],
+  execute: () => [{ target: 'uci.UNDECLARED', value: { type: 'uci.fact' } }] });
+const badPkg = packageCapability(badCap, [{ id: 'X' }]);
+try { market.publish({ pkg: badPkg, cap: badCap, publisher: 'x' }); } catch { rejUncertified = true; }
 const tampered = { ...pkg, artifact: { ...pkg.artifact, codeHash: 'deadbeef' } };
-try { market.publish({ pkg: tampered, cap, cert, publisher: 'x' }); } catch { rejTampered = true; }
-try { market.publish({ pkg, cap, cert, publisher: 'x' }); } catch { rejDuplicate = true; }
+try { market.publish({ pkg: tampered, cap, publisher: 'x' }); } catch { rejTampered = true; }
+try { market.publish({ pkg, cap, publisher: 'x' }); } catch { rejDuplicate = true; }
 
 console.log('\nMarketplace integrity:');
 console.log('  refused uncertified publish :', rejUncertified);

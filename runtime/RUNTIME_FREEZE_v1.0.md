@@ -88,7 +88,35 @@ Recorded, important, and explicitly NOT blocking P4 (per the destroy-round repor
 3. **Kernel batch-commit** — atomic multi-effect / multi-shard commit (today: single-effect
    invocations are all-or-nothing; multi-effect effects are independent idempotent truths).
 
-Each enters via an RCR into v1.1, with regression + property tests.
+### Added by the Build Program Closure Audit (2026-07) — RCR-tracked
+
+These are honest findings from the independent 15-pillar closure audit. They do **not**
+block closing the (correctly-scoped, single-node I1) Build Program, but each is recorded here
+as v1.1/v2.0 debt and must enter via an RCR — never a silent crate edit under the freeze.
+
+4. **Runtime source doc-integrity** — ~13 crates (kernel, persistence, engine-fabric,
+   capability-fabric, control-plane, query, lcw, conformance, consensus, execution, …) carry
+   stale `I1 skeleton — NO implementation yet` headers, yet kernel+persistence are fully
+   implemented (working FileKernel/WAL/recovery/checkpoint; 65 tests). Correct the headers to
+   state each crate's actual status so a new maintainer can tell real crates from skeletons.
+5. **`CancellationToken::is_cancelled()` no-op** (arves-execution) — unconditionally returns
+   `false`; the Amendment-005 cooperative-cancellation capability silently does nothing.
+   Implement, or explicitly mark deferred here.
+6. **Freeze-doc guarantee alignment** — Engine Fabric / Capability Fabric are listed under
+   "What v1.0 guarantees," but the exercised engine/capability logic flows through `products/`
+   (SDK/Bridge); the runtime crates are contract-only. Align the guarantee list with where the
+   logic actually lives (or land the crate logic in v1.1).
+7. **Commit `Cargo.lock`** — currently gitignored; for a binary-producing workspace it should
+   be committed so clean clones resolve byte-identical pinned dependencies (Determinism/Replay
+   value). Non-breaking build hygiene.
+8. **Truth-store cryptographic tamper-evidence** (v1.1/v2.0, zero-trust) — the WAL/snapshots
+   use CRC32 (error-detection, forgeable) with no hash chain / Merkle root / signature, and
+   `Kernel::commit` carries no principal/authN/authZ. v1.0's threat model is a **trusted single
+   host**; a multi-tenant / untrusted-host deployment requires a signed, hash-chained truth
+   store (independent review `runtime/docs/reviews/P07_security-zero-trust.md`). Public docs
+   must not imply cryptographic tamper-resistance of the persisted store under v1.0.
+
+Each enters via an RCR into v1.1 (or v2.0 for #8's breaking parts), with regression + property tests.
 
 ---
 

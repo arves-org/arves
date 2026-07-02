@@ -93,24 +93,56 @@ export function certifyCapability(cap, testInputs) {
 // ---- Packaging (content-addressed signing) ---------------------------------
 
 /** The content hash of a capability's ACTUAL executable code. This is what the artifact
- *  signature covers — real code integrity, not an author-claimed string. */
+ *  signature covers — real code integrity, not an author-claimed string. NOTE: this covers
+ *  the top-level `execute` source text; closed-over free variables and native/bound functions
+ *  are outside its reach, which is why the trust boundary ALSO re-runs certification (below)
+ *  — a behavioural tamper that survives codeHash is caught when its effects fail re-cert. */
 export function codeHash(cap) {
   return hex(sha256(new TextEncoder().encode(cap.execute.toString())));
 }
 
-/** Package a capability into a signed, versioned artifact. The "signature" is the ACS
- *  content address of `{ manifest, codeHash }`, where `codeHash` is over the REAL execute
- *  code — content-addressed integrity: any tamper with the manifest OR the code changes the
- *  artifact id (self-verifying; no PKI). */
-export function packageCapability(cap) {
-  const body = { type: 'uci.capability-artifact', manifest: cap.manifest, codeHash: codeHash(cap) };
-  const id = arves.address(body, 'engine'); // domain: engine-manifest
-  return { id, artifact: body, version: cap.manifest.version };
+/** Stable, BigInt-aware serialization of the representative test inputs, so their hash can be
+ *  embedded in the signed artifact (tamper-evident) and re-derived by any host/marketplace. */
+function stableSerialize(v) {
+  if (typeof v === 'bigint') return `B(${v})`;
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return '[' + v.map(stableSerialize).join(',') + ']';
+  if (typeof v === 'object') {
+    return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stableSerialize(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
 }
 
-/** Verify an artifact's content-addressed signature (re-derive its id from its bytes). */
+export function testInputsHash(testInputs) {
+  return hex(sha256(new TextEncoder().encode(stableSerialize(testInputs ?? []))));
+}
+
+/** Package a capability into a signed, versioned artifact. The "signature" is the ACS
+ *  content address of `{ manifest, codeHash, testInputsHash }`, over the REAL execute code
+ *  AND the representative test inputs — content-addressed integrity: any tamper with the
+ *  manifest, the code, OR the test inputs changes the artifact id (self-verifying; no PKI).
+ *  The test inputs travel WITH the artifact so certification can be re-run by anyone at the
+ *  trust boundary — the gate is enforced, never merely attested. */
+export function packageCapability(cap, testInputs) {
+  if (!Array.isArray(testInputs) || testInputs.length === 0) {
+    throw new Error('package: >=1 representative test input required (so certification is reproducible by any host)');
+  }
+  const body = {
+    type: 'uci.capability-artifact',
+    manifest: cap.manifest,
+    codeHash: codeHash(cap),
+    testInputsHash: testInputsHash(testInputs),
+  };
+  const id = arves.address(body, 'engine'); // domain: engine-manifest
+  return { id, artifact: body, testInputs, version: cap.manifest.version };
+}
+
+/** Verify an artifact's content-addressed signature (re-derive its id from its bytes) AND
+ *  that the travelling test inputs match the signed hash (so they cannot be swapped to make a
+ *  malicious capability pass a weaker re-certification). */
 export function verifyArtifact(pkg) {
-  return arves.address(pkg.artifact, 'engine') === pkg.id;
+  if (arves.address(pkg.artifact, 'engine') !== pkg.id) return false;
+  return testInputsHash(pkg.testInputs) === pkg.artifact.testInputsHash;
 }
 
 // ---- Host (install + invoke against the frozen runtime) --------------------
@@ -123,14 +155,20 @@ export class CapabilityHost {
 
   constructor(bridge) { this.#bridge = bridge; }
 
-  /** Install a packaged capability — refused unless it is certified and its artifact
-   *  signature verifies (tamper-evident). */
-  install(pkg, cap, certification) {
-    if (!certification || !certification.certified) throw new Error('install refused: capability is not certified');
-    if (!verifyArtifact(pkg)) throw new Error('install refused: artifact signature does not verify (tampered)');
+  /** Install a packaged capability. The certification gate is ENFORCED, not attested: the
+   *  host re-runs certification itself against the artifact's own tamper-evident test inputs,
+   *  so a forged `certified:true` cannot get a non-conformant capability installed. Also
+   *  refuses a tampered artifact or code that does not match the signed artifact. */
+  install(pkg, cap) {
+    if (!verifyArtifact(pkg)) throw new Error('install refused: artifact signature/test-inputs do not verify (tampered)');
     // Real code integrity: the capability's actual code MUST match the signed artifact —
     // a swapped implementation under a valid artifact is refused.
     if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('install refused: capability code does not match the signed artifact');
+    // Enforce conformance by RE-RUNNING certification — never trust a caller-supplied flag.
+    const cert = certifyCapability(cap, pkg.testInputs);
+    if (!cert.certified) {
+      throw new Error('install refused: capability fails certification (' + cert.checks.filter((c) => !c.ok).map((c) => c.name).join(', ') + ')');
+    }
     this.#installed.set(cap.manifest.name, { pkg, cap });
     return pkg.id;
   }

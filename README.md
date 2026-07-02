@@ -1,13 +1,22 @@
 # ARVES — a cognitive computing platform
 
+```
+ARVES · Version 1.0 · Status: BUILD COMPLETE (SEALED)
+Governance: Foundation · Development Model: Growth Program
+Runtime / Specification / Standard: FROZEN · changes: RCR only
+```
+
 **ARVES is to cognitive applications what the Linux kernel is to operating systems, or
 Kubernetes is to containers:** a frozen, certified runtime that turns AI reasoning into
 *truth* — deterministic, content-addressed, replayable, and auditable — with an ecosystem
 of products and third-party capabilities built on top of it.
 
-> **Status: BUILD PROGRAM COMPLETE → LAUNCH.** The technical core is built, proven, and
-> frozen (`runtime-v1.0`), with a Foundation that lets it outlive its makers
-> (`foundation-v1.0`). What remains is adoption. See [FOUNDATION.md](FOUNDATION.md).
+> **Status: BUILD PROGRAM SEALED → GROWTH.** The core is built, **independently audited**
+> (a 16-pillar adversarial closure audit, 3 rounds), frozen (`runtime-v1.0` = **single-node
+> I1**), and sealed — see [ARVES_BUILD_PROGRAM_CLOSURE.md](ARVES_BUILD_PROGRAM_CLOSURE.md).
+> The distributed milestones (I2–I6) and a genuine **third-party** runtime certification
+> (independence grade **G2**) are the Growth Program, not done yet. What remains is adoption.
+> See [FOUNDATION.md](FOUNDATION.md).
 
 ## Why ARVES? (why not just a ChatGPT / LangGraph / n8n / AutoGen wrapper)
 
@@ -18,7 +27,7 @@ defend**. ARVES gives you cognition as *truth*:
 |----------|----------|-----------------|
 | **One identity across systems** | identity is a content address (ACS-001) | double-counts the same fact from 3 sources |
 | **Reproducible reasoning** | every step is content-addressed truth in a Kernel | answers differently each run |
-| **Full audit + replay** | append-only WAL = decision trace (ORCH-003) | no tamper-evident record |
+| **Full audit + replay** | append-only, content-addressed WAL = a deterministic decision trace (ORCH-003) | no reproducible, replayable record |
 | **Decision-aware memory** | prior decisions are addressable truths | no persistent, provable history |
 | **Governed multi-agent** | policy enforced as truth; compliance ledger | no shared enforced truth |
 
@@ -48,25 +57,34 @@ Full path: **[QUICKSTART.md](QUICKSTART.md)**.
 ```
 Products      Personal OS · Enterprise OS · (your product)          products/
 Ecosystem     Authoring Kit · Marketplace · Certification           products/arves-{ecosystem-sdk,marketplace}
-Runtime v1.0  SDK · Bridge · Engine · Capability · Kernel · Truth    runtime/  (FROZEN)
+Runtime v1.0  SDK · Bridge · Engine · Capability · Kernel · Truth    runtime/  (FROZEN · single-node I1)
 Standard      ACS-001..005 · conformance vectors                     standard/ (the contract)
 Foundation    spec · certification · registry · governance          FOUNDATION.md
 ```
 
 The **runtime is frozen**: products are *customers* of a stable API, never co-authors. A
 needed runtime change is a Runtime Change Request, not an edit
-([runtime/RUNTIME_FREEZE_v1.0.md](runtime/RUNTIME_FREEZE_v1.0.md)).
+([runtime/RUNTIME_FREEZE_v1.0.md](runtime/RUNTIME_FREEZE_v1.0.md)). v1.0 is the **single-node
+I1** runtime; the distributed path (I2–I6, per-shard Raft per IDR-001..005) is future work.
 
 ## What's proven (evidence, not claims)
 
-- **Interoperability** — 3 independent codec implementations (Rust/Python/TypeScript) agree
-  byte-for-byte; differentially fuzzed (13,807 inputs, 0 divergences).
-- **Independent runtimes** — 2 runtimes certified against `standard/` alone by a
-  maintainer-independent harness (`python verification/certification/certify_runtime.py`).
-- **Robustness** — a whole-system destroy pass found + fixed 21 blocker/major defects;
-  product robustness suite is **37/37**.
-- **Ecosystem** — a cold, fresh-context third party authored + certified a capability from
-  the Authoring Kit alone.
+Every bullet below is backed by a command you can run; independence is **graded** (G1 =
+same-process/in-program, G2 = a genuine outside party with no help) and stated honestly.
+
+- **Interoperability** — 3 independent codec implementations (Rust / Python / TypeScript)
+  agree on the golden conformance vectors; the **Rust↔Python** pair is differentially
+  fuzzed (13,807 inputs, 0 divergences). A 3-way fuzz including TypeScript is on the v1.1
+  track.
+- **Independent runtimes** — 2 runtimes (Rust + Python) certified against `standard/` alone
+  by a maintainer-independent harness (`python verification/certification/certify_runtime.py`)
+  — at grade **G1 (same-process)**. A genuine third-party (G2) runtime is the Growth
+  Program's open exit gate.
+- **Robustness** — a whole-system destroy pass hardened the stack; the product robustness
+  suite is **40/40**, and the Rust workspace is **65/65** green.
+- **Ecosystem** — a cold, fresh-context developer (grade **G1**, same-process) authored +
+  certified a capability from the Authoring Kit alone; a genuine external third party (G2)
+  is pending.
 - The living evidence ledger: [verification/evidence/EVIDENCE_LEDGER.md](verification/evidence/EVIDENCE_LEDGER.md).
 
 ## Build on ARVES
@@ -78,6 +96,4 @@ needed runtime change is a Runtime Change Request, not an edit
 
 ## License
 
-Intended to be published under a permissive, foundation-friendly open-source license
-(Apache-2.0 recommended). *Finalizing the license is a maintainer decision required before
-public release* — see CONTRIBUTING.
+ARVES is released under the **Apache License 2.0** — see [LICENSE](LICENSE).
