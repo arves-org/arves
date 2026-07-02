@@ -32,8 +32,17 @@ can be implemented **correctly, independently, deterministically, and at product
 | Implementation Era | COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
 | Standard Validation Era | IN PROGRESS — *prove ARVES wrong*; KPI = **Evidence Increased** (Evidence Ledger, `verification/evidence/`) |
 | Industrialization Era | GATED behind validation (I2–I6, Kernel Integration, scale) |
-| Product Era | separate org; forbidden until the platform is certified |
+| Product Program | **OPEN (parallel, IDR-006)** — products *develop* now on the frozen versioned platform; **GA** still gated on the four conditions |
 | Current Milestone | *«supplied by task»* |
+
+> **Two-arm pivot (2026-07):** *Stop proving that ARVES can exist; start proving why
+> ARVES matters.* The **Standard Program** (G2 external validation + certification)
+> and the **Product Program** (P1 SDK → … → P8 Industry) run in parallel. **IDR-006:**
+> products consume `arves-standard-kit 0.2.0` + the reference runtime as a FROZEN
+> external dependency — no product modifies `runtime/` or `standard/`; a needed platform
+> change is a Platform Change Proposal. The four-condition product gate (Independent
+> Runtime + External Team + Certification + Formal, all PASS) is retained for **GA /
+> production release**, not development start. Charter: `products/README.md`.
 
 > **Era pivot (2→3):** stop building, start disproving. *You are no longer building
 > ARVES; you are trying to prove ARVES wrong. If you fail, only then ARVES becomes

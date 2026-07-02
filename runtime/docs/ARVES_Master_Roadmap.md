@@ -36,30 +36,40 @@ See `verification/evidence/CERTIFICATION_PROGRAM.md`.
 
 ## Roadmap
 
+Two arms run in PARALLEL from here (maintainer pivot, 2026-07 — motto: *"Stop proving
+that ARVES can exist. Start proving why ARVES matters."*). The platform is ~90% mature
+(3 independent G1 runtimes agree); further evidence is diminishing returns, so product
+work begins now — as a **consumer of the frozen, versioned platform** (see IDR-006).
+
 ```
-PROGRAM 1 — BUILD ........................... ✅ COMPLETE
-  Theory · Specification (frozen; ED-001) · Reference Runtime (I1, tag I1-complete)
-  · Executable Standards (ACS-001..005) · Conformance Platform · Standard Kit
-  · Internal Validation · Evidence OS.
-  ACS codec: Evidence Level L3 (reproduced) at independence grade G1.
-
-PROGRAM 2 — EXTERNAL VALIDATION ............. 🟢 CURRENT  (the "G2 Readiness Program")
-  Exit criterion (the whole program, one sentence):
-    "Can a completely unknown engineering team, using ONLY the ARVES Standard Kit,
-     build a conformant runtime without asking us a single question?"
-  Milestone: G2 — Independent Standard Validation (this is the next milestone; it is
-    NOT "I2"). DoD: third-party implementation → PASS → no intervention, no
-    clarification, no hidden knowledge.
-  Tracks: 1 Kit Publication · 2 Formal · 3 Academic · 4 Independent Runtime ·
-          5 External Challenge  (see below).
-
-PROGRAM 3 — INDUSTRIALIZATION ............... ⬜ starts only after G2 PASS
-  I2 Cluster Kernel · I3 Distributed Query · I4 Capability Scheduling
-  · I5 Multi-Agent Runtime · Kernel Integration · scale / enterprise
-
-PROGRAM 4 — PRODUCT ......................... ⬜ separate org; gated (4 conditions below)
-  SDK · Marketplace · Cloud · Visual Designer · Management Console · Products
+                         ARVES
+                           │
+        ┌──────────────────┴───────────────────┐
+   STANDARD PROGRAM                        PRODUCT PROGRAM
+   (integrity: keep proving)              (value: prove why it matters)
+        │                                       │
+   Program 1 BUILD ............ ✅         P1 Developer Platform / SDK .. 🟢 starting
+   Program 2 EXTERNAL VALID ... 🟢 current P2 Visual Cognitive Studio
+     G2 (external team PASS)               P3 Agent Runtime
+     Certification                         P4 Personal AI
+   Program 3 INDUSTRIALIZATION  ⬜ post-G2  P5 Enterprise AI
+     I2..I6 · Kernel Integration           P6 Marketplace · P7 Cloud
+                                           P8 Industry Solutions
 ```
+
+**STANDARD PROGRAM** = everything that keeps ARVES *correct and independently
+implementable*: Program 1 (done), Program 2 (G2 Readiness — current), Program 3
+(Industrialization, post-G2). The exit criterion still stands: *can a completely
+unknown team build a conformant runtime from the Kit alone, asking nothing?*
+
+**PRODUCT PROGRAM** = everything that proves *why ARVES matters*, built ON TOP of the
+platform, never inside it. Product ladder P1→P8 (Developer Platform → Visual Cognitive
+Studio → Agent Runtime → Personal AI → Enterprise AI → Marketplace → Cloud → Industry).
+Governance: **IDR-006** — products consume `arves-standard-kit 0.2.0` + the reference
+runtime as a **frozen external dependency**; no product modifies `runtime/` or
+`standard/`; a needed platform change is a **Platform Change Proposal**. The original
+four-condition gate (Independent Runtime + External Team + Certification + Formal all
+PASS) is **retained for GA / production release**, not for development start.
 
 ## ARVES Core Standards (ACS)
 
@@ -98,19 +108,33 @@ nothing is complete — claims carry an Evidence Level and an independence grade
 language, logging every question it wanted to ask) is the G1 rehearsal that measures
 readiness; each logged question is a Kit defect to close before the real G2 attempt.
 
-## Research-lab organization (Program 2)
+## Organization (re-weighted for the two-arm phase, 2026-07)
 
-The org is re-shaped from a software team into a validation lab — **more agents break
-ARVES than build it**: Destroy 30 · Verification 20 · Independent Runtime 15 · Academic
-Review 15 · Certification 10 · Engineering 10 (≈100). Realized as wave-batched
-workflows (the "destroy-offices"); see `verification/evidence/CERTIFICATION_PROGRAM.md`.
+The platform is mature, so the org shifts from "mostly validation" to **product-led with
+a standing validation lab**: **Products 50 · Platform/Standard 30 · Verification 20**
+(≈100). Within the 30+20, the destroy-lab discipline persists (more agents break the
+platform than extend it — the platform is near-frozen). Realized as wave-batched
+workflows; see `verification/evidence/CERTIFICATION_PROGRAM.md` and
+`products/README.md`.
 
-## Program 4 — Product gate (all four MUST hold, simultaneously)
+## Product Program (P1→P8) and the six-month tracks
 
-Products (Program 4) may begin only when: **Independent Runtime PASS + External Team
-PASS + Certification PASS + Formal Verification PASS**. At that point the platform is
-frozen for consumers; products become customers of the platform (a product needing a
-platform change files a Platform Change Proposal — it never edits the platform).
+Runs in parallel with the Standard Program under **IDR-006** (products consume the
+frozen versioned platform; never modify `runtime/` or `standard/`; platform changes via
+Platform Change Proposal). Charter + ladder: `products/README.md`. Next-six-months
+tracks: **A** External G2 · **B** Certification · **C** Developer SDK · **D** Visual
+Designer · **E** Personal AI · **F** Enterprise Runtime · **G** Marketplace. (A+B are
+Standard Program; C–G are Product Program — they proceed concurrently.)
+
+## Product release gate — retained (all four MUST hold for GA)
+
+Development of products starts now (IDR-006), but **general availability / a production
+release carrying platform-stability guarantees** still requires all four:
+**Independent Runtime PASS + External Team (G2) PASS + Certification PASS + Formal
+Verification PASS**. Until then, products ship as previews pinned to a platform version,
+and a product needing a platform change files a Platform Change Proposal — it never
+edits the platform. The new question the whole org answers: *"What products can we now
+build that were impossible before?"*
 
 ## verification/ layout (evidence, not spec — refined)
 
