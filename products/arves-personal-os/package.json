@@ -1,0 +1,15 @@
+{
+  "name": "@arves/personal-os",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Personal Cognitive OS (P4) — a persistent, content-addressed world model of a person's reality with reproducible, evidence-backed, auditable, decision-aware cognition. Built on the frozen ARVES Runtime v1.0.",
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (SDK + Bridge -> real Kernel) — FROZEN",
+    "modifiesRuntime": false,
+    "proves": ["cross-source identity", "reproducible reasoning", "contradiction-with-prior-decision", "evidence-backed recommendations", "audit", "replay"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/my-day.mjs" }
+}

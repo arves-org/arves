@@ -7,6 +7,8 @@ import { encode, float } from './arves-sdk-ts/src/codec.mjs';
 import { KernelBridge } from './arves-sdk-ts/src/bridge.mjs';
 import { CognitiveMemory, replay } from './arves-cognitive-memory/src/memory.mjs';
 import { allSources } from './arves-cognitive-memory/src/connectors.mjs';
+import { PersonalCognitiveOS } from './arves-personal-os/src/personal-os.mjs';
+import { personalReality } from './arves-personal-os/src/connectors.mjs';
 
 let n = 0;
 const ok = (name, cond) => { assert.ok(cond, name); n++; console.log('  ✓', name); };
@@ -71,6 +73,27 @@ console.log('Kernel bridge client:');
   try { await b.invoke({ type: 'x' }, 'evil cap\n01 6161'); } catch { injRejected = true; }
   b.close();
   ok('capability injection (whitespace/newline) refused', injRejected);
+}
+
+console.log('Personal Cognitive OS (P4):');
+{
+  const bridge = new KernelBridge();
+  const decide = async (osx) => osx.recordDecision({ subject: 'invest:acme-fund', action: 'decline', because: 'risk' });
+  // Reproducibility must NOT depend on ingest order (else the replay/audit claim is false).
+  const osF = new PersonalCognitiveOS(bridge); await decide(osF);
+  for (const o of personalReality()) await osF.observe(o);
+  const bF = await osF.dailyBriefing();
+  const osR = new PersonalCognitiveOS(bridge); await decide(osR);
+  for (const o of [...personalReality()].reverse()) await osR.observe(o);
+  const bR = await osR.dailyBriefing();
+  ok('briefing id is independent of ingest order', bF.id === bR.id);
+  ok('the meeting dedups to one truth (3 systems)', osF.truths().filter((t) => t.fact.event === 'q3-review').length === 1);
+  ok('genuinely different events stay distinct', osF.truths().length === 4);
+  // Contradiction detection must be precise: no false positives.
+  ok('opposing action → contradiction', osF.checkContradiction({ subject: 'invest:acme-fund', action: 'approve' }).contradicts === true);
+  ok('same action → no false contradiction', osF.checkContradiction({ subject: 'invest:acme-fund', action: 'decline' }).contradicts === false);
+  ok('subject with no prior decision → no contradiction', osF.checkContradiction({ subject: 'invest:unknown', action: 'approve' }).contradicts === false);
+  bridge.close();
 }
 
 console.log(`\n${n}/${n} robustness regressions PASS`);
