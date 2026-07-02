@@ -36,10 +36,13 @@
 //!
 //! Layer: Data Plane (the Control Plane decides; the Data Plane carries).
 //!
-//! STATUS: I1 (Distributed Runtime) skeleton - interfaces/contracts only, NO
-//! implementation yet. The frozen specification governs; this crate *implements*
-//! the spec and never changes it (Theory -> Spec -> Contracts -> Behaviour ->
-//! Conformance -> Implementation).
+//! STATUS: I1 (Distributed Runtime) — interfaces/contracts. The Executor,
+//! OutcomeRouter and Cancellation *traits* are contract-only (no method bodies;
+//! signatures are the contract). The concrete, exercised code in this crate is
+//! [`CancellationToken`], which is a working cooperative-cancellation primitive
+//! (shared atomic flag; see the unit tests). The frozen specification governs;
+//! this crate *implements* the spec and never changes it (Theory -> Spec ->
+//! Contracts -> Behaviour -> Conformance -> Implementation).
 //!
 //! This crate is std-only: it declares no dependencies and imports no sibling
 //! crate. The Kernel/Plan/Shard types referenced here are modelled as opaque,
@@ -232,27 +235,40 @@ pub enum Outcome {
 /// or observing cancellation any number of times has the same effect.
 ///
 /// The token is intentionally a plain shared flag (std-only). A cloned token shares
-/// the same underlying signal so a single [`Cancellation::cancel`] is observed by
-/// every holder.
+/// the same underlying signal so a single [`CancellationToken::cancel`] (or a
+/// [`Cancellation::cancel`] wired to it) is observed by every holder.
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {
-    // Placeholder shared state. A real implementation backs this with a shared
-    // atomic; kept as a unit-ish field so the skeleton compiles under std-only.
-    _private: (),
+    // Shared cancellation flag. `Arc<AtomicBool>` so that cloning a token shares
+    // one underlying signal across holders/threads (Amendment-005: a single
+    // cancel is observed by every cooperative poller). std-only; no deps.
+    flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl CancellationToken {
     /// Create a fresh, not-yet-cancelled token.
     pub fn new() -> Self {
-        Self { _private: () }
+        Self {
+            flag: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
     }
 
-    /// Cooperative checkpoint. `true` once cancellation has been requested.
+    /// Request cancellation on this token (and every clone that shares its signal).
+    ///
+    /// Cites Amendment-005: cancellation is *idempotent* — calling this any number
+    /// of times has the same effect. It only flips a cooperative flag; it never
+    /// touches cognitive truth (that is the Kernel's, ORCH-001).
+    pub fn cancel(&self) {
+        self.flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Cooperative checkpoint. `true` once cancellation has been requested on this
+    /// token or any clone sharing its signal.
     ///
     /// Cites Amendment-005: safe to call repeatedly; observing cancellation is
     /// idempotent and must never mutate cognitive truth.
     pub fn is_cancelled(&self) -> bool {
-        false
+        self.flag.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -340,5 +356,54 @@ pub trait Executor {
         // Trivial, always-compiling default: no compensation known at this layer.
         let _ = invocation;
         None
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests (Amendment-005 cooperative cancellation)
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fresh_token_is_not_cancelled() {
+        let token = CancellationToken::new();
+        assert!(!token.is_cancelled());
+        // Default is equivalent to `new` (Amendment-005: starts not-cancelled).
+        assert!(!CancellationToken::default().is_cancelled());
+    }
+
+    #[test]
+    fn cancel_flips_the_flag() {
+        let token = CancellationToken::new();
+        assert!(!token.is_cancelled());
+        token.cancel();
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_is_idempotent() {
+        let token = CancellationToken::new();
+        token.cancel();
+        token.cancel();
+        token.cancel();
+        // Observing repeatedly is stable (Amendment-005: idempotent).
+        assert!(token.is_cancelled());
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn clone_shares_the_same_signal() {
+        // A cloned token shares the underlying flag, so cancelling one is
+        // observed by every holder (Amendment-005).
+        let a = CancellationToken::new();
+        let b = a.clone();
+        assert!(!a.is_cancelled());
+        assert!(!b.is_cancelled());
+        b.cancel();
+        assert!(a.is_cancelled());
+        assert!(b.is_cancelled());
     }
 }

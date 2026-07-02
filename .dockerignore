@@ -1,0 +1,11 @@
+# Keep the build context small and the image clean.
+# The Rust builder stage compiles fresh binaries, so any host build artifacts
+# are noise (and a local runtime/target can be hundreds of MB).
+**/target/
+runtime/target/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+.git/
+*.docx
+docs-site/

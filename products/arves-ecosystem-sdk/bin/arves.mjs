@@ -3,9 +3,12 @@
 // idea to a certified, signed, publishable capability without touching the ARVES runtime.
 //
 //   arves init <name>        → scaffold a green, certifiable capability file
+//   arves create <name> --provider <p> → scaffold a REASONING capability (LLM-backed, auditable)
 //   arves doctor <file>      → conformance assistant: explain every violation + its exact fix
 //   arves certify <file>     → conformance + certification verdict
 //   arves package <file>     → a signed, content-addressed, versioned artifact
+//   arves publish <file>     → certify + package, then store in the persistent local registry
+//   arves install <name@ver> → fetch from the local registry, re-verify + re-certify, print id
 //
 // A capability file default-exports { capability, testInputs, source }.
 
@@ -13,30 +16,48 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { defineCapability, certifyCapability, packageCapability } from '../src/kit.mjs';
+import { publish as registryPublish, install as registryInstall } from '../src/registry.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const KIT = path.resolve(HERE, '..', 'src', 'kit.mjs');
-const CMDS = ['init', 'doctor', 'certify', 'package'];
+const REASONING = path.resolve(HERE, '..', 'src', 'reasoning.mjs');
+const CMDS = ['init', 'create', 'doctor', 'certify', 'package', 'publish', 'install'];
 
 const HELP = `arves — the ARVES Ecosystem Authoring CLI
 
-usage: arves <command> <name-or-file>
+usage: arves <command> <name-or-file> [options]
 
 commands:
-  init <name>     scaffold a green, certifiable capability file (<name>.capability.mjs)
-  doctor <file>   conformance assistant: report every violation and its exact fix
-  certify <file>  run certification and print the PASS/FAIL verdict + per-check status
-  package <file>  produce a signed, content-addressed, versioned artifact
+  init <name>                 scaffold a green, certifiable capability file (<name>.capability.mjs)
+  create <name> --provider <p> scaffold a REASONING capability. <p> = reference | local | claude | gpt | gemini
+                              (default: reference). reference/local are deterministic → certify+replay
+                              offline; claude/gpt/gemini scaffold an adapter STUB needing integration.
+  doctor <file>               conformance assistant: report every violation and its exact fix
+  certify <file>              run certification and print the PASS/FAIL verdict + per-check status
+  package <file>              produce a signed, content-addressed, versioned artifact
+  publish <file>              certify + package, then store the artifact in the local registry
+  install <name@version>      fetch from the local registry, re-verify signature + re-run
+                              certification, then print the artifact id
 
 A capability file default-exports { capability, testInputs, source }.
 Authoring needs only Node >=18 — no Rust build required.
 Docs: the documentation site (docs-site/) or products/arves-ecosystem-sdk/README.md`;
 
-const [, , cmd, arg] = process.argv;
+const [, , cmd, arg, ...rest] = process.argv;
 if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') { console.log(HELP); process.exit(cmd ? 0 : 2); }
 if (!CMDS.includes(cmd)) { console.error(`arves: unknown command '${cmd}'\n`); console.log(HELP); process.exit(2); }
 if (arg === '--help' || arg === '-h') { console.log(HELP); process.exit(0); }
-if (!arg) { console.error(`usage: arves ${cmd} <${cmd === 'init' ? 'name' : 'file'}>   (try: arves --help)`); process.exit(2); }
+const NAME_ARG = { init: 'name', create: 'name', install: 'name@version' };
+if (!arg) { console.error(`usage: arves ${cmd} <${NAME_ARG[cmd] ?? 'file'}>   (try: arves --help)`); process.exit(2); }
+
+// A tiny flag reader for `--provider <p>` (and `--provider=<p>`), used by `create`.
+function readFlag(argv, flag) {
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === flag) return argv[i + 1];
+    if (argv[i].startsWith(flag + '=')) return argv[i].slice(flag.length + 1);
+  }
+  return undefined;
+}
 
 // ---- init: scaffold a working, certifiable capability -----------------------
 if (cmd === 'init') {
@@ -89,6 +110,94 @@ void float; // available for float values, e.g. value: float(0.5)
   process.exit(0);
 }
 
+// ---- create: scaffold a REASONING (LLM-backed) capability -------------------
+// A reasoning capability wraps a provider whose output is committed ONCE as content-addressed
+// truth; replay reads the recorded trace and NEVER re-calls the provider (ORCH-003; ACS-005
+// GL-012). That doctrine is what turns a swappable, possibly non-deterministic LLM into a
+// deterministic, auditable step inside ARVES — the moat vs. a plain wrapper.
+if (cmd === 'create') {
+  const name = arg.replace(/[^A-Za-z0-9._-]/g, '').trim();
+  if (!name) { console.error('create: give a capability name, e.g. `arves create triage.summary --provider reference`'); process.exit(2); }
+  const KNOWN = ['reference', 'local', 'claude', 'gpt', 'gemini'];
+  const provider = (readFlag([arg, ...rest], '--provider') ?? 'reference').trim();
+  if (!KNOWN.includes(provider)) {
+    console.error(`create: unknown provider '${provider}' — choose one of: ${KNOWN.join(', ')}`);
+    process.exit(2);
+  }
+  const deterministic = provider === 'reference' || provider === 'local';
+  const target = path.resolve(process.cwd(), `${name}.capability.mjs`);
+  // Same relative-path computation as `init`, but to the reasoning module (the shared contract).
+  let rel = path.relative(path.dirname(target), REASONING).split(path.sep).join('/');
+  if (!rel.startsWith('.')) rel = './' + rel;
+
+  const stubNote = deterministic ? '' : `
+// NOTE: provider '${provider}' is an ADAPTER STUB. Providers.${provider}.reason(input) THROWS until
+// you supply an API adapter + key at the integration point (no network / no keys live in-repo).
+// Until then this capability will NOT certify (execute throws) — that is intentional: the
+// deterministic-truth doctrine below is what makes it auditable once the adapter is wired in.`;
+
+  const reasonBlock = deterministic
+    ? `  // Deterministic reasoning: a pure function of the input, so this capability CERTIFIES and
+  // REPLAYS offline. Swap in a live provider later; the doctrine below keeps replay honest.
+  reason: (input) => 'reasoned(' + String(input.prompt ?? '') + ')',`
+    : `  // Live provider: Providers.${provider}.reason(input) is the integration point. It throws until
+  // an adapter is supplied — wire it up, then the FIRST call's output is committed as truth.
+  provider: Providers['${provider}'],`;
+
+  const tpl = `// ${name} — an ARVES REASONING capability (provider: ${provider}).
+// Authored with ONLY the Ecosystem Author SDK; the FROZEN runtime is never touched.
+//
+// DOCTRINE (ORCH-003; ACS-005 GL-012): a provider's output is committed ONCE as
+// content-addressed truth. REPLAY reads the recorded trace — it NEVER re-calls the provider.
+// That is what makes a swappable, possibly non-deterministic LLM behave deterministically and
+// remain auditable inside ARVES: the moat vs. a plain API wrapper.${stubNote}
+import { defineReasoningCapability, Providers } from '${rel}';
+
+export const capability = defineReasoningCapability({
+  name: '${name}',
+  version: '1.0.0',
+  produces: ['uci.reasoning'],
+${reasonBlock}
+});
+
+// At least one representative input — certification runs execute() on these.
+export const testInputs = [
+  { prompt: 'example: summarize the incident' },
+];
+
+export const source = '${name}@1.0.0 (provider=${provider})';
+export default { capability, testInputs, source };
+void Providers;
+`;
+  try {
+    fs.writeFileSync(target, tpl, { flag: 'wx' });
+  } catch (e) {
+    if (e.code === 'EEXIST') { console.error(`create: ${name}.capability.mjs already exists (refusing to overwrite)`); process.exit(1); }
+    throw e;
+  }
+  console.log(`created ${name}.capability.mjs   (reasoning capability, provider=${provider})`);
+  if (deterministic) {
+    console.log(`next:  arves doctor ${name}.capability.mjs   # deterministic → should certify offline`);
+  } else {
+    console.log(`next:  wire an adapter for provider '${provider}' (it throws until integrated), then certify`);
+  }
+  process.exit(0);
+}
+
+// ---- install: fetch from the local registry, re-verify + re-certify ---------
+// Does NOT load a local file — `arg` is a name@version key resolved against the registry.
+if (cmd === 'install') {
+  try {
+    const res = await registryInstall(arg);
+    console.log(`install ${res.key}: VERIFIED + RE-CERTIFIED`);
+    console.log(`  artifact ${res.id}`);
+    process.exit(0);
+  } catch (e) {
+    console.error(`install ${arg}: REFUSED — ${e.message}`);
+    process.exit(1);
+  }
+}
+
 // ---- everything else loads the capability module ----------------------------
 const mod = await import(pathToFileURL(path.resolve(process.cwd(), arg)).href);
 const { capability, testInputs, source } = mod.default ?? mod;
@@ -129,9 +238,29 @@ if (cmd === 'certify') {
   process.exit(c.certified ? 0 : 1);
 }
 
-// package
-void source; // author's human-readable source note; the artifact binds code + test inputs
-const p = packageCapability(capability, testInputs ?? []);
-console.log(`package ${capability.manifest.name}@${p.version}`);
-console.log(`  artifact ${p.id}`);
-process.exit(0);
+if (cmd === 'package') {
+  void source; // author's human-readable source note; the artifact binds code + test inputs
+  const p = packageCapability(capability, testInputs ?? []);
+  console.log(`package ${capability.manifest.name}@${p.version}`);
+  console.log(`  artifact ${p.id}`);
+  process.exit(0);
+}
+
+// publish: certify + package, then store the artifact in the persistent local registry.
+// The source FILE path travels with the record so `install` can re-import the real code and
+// re-run the whole trust boundary (signature + tamper + certification) on read-back.
+if (cmd === 'publish') {
+  void source;
+  const sourceFile = path.resolve(process.cwd(), arg);
+  try {
+    const res = registryPublish(capability, testInputs ?? [], sourceFile);
+    console.log(`publish ${res.key}: STORED in local registry`);
+    console.log(`  artifact ${res.id}`);
+    console.log(`  record   ${res.file}`);
+    console.log(`next:  arves install ${res.key}   # fetch back, re-verify + re-certify`);
+    process.exit(0);
+  } catch (e) {
+    console.error(`publish ${capability.manifest.name}@${capability.manifest.version}: REFUSED — ${e.message}`);
+    process.exit(1);
+  }
+}

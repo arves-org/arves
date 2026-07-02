@@ -4,8 +4,10 @@
 //! Governing: IDR-001..004; SHARD-001 (partition by tenant/workspace).
 //! Layer: cross-cutting (truth path; serves the Kernel's commit gateway).
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY — distributed consensus is genuinely DEFERRED to I2+.
+//! v1.0 is single-node I1 (per RUNTIME_FREEZE_v1.0.md); per-shard Raft is not
+//! built. This crate is trait/type declarations only, no logic. Frozen
+//! specification governs; this crate implements, never changes it.
 //!
 //! # What this crate is (and is not)
 //!

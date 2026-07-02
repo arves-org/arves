@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec — Read These First · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html" class="active">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-specification-read-these-3-first">ARVES Specification — Read These 3 First</h1>
+<p>The ARVES specification corpus is large (~50 documents across <a href="../spec-markdown/"><code>spec-markdown/</code></a> and the standard set under <a href="../standard/"><code>standard/</code></a>). You do <strong>not</strong> need to read it all to start. This page is a curated on-ramp: the <strong>three load-bearing documents</strong> that a newcomer, a capability author, or someone building an independent runtime should read first, in order — plus where to go next.</p>
+<blockquote><p>The Markdown files in <a href="../spec-markdown/"><code>spec-markdown/</code></a> are faithful mirrors of the frozen <code>.docx</code> corpus (the authoritative source of record). The ACS contracts live under <a href="../standard/acs/"><code>standard/acs/</code></a>. Everything is frozen — changes go through CCP / Amendment / IDR, never a silent edit.</p></blockquote>
+<hr>
+<h2 id="1-the-invariant-registry-what-must-always-be-true">1. The Invariant Registry — <em>what must always be true</em></h2>
+<p><strong><a href="spec/ARVES_00_Invariant_Registry_v1.html"><code>spec-markdown/ARVES_00_Invariant_Registry_v1.md</code></a></strong></p>
+<p>Start here. It is the single authoritative list of ARVES's invariants — the properties every implementation must uphold — with each one's statement, source, and proof status. Crucially, it tells you what is <strong>registered-normative</strong> (enforce these: <code>OWN-001</code>, <code>LAYER-001</code>, <code>SHARD-001</code>, <code>ORCH-001..004</code>) versus what is only <strong>proposed/informative</strong> and carries no conformance weight until ratified. Reading this first calibrates everything else: you learn what ARVES <em>promises</em> before you read how it delivers those promises.</p>
+<p><strong>Why first:</strong> it is the shortest path to understanding what ARVES is accountable for, and it prevents you from treating a draft idea as a hard requirement.</p>
+<hr>
+<h2 id="2-acs-001-content-addressing-how-identity-works">2. ACS-001 — Content Addressing — <em>how identity works</em></h2>
+<p><strong><a href="../standard/acs/ACS-001_Content_Addressing.md"><code>standard/acs/ACS-001_Content_Addressing.md</code></a></strong></p>
+<p>ARVES identity is <strong>content-addressed</strong>: a value's id is derived from its bytes, so the same value always has the same id and any tamper changes the id. This is the contract behind "byte-reproducible ids", the artifact signatures the <a href="cli-reference.html">CLI</a> produces, and the whole certify/package/install trust boundary. If you author capabilities, this is <em>why</em> your effects get stable, verifiable identities.</p>
+<p><strong>Why second:</strong> once you know what must be true (doc 1), this is the first mechanism that makes it true — deterministic identity.</p>
+<hr>
+<h2 id="3-acs-002-canonical-serialization-the-exact-bytes">3. ACS-002 — Canonical Serialization — <em>the exact bytes</em></h2>
+<p><strong><a href="../standard/acs/ACS-002_Canonical_Serialization.md"><code>standard/acs/ACS-002_Canonical_Serialization.md</code></a></strong></p>
+<p>Content addressing (doc 2) only works if every implementation agrees on the <strong>exact byte encoding</strong> of a value. ACS-002 is that byte-exact canonical serialization: the ARVES value model (null · boolean · integer · float · string · bytes · array · map) and precisely how each serializes. This is the document the <code>doctor</code>/<code>certify</code> tooling cites when it rejects, for example, a bare JS number (ambiguous int/float) — the errors point at ACS-002 §5.2/§5.3. If you are building an independent runtime, this is the contract you must match byte-for-byte.</p>
+<p><strong>Why third:</strong> it is the ground truth underneath doc 2 — the exact bytes that make identity, and therefore interoperability, deterministic across implementations.</p>
+<hr>
+<h2 id="then-the-freeze-record-what-is-settled-and-how-it-changes">Then: the Freeze Record — <em>what is settled, and how it changes</em></h2>
+<p><strong><a href="spec/ARVES_00_Specification_Freeze_Record_v1.html"><code>spec-markdown/ARVES_00_Specification_Freeze_Record_v1.md</code></a></strong></p>
+<p>Read this fourth. It is the "signature page" of ARVES v1.0: it declares the specification frozen and defines the change-management instruments (CCP / Amendment / IDR / next major version). It tells you the rules of the road — that the spec never bends to implementation, and exactly how a genuine gap is raised rather than worked around.</p>
+<hr>
+<h2 id="where-to-go-after-the-first-four">Where to go after the first four</h2>
+<ul><li><strong>Authoring a capability?</strong> → <a href="cli-reference.html">CLI_REFERENCE.md</a> and the <a href="why-arves.html">Ecosystem SDK README</a>; then the rest of the ACS set — <a href="../standard/acs/ACS-003_Canonical_Envelope.md">ACS-003 Canonical Envelope</a>, <a href="../standard/acs/ACS-004_Universal_Type_Registry.md">ACS-004 Universal Type Registry</a>, <a href="../standard/acs/ACS-005_Normative_Language.md">ACS-005 Normative Language</a>.</li><li><strong>Building a runtime?</strong> → the conformance vectors and certification material under <a href="../standard/"><code>standard/</code></a> (<code>standard/vectors/</code>, <code>standard/conformance/</code>, <code>standard/certification/</code>).</li><li><strong>Want the full map?</strong> → the documentation index, <a href="spec/ARVES_00_Documentation_Index_v2.2.html"><code>spec-markdown/ARVES_00_Documentation_Index_v2.2.md</code></a>.</li><li><strong>The frozen runtime contract?</strong> → <a href="runtime.html"><code>runtime/RUNTIME_FREEZE_v1.0.md</code></a>.</li></ul>
+<p>That is the minimum spine — three documents to understand ARVES, a fourth to understand how it stays stable, and clear next hops for whatever you are building.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

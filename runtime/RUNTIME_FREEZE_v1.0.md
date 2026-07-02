@@ -38,7 +38,11 @@ Frozen and byte-stable; products may depend on these without fear of drift:
 - **Persistence · Replay · Audit** — append-only WAL = decision trace; deterministic
   replay/recovery (I1, fault-hardened).
 - **Cognitive work chain** — `SDK → Bridge → Capability → Engine → Kernel`, one identity
-  end-to-end; capability-gated; engine-pure (ENG-003).
+  end-to-end; capability-gated; engine-pure (ENG-003). *Guarantee scope (RCR-001, item #6):*
+  the `arves-engine-fabric` and `arves-capability-fabric` runtime crates are **contract-only**
+  (interfaces/types); the exercised engine/capability *logic* flows through the SDK/Bridge in
+  `products/`. The stable guarantee is the **contract + the identity-preserving Bridge path**,
+  not engine/capability logic living inside those two runtime crates.
 - **Robustness** — the whole stack survived a 6-lens destroy pass (21 blocker/major fixed;
   regression-locked). Encoders are depth/range-bounded; the bridge fails safe.
 
@@ -94,21 +98,26 @@ These are honest findings from the independent 15-pillar closure audit. They do 
 block closing the (correctly-scoped, single-node I1) Build Program, but each is recorded here
 as v1.1/v2.0 debt and must enter via an RCR — never a silent crate edit under the freeze.
 
-4. **Runtime source doc-integrity** — ~13 crates (kernel, persistence, engine-fabric,
-   capability-fabric, control-plane, query, lcw, conformance, consensus, execution, …) carry
-   stale `I1 skeleton — NO implementation yet` headers, yet kernel+persistence are fully
-   implemented (working FileKernel/WAL/recovery/checkpoint; 65 tests). Correct the headers to
-   state each crate's actual status so a new maintainer can tell real crates from skeletons.
-5. **`CancellationToken::is_cancelled()` no-op** (arves-execution) — unconditionally returns
-   `false`; the Amendment-005 cooperative-cancellation capability silently does nothing.
-   Implement, or explicitly mark deferred here.
-6. **Freeze-doc guarantee alignment** — Engine Fabric / Capability Fabric are listed under
+4. **Runtime source doc-integrity** — ~13 crates carried stale
+   `I1 skeleton — NO implementation yet` headers, yet kernel+persistence are fully
+   implemented (working FileKernel/WAL/recovery/checkpoint; 65 tests). **ADDRESSED by RCR-001
+   (v1.1):** every stale header corrected to state each crate's actual status — kernel /
+   persistence / invariants marked IMPLEMENTED; engine-fabric / capability-fabric /
+   control-plane / query / lcw / ontology / information-platform / conformance / consensus
+   marked CONTRACT-ONLY (by design / deferred). Comments only, no logic change.
+5. **`CancellationToken::is_cancelled()` no-op** (arves-execution) — unconditionally returned
+   `false`; the Amendment-005 cooperative-cancellation capability silently did nothing.
+   **ADDRESSED by RCR-001 (v1.1):** the token is now backed by a shared `Arc<AtomicBool>`;
+   `is_cancelled()` reflects a real flag, `cancel()` sets it, and clones share one signal.
+   Additive (new `cancel()` method; `is_cancelled()` signature unchanged) + 4 unit tests.
+6. **Freeze-doc guarantee alignment** — Engine Fabric / Capability Fabric were listed under
    "What v1.0 guarantees," but the exercised engine/capability logic flows through `products/`
-   (SDK/Bridge); the runtime crates are contract-only. Align the guarantee list with where the
-   logic actually lives (or land the crate logic in v1.1).
-7. **Commit `Cargo.lock`** — currently gitignored; for a binary-producing workspace it should
-   be committed so clean clones resolve byte-identical pinned dependencies (Determinism/Replay
-   value). Non-breaking build hygiene.
+   (SDK/Bridge); the runtime crates are contract-only. **ADDRESSED by RCR-001 (v1.1):** the
+   "Cognitive work chain" guarantee above now states the contract-only scope explicitly.
+7. **Commit `Cargo.lock`** — was gitignored; for a binary-producing workspace it should be
+   committed so clean clones resolve byte-identical pinned dependencies (Determinism/Replay
+   value). **ADDRESSED by RCR-001 (v1.1):** the `Cargo.lock` entry removed from the root
+   `.gitignore` so `runtime/Cargo.lock` can be committed. Non-breaking build hygiene.
 8. **Truth-store cryptographic tamper-evidence** (v1.1/v2.0, zero-trust) — the WAL/snapshots
    use CRC32 (error-detection, forgeable) with no hash chain / Merkle root / signature, and
    `Kernel::commit` carries no principal/authN/authZ. v1.0's threat model is a **trusted single

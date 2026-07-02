@@ -164,6 +164,13 @@ export class CapabilityHost {
     // Real code integrity: the capability's actual code MUST match the signed artifact —
     // a swapped implementation under a valid artifact is refused.
     if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('install refused: capability code does not match the signed artifact');
+    // Reasoning-logic integrity: a reasoning capability's execute wrapper is identical across all
+    // reasoners, so codeHash cannot bind the closed-over logic. The signed manifest carries a
+    // reasonerHash; re-verify the live reasoner source against the SIGNED value.
+    if (pkg.artifact.manifest && pkg.artifact.manifest.reasonerHash) {
+      const liveRH = hex(sha256(new TextEncoder().encode(cap.reasonerSource ?? '')));
+      if (liveRH !== pkg.artifact.manifest.reasonerHash) throw new Error('install refused: reasoning logic does not match the signed artifact (tampered reasoner)');
+    }
     // Enforce conformance by RE-RUNNING certification — never trust a caller-supplied flag.
     const cert = certifyCapability(cap, pkg.testInputs);
     if (!cert.certified) {

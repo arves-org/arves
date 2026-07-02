@@ -6,8 +6,13 @@
 //!            INVARIANT-BASED, never golden-output.
 //! Layer: cross-cutting (test / certification)
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY — this crate defines the Scenario Conformance data
+//! contract (axes, verdict types, probe shapes) with a small compiling smoke
+//! test; the live 12-axis scenario suite is NOT yet populated (deferred; see
+//! RUNTIME_FREEZE_v1.0.md and the Build Closure known-limitations). The
+//! maintainer-independent runtime certification harness lives in `standard/` +
+//! `verification/`. Frozen specification governs; this crate implements, never
+//! changes it.
 //!
 //! # Position in the Chain (Scenario Conformance Framework, Part 2)
 //!

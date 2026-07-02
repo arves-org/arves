@@ -4,8 +4,10 @@
 //! Governing: QUERY-001 (proposed); read tiers from IDR-001.
 //! Layer: Data Plane
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY (by design). Defines the read-only projection/query
+//! interfaces and types; the distributed query engine is deferred to I3. Any
+//! `fn` bodies present are trivial placeholders so the contract compiles. Frozen
+//! specification governs; this crate implements, never changes it.
 //!
 //! # Position in the layer chain
 //!

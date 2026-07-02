@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Capability SDK · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html" class="active">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-ai-capability-sdk-reasoning-capabilities">ARVES AI Capability SDK — reasoning capabilities</h1>
+<blockquote><p>The AI-Operating-System thesis, made concrete: <strong>the LLM is a swappable Capability/Provider. The runtime never changes. The model's output becomes recorded, replayable truth.</strong></p></blockquote>
+<p><code>src/reasoning.mjs</code> is the AI layer of the Ecosystem Kit. It lets a third party author a capability whose effects are produced by a <em>reasoning provider</em> (a rule engine, an on-device model, or a remote LLM) and have that capability flow through the <strong>unchanged</strong> ARVES trust boundary — <code>certify → package → install → invoke → commit</code> — exactly like any other capability. A reasoning capability is not a special citizen: it returns <code>{ manifest, execute }</code> with the same shape as <code>defineCapability()</code>, so the frozen Runtime v1.0 commits its bytes without ever knowing a language model produced them.</p>
+<hr>
+<h2 id="the-abstraction">The abstraction</h2>
+<pre><code class="lang-js">import { Providers, defineReasoningCapability } from './src/reasoning.mjs';
+
+const cap = defineReasoningCapability({
+  name: 'reasoning.sentiment',
+  version: '1.0.0',
+  produces: ['uci.reasoning.verdict'],
+  provider: Providers.reference,          // swap this line to swap the "model"
+  reason: (input) =&gt; Providers.reference.reason(input.text), // optional explicit reasoner
+});
+// cap === { manifest, execute } — identical shape to defineCapability()</code></pre>
+<ul><li><code>defineReasoningCapability({ name, version, produces, provider, reason })</code> returns a value with the <strong>same shape</strong> as <code>defineCapability()</code> (it is built on top of it).</li><li><code>execute(input)</code> calls <code>(reason || provider.reason)(input)</code> and normalizes the result into an array of effects <code>[{ target, value }]</code>. The reasoner may return a bare ARVES value (wrapped as one effect on <code>produces[0]</code>), an array of values, an effect, or an array of effects.</li><li><code>value</code> is any <strong>ARVES value</strong> — <code>null · boolean · BigInt · float(x) · string · Uint8Array · Array · plain object</code> (bare JS numbers are rejected; see the SDK value model).</li><li>When the provider is deterministic, the capability is <strong>certifiable by the existing <code>certifyCapability()</code></strong> with no changes to the certifier.</li></ul>
+<h2 id="the-provider-table">The provider table</h2>
+<p>A provider is <code>{ name, reason(input) }</code>. <code>reason</code> returns an ARVES value (or effects).</p>
+<div class="table-wrap"><table><thead><tr><th>Provider</th><th>Kind</th><th>Offline?</th><th>Deterministic?</th><th>Certifies / replays in-repo?</th></tr></thead><tbody><tr><td><code>reference</code></td><td>rule-based reference reasoner</td><td>yes</td><td><strong>yes</strong> (pure)</td><td><strong>yes</strong></td></tr><tr><td><code>local</code></td><td>on-device / self-hosted stand-in</td><td>yes</td><td><strong>yes</strong> (pure)</td><td><strong>yes</strong></td></tr><tr><td><code>claude</code></td><td>remote LLM adapter <strong>stub</strong></td><td>—</td><td>—</td><td>integration point</td></tr><tr><td><code>gpt</code></td><td>remote LLM adapter <strong>stub</strong></td><td>—</td><td>—</td><td>integration point</td></tr><tr><td><code>gemini</code></td><td>remote LLM adapter <strong>stub</strong></td><td>—</td><td>—</td><td>integration point</td></tr></tbody></table></div>
+<ul><li><strong><code>reference</code> / <code>local</code></strong> are pure functions of their input — no clock, no RNG, no I/O — so a capability built on them produces the <strong>same effect address for the same input</strong>. That is exactly the property <code>certifyCapability()</code>'s <code>deterministic</code> check enforces, which is why reasoning capabilities certify and replay <strong>fully offline</strong> (no network, no API key).</li><li><strong><code>claude</code> / <code>gpt</code> / <code>gemini</code></strong> are documented <strong>integration stubs</strong>. Each is the single, named place an operator wires an API adapter + key, <strong>out of repo</strong>. Until then, calling <code>.reason(input)</code> throws:</li></ul>
+<pre><code>  provider "claude" requires integration: supply an API adapter + key</code></pre>
+<p>This is deliberate: <strong>nothing in this repository performs a network call or holds a secret.</strong> Wiring a remote provider is an operator action at deployment time, not a repo change.</p>
+<hr>
+<h2 id="the-doctrine-recorded-truth-not-re-calling-orch-003-acs-005-">The doctrine — recorded truth, not re-calling (ORCH-003 · ACS-005 GL-012)</h2>
+<p>This is the whole moat, and it is one sentence:</p>
+<blockquote><p><strong>A provider's output is committed exactly once as content-addressed truth; replay reads the recorded trace by its ContentId — it NEVER re-calls the provider.</strong></p></blockquote>
+<pre><code>author time :  provider.reason(input)  →  value  →  commit  →  ContentId   (ONCE)
+replay time :  ContentId               →  recorded value                   (NEVER re-calls)</code></pre>
+<ul><li>At <strong>author / invoke time</strong>, the reasoner runs once. Its output value is committed as an ACS fact and becomes a <strong>ContentId</strong> in the ledger. From that instant, the reasoning <em>is</em> an address — immutable, auditable, deduplicated by content (<code>ORCH-003</code>).</li><li>At <strong>replay time</strong>, the system reads the recorded value by its ContentId. The provider is <strong>not</strong> invoked again. A non-deterministic LLM therefore produces a <strong>deterministic ARVES fact</strong>: the record is stable even though a second call to the model would not be (<code>ACS-005 GL-012</code>).</li></ul>
+<h3 id="why-this-beats-a-wrapper">Why this beats a wrapper</h3>
+<p>A "chatbot wrapper" calls the model on <strong>every</strong> run and hopes the answer is stable — it is not. So a wrapper cannot:</p>
+<ul><li><strong>replay</strong> — re-running yields a different answer, so history is not reproducible;</li><li><strong>audit</strong> — there is no fixed artifact to point an auditor at;</li><li><strong>deduplicate</strong> — the same question produces different bytes each time;</li><li><strong>swap models safely</strong> — changing the model silently changes past behavior.</li></ul>
+<p>ARVES records the reasoning <strong>once</strong> and addresses it by content. Swapping <code>Providers.reference</code> for <code>Providers.claude</code> changes <strong>who reasons next</strong> — it never changes the runtime, the trust boundary, or a single fact already committed. That is what makes the LLM a swappable component of an operating system rather than the system itself.</p>
+<hr>
+<h2 id="try-it-offline-no-keys">Try it (offline, no keys)</h2>
+<pre><code># certify the example reasoning capability (uses Providers.reference — deterministic)
+node bin/arves.mjs certify examples/sentiment.reasoning.capability.mjs
+#   certify reasoning.sentiment@1.0.0: CERTIFIED
+#     ✓ manifest-valid  ✓ has-test-inputs  ✓ effects-declared
+#     ✓ effects-acs-canonical  ✓ deterministic
+
+# package it into a signed, content-addressed artifact
+node bin/arves.mjs package examples/sentiment.reasoning.capability.mjs
+
+# confirm a remote provider is an un-wired integration point (throws, by design)
+node -e 'import("./src/reasoning.mjs").then(({Providers})=&gt;Providers.claude.reason({text:"hi"}))'
+#   Error: provider "claude" requires integration: supply an API adapter + key</code></pre>
+<p>The <code>reference</code> and <code>local</code> providers keep the whole loop green with zero external dependencies. The <code>claude</code> / <code>gpt</code> / <code>gemini</code> stubs mark exactly where — and only where — an operator adds a real model.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

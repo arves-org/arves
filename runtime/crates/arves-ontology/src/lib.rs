@@ -49,9 +49,10 @@
 //! O-principle; it derives from the frozen temporal model and supports `O-003`
 //! (provenance is time-situated) and `ORCH-003` (replay from a recorded trace).
 //!
-//! STATUS: I1 skeleton — interfaces/contracts only, NO implementation yet.
-//! Method bodies are omitted; the few defaulted/const bodies present are
-//! trivial and carry no logic.
+//! STATUS: CONTRACT-ONLY (by design). Defines the Universal Cognitive Ontology
+//! interfaces/aspect types; method bodies are omitted and the few defaulted/const
+//! bodies present are trivial and carry no logic. Frozen specification governs;
+//! this crate implements, never changes it.
 
 #![forbid(unsafe_code)]
 

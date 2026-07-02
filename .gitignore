@@ -1,7 +1,9 @@
 target/
 **/target/
 *.rs.bk
-Cargo.lock
+# Cargo.lock is intentionally COMMITTED for the binary-producing runtime workspace
+# so clean clones resolve byte-identical pinned dependencies (Determinism/Replay).
+# See runtime/rcr/RCR-001.md (item #7). Do NOT re-ignore it.
 __pycache__/
 *.pyc
 
@@ -9,3 +11,6 @@ __pycache__/
 *.capability.mjs
 !products/arves-ecosystem-sdk/examples/*.capability.mjs
 /hello-arves.mjs
+
+# local capability registry (arves publish/install) — runtime data, not source
+/.arves-registry/

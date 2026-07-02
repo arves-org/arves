@@ -11,8 +11,10 @@
 //!   the boundary at which raw external sources become ontology-shaped
 //!   proposals.
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY (by design). Defines the Information-Platform ingestion
+//! interfaces/types (raw source -> ontology-shaped proposal); carries no
+//! ingestion logic. Frozen specification governs; this crate implements, never
+//! changes it.
 //!
 //! # Role in the ARVES chain
 //!

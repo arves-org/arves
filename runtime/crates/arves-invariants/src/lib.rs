@@ -9,8 +9,11 @@
 //!            PERSIST-001, CAP-001..009, ENG-001..005.
 //! Layer: cross-cutting (spans every layer; owns no truth of its own).
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: I1 IMPLEMENTED (catalog). Provides the populated invariant-identifier
+//! catalog (ORCH-001..004, OWN/LAYER/SHARD-001 constants + `REGISTERED` list),
+//! concrete `Layer` rank / `may_depend_on` logic, and the property-test trait
+//! surface. The frozen specification governs; this crate implements, never
+//! changes it.
 //!
 //! # Position in the ARVES chain
 //!

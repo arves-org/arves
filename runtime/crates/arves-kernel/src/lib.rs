@@ -5,8 +5,12 @@
 //! Layer: Data Plane (LAYER-001 position: Kernel, below Information Platform,
 //!        above Persistence).
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: I1 IMPLEMENTED. Working single-node reference Kernel:
+//! `RefKernel`/`MemKernel`/`FileKernel` with idempotent content-addressed commit,
+//! fsync-durable WAL, deterministic replay/recovery, snapshot install and
+//! checkpointing (see `tests/` — walking_skeleton, persistent_wal, recovery,
+//! checkpoint). The frozen specification governs; this crate implements, never
+//! changes it.
 //!
 //! # Role in the frozen architecture
 //!

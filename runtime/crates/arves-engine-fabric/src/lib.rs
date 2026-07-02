@@ -52,10 +52,12 @@
 //!
 //! ## STATUS
 //!
-//! I1 skeleton — interfaces/contracts only, NO implementation yet. Frozen
-//! specification governs; this crate *implements*, never changes it. Bodies
-//! here are trivial placeholders that exist only so the contract compiles;
-//! they encode no logic.
+//! I1 CONTRACT-ONLY (by design, not unfinished). This crate defines the Engine
+//! Fabric interfaces/types; it carries no engine execution logic. The exercised
+//! engine logic in the reference runtime flows through the SDK/Bridge in
+//! `products/` (see RUNTIME_FREEZE_v1.0.md, guarantee alignment). Any bodies
+//! here are trivial placeholders that exist only so the contract compiles.
+//! Frozen specification governs; this crate *implements*, never changes it.
 
 #![forbid(unsafe_code)]
 

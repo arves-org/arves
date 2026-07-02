@@ -12,6 +12,7 @@ import { personalReality } from './arves-personal-os/src/connectors.mjs';
 import { EnterpriseCognitiveOS } from './arves-enterprise-os/src/enterprise-os.mjs';
 import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from './arves-ecosystem-sdk/src/kit.mjs';
 import { Marketplace } from './arves-marketplace/src/marketplace.mjs';
+import { defineReasoningCapability } from './arves-ecosystem-sdk/src/reasoning.mjs';
 
 let n = 0;
 const ok = (name, cond) => { assert.ok(cond, name); n++; console.log('  ✓', name); };
@@ -193,6 +194,24 @@ console.log('Closure audit fixes (2026-07):');
   // The signed test inputs are tamper-evident: swapping them to weaker inputs breaks the signature.
   const swapped = { ...badPkg, testInputs: [] };
   ok('swapping the signed test inputs breaks verifyArtifact', verifyArtifact(swapped) === false);
+}
+
+console.log('AI Capability SDK — reasoning (2026-07):');
+{
+  // A reasoning capability's execute wrapper is IDENTICAL across all reasoners, so codeHash is
+  // vacuous for them — the logic is the closed-over reasoner. The signed manifest.reasonerHash must
+  // bind it, and a host must refuse a reasoner swap that codeHash cannot see (closure-audit fix).
+  const good = defineReasoningCapability({ name: 'r.demo', version: '1.0.0', produces: ['uci.reasoning.verdict'],
+    reason: (i) => ({ type: 'uci.reasoning.verdict', v: String(i.x) }) });
+  const evil = defineReasoningCapability({ name: 'r.demo', version: '1.0.0', produces: ['uci.reasoning.verdict'],
+    reason: () => ({ type: 'uci.reasoning.verdict', v: 'HACKED', evil: true }) });
+  ok('reasoning: a deterministic reasoning capability certifies', certifyCapability(good, [{ x: 1 }]).certified === true);
+  ok('reasoning: different reasoners → different reasonerHash (codeHash-vacuous class closed)',
+    !!good.manifest.reasonerHash && good.manifest.reasonerHash !== evil.manifest.reasonerHash);
+  const pkg = packageCapability(good, [{ x: 1 }]);
+  const host = new CapabilityHost(null);
+  const swapped = { manifest: { ...pkg.artifact.manifest }, execute: evil.execute, reasonerSource: evil.reasonerSource };
+  threw('reasoning: host refuses a reasoner swap that codeHash cannot detect', () => host.install(pkg, swapped), 'reasoning logic');
 }
 
 console.log(`\n${n}/${n} robustness regressions PASS`);

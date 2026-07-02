@@ -16,11 +16,13 @@
 //! Engine layer and below Execution; it never reaches sideways or upward into
 //! truth-owning layers, and it depends on no sibling crate (std-only skeleton).
 //!
-//! STATUS: I1 (Distributed Runtime) skeleton - interfaces/contracts only, NO implementation
-//! yet. Frozen specification governs; this crate *implements* the spec and never changes it
-//! (Theory -> Spec -> Contracts -> Behaviour -> Conformance -> Implementation). Any `fn`
-//! bodies present are trivial placeholders that exist only so the contract compiles; they
-//! encode no logic. The identifiers CAP-001..009 are PROPOSED (informative, pending
+//! STATUS: I1 (Distributed Runtime) CONTRACT-ONLY (by design, not unfinished). This crate
+//! defines the Capability Fabric interfaces/types; it carries no capability-gating logic.
+//! The exercised capability logic in the reference runtime flows through the SDK/Bridge in
+//! `products/` (see RUNTIME_FREEZE_v1.0.md, guarantee alignment). Frozen specification
+//! governs; this crate *implements* the spec and never changes it (Theory -> Spec ->
+//! Contracts -> Behaviour -> Conformance -> Implementation). Any `fn` bodies present are
+//! trivial placeholders that exist only so the contract compiles; they encode no logic. The identifiers CAP-001..009 are PROPOSED (informative, pending
 //! CCP-GATE) and MUST NOT be enforced as registered invariants until ratified; they are
 //! cited here to anchor intent, not to bind.
 //!

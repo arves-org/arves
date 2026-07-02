@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI Reference · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html" class="active">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-cli-reference-arves">ARVES CLI Reference — <code>arves</code></h1>
+<p>The <code>arves</code> command is the <strong>Ecosystem Authoring CLI</strong>: the developer front door for going from an idea to a certified, signed, publishable capability <strong>without ever touching the frozen ARVES runtime</strong>. Everything on this page runs <strong>offline</strong> with only <strong>Node &gt;= 18</strong> — no Rust build, no network, no API keys.</p>
+<ul><li>Binary: <a href="../products/arves-ecosystem-sdk/bin/arves.mjs"><code>products/arves-ecosystem-sdk/bin/arves.mjs</code></a></li><li>Run it as: <code>node products/arves-ecosystem-sdk/bin/arves.mjs &lt;command&gt; ...</code> (examples below use <code>arves &lt;command&gt;</code> as shorthand for that invocation)</li><li>A capability file <strong>default-exports</strong> <code>{ capability, testInputs, source }</code>.</li></ul>
+<blockquote><p><strong>Which commands are real today?</strong> All seven documented here (<code>init</code>, <code>create</code>, <code>doctor</code>, <code>certify</code>, <code>package</code>, <code>publish</code>, <code>install</code>) are implemented and were run to produce the outputs shown on this page. <code>publish</code>/<code>install</code> operate on a <strong>local, file-backed registry</strong> (<code>.arves-registry/</code> at the repo root) — a <em>hosted</em> registry is still on the DX backlog.</p></blockquote>
+<h2 id="at-a-glance">At a glance</h2>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>Purpose</th><th>Needs a file?</th></tr></thead><tbody><tr><td><a href="#arves-init-name"><code>init</code></a></td><td>Scaffold a green, certifiable <strong>data/effect</strong> capability</td><td>writes one</td></tr><tr><td><a href="#arves-create-name---provider-p"><code>create</code></a></td><td>Scaffold a <strong>reasoning</strong> (LLM-backed) capability</td><td>writes one</td></tr><tr><td><a href="#arves-doctor-file"><code>doctor</code></a></td><td>Conformance assistant: every violation + its exact fix</td><td>yes</td></tr><tr><td><a href="#arves-certify-file"><code>certify</code></a></td><td>Certification verdict (PASS/FAIL + per-check status)</td><td>yes</td></tr><tr><td><a href="#arves-package-file"><code>package</code></a></td><td>Produce a signed, content-addressed artifact</td><td>yes</td></tr><tr><td><a href="#arves-publish-file"><code>publish</code></a></td><td>Certify + package, then store in the local registry</td><td>yes</td></tr><tr><td><a href="#arves-install-nameversion"><code>install</code></a></td><td>Fetch from the registry, re-verify + re-certify</td><td>no (a <code>name@version</code> key)</td></tr></tbody></table></div>
+<p>The happy path is: <strong><code>init</code> → <code>doctor</code> → <code>certify</code> → <code>package</code> → <code>publish</code> → <code>install</code></strong>.</p>
+<h2 id="help">Help</h2>
+<pre><code>arves --help          # or -h, or `help`, or no arguments
+arves &lt;command&gt; --help # same top-level help, useful as a reminder</code></pre>
+<p>Unknown commands print an error and the help text and exit non-zero.</p>
+<hr>
+<h2 id="arves-init-name"><code>arves init &lt;name&gt;</code></h2>
+<p>Scaffold a working, immediately-certifiable capability file <code>&lt;name&gt;.capability.mjs</code> in the current directory. The scaffold is pure and deterministic, so it certifies and replays as-is; it emits a <code>uci.fact</code> effect from an <code>{ entity, event }</code> input. The name is sanitized to <code>[A-Za-z0-9._-]</code>. Refuses to overwrite an existing file.</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves init &lt;name&gt;</code></pre>
+<p><strong>Example</strong></p>
+<pre><code>$ arves init hospital.incident
+created hospital.incident.capability.mjs
+next:  arves doctor hospital.incident.capability.mjs   # then certify, then package</code></pre>
+<hr>
+<h2 id="arves-create-name-provider-p"><code>arves create &lt;name&gt; --provider &lt;p&gt;</code></h2>
+<p>Scaffold a <strong>reasoning</strong> capability — one whose output comes from a (swappable) provider. <code>--provider</code> (or <code>--provider=&lt;p&gt;</code>) selects the backend; default is <code>reference</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Provider</th><th>Behaviour</th></tr></thead><tbody><tr><td><code>reference</code> (default)</td><td>Deterministic pure function — <strong>certifies and replays offline</strong>.</td></tr><tr><td><code>local</code></td><td>Deterministic — certifies and replays offline.</td></tr><tr><td><code>claude</code> / <code>gpt</code> / <code>gemini</code></td><td>Scaffolds an <strong>adapter STUB</strong> that throws until you wire an API adapter + key. It will <strong>not</strong> certify until integrated (no network/keys live in-repo — this is intentional).</td></tr></tbody></table></div>
+<p>The doctrine baked into the scaffold (ORCH-003; ACS-005 GL-012): a provider's output is committed <strong>once</strong> as content-addressed truth, and <strong>replay reads the recorded trace — it never re-calls the provider</strong>. That is what turns a possibly non-deterministic LLM into a deterministic, auditable step. It emits <code>uci.reasoning</code>.</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves create &lt;name&gt; --provider &lt;reference|local|claude|gpt|gemini&gt;</code></pre>
+<p><strong>Example</strong> (deterministic, certifies offline)</p>
+<pre><code>$ arves create triage.summary --provider reference
+created triage.summary.capability.mjs   (reasoning capability, provider=reference)
+next:  arves doctor triage.summary.capability.mjs   # deterministic → should certify offline</code></pre>
+<p>An unknown provider is rejected: <code>create: unknown provider '&lt;p&gt;' — choose one of: reference, local, claude, gpt, gemini</code>.</p>
+<hr>
+<h2 id="arves-doctor-file"><code>arves doctor &lt;file&gt;</code></h2>
+<p>The <strong>conformance assistant</strong>. Runs certification and, for every failed check, prints what was found and the exact remedy in plain language. On a healthy capability it lists all passing checks and points you at <code>package</code>.</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves doctor &lt;file&gt;</code></pre>
+<p><strong>Example</strong> (healthy)</p>
+<pre><code>$ arves doctor examples/csv-source.capability.mjs
+doctor csv.source@1.0.0: HEALTHY — all conformance checks pass.
+  ✓ manifest-valid
+  ✓ has-test-inputs
+  ✓ effects-declared
+  ✓ effects-acs-canonical
+  ✓ deterministic
+next:  arves package examples/csv-source.capability.mjs   # produce a signed, publishable artifact</code></pre>
+<p>When something is wrong, each <code>✗</code> line carries a <code>found:</code> and a <code>fix:</code>. Exit code is <code>1</code> while non-conformant, <code>0</code> when healthy.</p>
+<hr>
+<h2 id="arves-certify-file"><code>arves certify &lt;file&gt;</code></h2>
+<p>Run certification and print the <strong>PASS/FAIL verdict</strong> plus the per-check status. This is the gate: an uncertified capability must not be packaged, published, or installed. Exit code is <code>0</code> when <code>CERTIFIED</code>, <code>1</code> when <code>REJECTED</code> (with a tip to run <code>doctor</code>).</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves certify &lt;file&gt;</code></pre>
+<p><strong>Example</strong></p>
+<pre><code>$ arves certify examples/csv-source.capability.mjs
+certify csv.source@1.0.0: CERTIFIED
+  ✓ manifest-valid
+  ✓ has-test-inputs
+  ✓ effects-declared
+  ✓ effects-acs-canonical
+  ✓ deterministic</code></pre>
+<p>The five checks: manifest validity · at least one representative test input (no vacuous pass) · every effect targets a declared <code>produces[]</code> · every effect value is ACS-canonical · determinism (same input → same effect addresses).</p>
+<hr>
+<h2 id="arves-package-file"><code>arves package &lt;file&gt;</code></h2>
+<p>Produce a <strong>signed, content-addressed, versioned artifact</strong>. The "signature" is the ACS content address of <code>{ manifest, codeHash, testInputsHash }</code> — over the real <code>execute</code> code <strong>and</strong> the test inputs — so any tamper with the manifest, code, or inputs changes the artifact id (self-verifying; no PKI).</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves package &lt;file&gt;</code></pre>
+<p><strong>Example</strong></p>
+<pre><code>$ arves package examples/csv-source.capability.mjs
+package csv.source@1.0.0
+  artifact 122049b251859cebe57c78c93fa2f6d114e83d79dc32e067e26648d0061cf927a890</code></pre>
+<p>The artifact id is a deterministic function of the code + inputs; the same capability always packages to the same id.</p>
+<hr>
+<h2 id="arves-publish-file"><code>arves publish &lt;file&gt;</code></h2>
+<p>Certify <strong>and</strong> package the capability, then store the artifact in the <strong>local, file-backed registry</strong> at <code>.arves-registry/</code> in the repo root. The source file path travels with the record so <code>install</code> can re-import the real code and re-run the whole trust boundary. Refuses to store an uncertified capability, and refuses to overwrite an existing <code>name@version</code> (artifacts are immutable — bump the version).</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves publish &lt;file&gt;</code></pre>
+<p><strong>Example</strong></p>
+<pre><code>$ arves publish examples/csv-source.capability.mjs
+publish csv.source@1.0.0: STORED in local registry
+  artifact 122049b251859cebe57c78c93fa2f6d114e83d79dc32e067e26648d0061cf927a890
+  record   artifacts/csv.source@1.0.0.json
+next:  arves install csv.source@1.0.0   # fetch back, re-verify + re-certify</code></pre>
+<blockquote><p><strong>Scope:</strong> the registry is <strong>local</strong> (on-disk) today. A hosted/shared registry is a documented DX backlog item — see <a href="../verification/dx/DEVELOPER_JOURNEY_REPORT.md">DEVELOPER_JOURNEY_REPORT.md</a>.</p></blockquote>
+<hr>
+<h2 id="arves-install-name-version"><code>arves install &lt;name@version&gt;</code></h2>
+<p>Fetch an artifact <strong>from the local registry</strong> by its <code>name@version</code> key (not a file path) and <strong>re-enforce the full trust boundary on read-back</strong>: re-import the stored source, verify the live code hashes to the signed <code>codeHash</code>, verify the artifact signature and travelling test-input hash, and <strong>re-run certification</strong>. The gate is enforced, never merely attested by a stored flag. Prints the verified artifact id.</p>
+<p><strong>Usage</strong></p>
+<pre><code>arves install &lt;name@version&gt;</code></pre>
+<p><strong>Example</strong></p>
+<pre><code>$ arves install csv.source@1.0.0
+install csv.source@1.0.0: VERIFIED + RE-CERTIFIED
+  artifact 122049b251859cebe57c78c93fa2f6d114e83d79dc32e067e26648d0061cf927a890</code></pre>
+<p>A tampered artifact, mismatched code, or a capability that fails re-certification is <strong>REFUSED</strong> (exit code <code>1</code>) with the reason. A missing key lists the keys that are available.</p>
+<hr>
+<h2 id="see-also">See also</h2>
+<ul><li><a href="why-arves.html">Ecosystem SDK README</a> — the value model and the full author → certify → package → install → invoke story.</li><li><a href="authoring-languages.html">AUTHORING_LANGUAGES.md</a> — what language you author capabilities in (today: JavaScript/<code>.mjs</code>).</li><li><a href="spec-starter.html">SPEC_STARTER.md</a> — the three specification documents to read first.</li><li>Worked examples: <a href="../products/arves-ecosystem-sdk/examples/csv-source.capability.mjs"><code>examples/csv-source.capability.mjs</code></a> (real CSV → <code>uci.fact</code>), <a href="../products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs"><code>examples/invoice-ocr.capability.mjs</code></a>, <a href="../products/arves-ecosystem-sdk/examples/third-party-capability.mjs"><code>examples/third-party-capability.mjs</code></a>.</li></ul>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

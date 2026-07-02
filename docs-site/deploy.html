@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy (Docker) · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html" class="active">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="arves-deployment-on-ramp">ARVES — Deployment on-ramp</h1>
+<p>The #1 friction for trying ARVES is the toolchain gate: the product demos and the <code>arves</code> capability CLI are Node-only, but the reference <strong>runtime</strong> (the <code>arves-bridge</code> and <code>acs_decode</code> binaries the demos and the certification harness call) is <strong>Rust</strong>, and the harness is <strong>Python</strong>. This image bundles all three so a developer with only Docker can run the entire <a href="quickstart.html">QUICKSTART</a> end to end — no local Rust, Node, or Python install required.</p>
+<blockquote><p><strong>Status: authored, not built in-repo.</strong> This Dockerfile was written and reviewed by inspection against the real source layout; it was <strong>not</strong> <code>docker build</code>-verified in the authoring environment (no Docker available there). The paths, base-image tags, and build commands are all checked against the tree, but treat the first <code>docker build</code> on your machine as the true verification step.</p></blockquote>
+<hr>
+<h2 id="what-you-need">What you need</h2>
+<ul><li><strong>Docker</strong> (Engine 20.10+ or Desktop). Nothing else.</li><li>Network access <strong>only</strong> to pull the two base images and the crates Cargo resolves during the build (pinned by the committed <code>runtime/Cargo.lock</code>). After the image is built it runs fully offline — the demos and CLI have <strong>zero</strong> third-party npm dependencies and the certification harness is Python-stdlib-only.</li></ul>
+<h2 id="build">Build</h2>
+<p>From the repository root (the directory containing this repo's <code>Dockerfile</code>):</p>
+<pre><code class="lang-bash">docker build -t arves-onramp .</code></pre>
+<p>Multi-stage build:</p>
+<ol><li><strong><code>builder</code></strong> (<code>rust:1.82-bookworm</code>) compiles the two reference-runtime binaries with <code>cargo build --locked</code> — <code>arves-bridge</code> (the SDK↔Kernel seam) and <code>acs_decode</code> (the negative-vector decoder the certification harness drives).</li><li><strong><code>runtime</code></strong> (<code>node:20-bookworm-slim</code> + <code>python3</code>) receives the source tree and the compiled binaries placed at <code>runtime/target/debug/</code> — the exact path the SDK (<code>products/arves-sdk-ts/src/bridge.mjs</code>) and the harness (<code>verification/certification/certify_runtime.py</code>) resolve.</li></ol>
+<p>A <code>.dockerignore</code> keeps a large host <code>runtime/target/</code> (can be hundreds of MB) and <code>.git</code> out of the build context; the builder always compiles fresh binaries.</p>
+<h2 id="run">Run</h2>
+<p>Print the quickstart (default command):</p>
+<pre><code class="lang-bash">docker run --rm arves-onramp</code></pre>
+<p>Run the product demos (byte-reproducible; run twice for identical output):</p>
+<pre><code class="lang-bash">docker run --rm arves-onramp node products/arves-personal-os/examples/my-day.mjs
+docker run --rm arves-onramp node products/arves-enterprise-os/examples/enterprise-day.mjs</code></pre>
+<p>Author / certify / package a capability with the <code>arves</code> CLI (on <code>PATH</code> in the image):</p>
+<pre><code class="lang-bash">docker run --rm arves-onramp arves certify products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs
+docker run --rm arves-onramp arves package products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs</code></pre>
+<p>Certify the runtimes against the frozen Standard (Rust + Python under one conformance):</p>
+<pre><code class="lang-bash">docker run --rm arves-onramp python3 verification/certification/certify_runtime.py</code></pre>
+<p>Interactive shell to explore:</p>
+<pre><code class="lang-bash">docker run --rm -it arves-onramp bash</code></pre>
+<hr>
+<h2 id="local-install-no-docker">Local install (no Docker)</h2>
+<p>If you would rather install the toolchains directly, the QUICKSTART splits into two paths:</p>
+<ul><li><strong>Author a capability only</strong> — needs <strong>Node ≥ 18</strong> and nothing else. Copy an example from <code>products/arves-ecosystem-sdk/examples/</code> and run the <code>arves</code> CLI.</li><li><strong>Full runtime + demos</strong> — additionally needs <strong>Rust</strong> (install via <a href="https://rustup.rs">https://rustup.rs</a>) and <strong>Python 3</strong> for the certification harness. Build the bridge once with the command in <a href="quickstart.html">QUICKSTART</a> step 1.</li></ul>
+<h2 id="prebuilt-release-binaries-external-ci">Prebuilt release binaries — external / CI</h2>
+<p>This repo does <strong>not</strong> ship prebuilt per-OS binary release assets, and this image does not create them. Publishing signed, per-platform <code>arves-bridge</code> / <code>acs_decode</code> binaries (and any container image to a registry) is a <strong>maintainer / CI responsibility</strong> performed outside this repository — e.g. a release workflow that runs <code>cargo build --release</code> on a Linux/macOS/Windows matrix and attaches the artifacts to a tagged release, and/or <code>docker build</code> + <code>docker push</code>. Those steps require network access and signing credentials and are therefore <strong>out of scope</strong> for the offline, in-repo on-ramp described here. Until such a release exists, building this image (or the local install above) is the supported path.</p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

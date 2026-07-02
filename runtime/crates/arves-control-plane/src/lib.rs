@@ -4,8 +4,11 @@
 //! Governing: ORCH-001..004; Amendment-002 (plan ownership).
 //! Layer: Control Plane
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY (by design). Defines the Control Plane Plan / Engine
+//! Graph interfaces and types; carries no orchestration execution logic (that is
+//! deferred to the Multi-Agent Runtime, I5). Any `fn` bodies present are trivial
+//! placeholders so the contract compiles. Frozen specification governs; this
+//! crate implements, never changes it.
 //!
 //! # Position in the ARVES architecture
 //!

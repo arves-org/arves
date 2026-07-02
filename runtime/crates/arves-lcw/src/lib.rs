@@ -4,8 +4,10 @@
 //! Governing: OWN-001; LCW-001 (proposed). Amendment-001.
 //! Layer: Data Plane
 //!
-//! STATUS: I1 skeleton - interfaces/contracts only, NO implementation yet.
-//! Frozen specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT-ONLY (by design). Defines the Living Cognitive World /
+//! Working-Memory interfaces and value types with small compiling helper/wrapper
+//! constructors; carries no live-state management logic (deferred). Frozen
+//! specification governs; this crate implements, never changes it.
 //!
 //! # Position in the ARVES layering
 //!
