@@ -46,12 +46,77 @@ ACS-004 (instance + 430-byte schema), and ACS-005 (tags 0x08/0x09). Each also em
 - B reported **no missing algorithm, byte rule, or undefined value** — the Kit was
   complete on every load-bearing question.
 
-## Conclusion
+## Conclusion (Report #1 — encode/address)
 For the **ACS interoperability layer**, the ARVES Standard Kit is **proven
 self-sufficient**: an independent team reproduced it exactly from the Kit alone, and
 its output is differentially identical to the reference. This is the first
 Independent-Runtime + Differential proof in the program.
 
+---
+
+# Differential Validation #2 — decode + rejection (ACS-002)
+
+**Claim under test:** a conformant implementation must agree not only on what to
+**produce** but on what to **reject**, and two independent implementations must never
+disagree on whether a byte string is canonical.
+
+## What was added
+- A canonical **rejecting decoder** in both implementations: Rust
+  `arves_acs::cbor::decode_canonical` and the independent Python `acs002_decode.decode`
+  (Kit-only authorship). Each accepts a byte string only if it is in the exact
+  canonical form and returns a stable ACS-002 reason code otherwise.
+- The Kit gained `vectors/acs_negative_vectors.tsv` — **16 rejection vectors**
+  (15 `core` + 1 `nfc`-tier) — and `conformance/CONFORMANCE.md` gained the rejection
+  procedure and the core-vs-full **verdict-tier semantics**.
+
+## Result — DIFFERENTIAL PASS (both directions)
+- **Negative vectors:** the reference rejects **15/15 core** with matching reasons
+  (+1 nfc-tier deferred, documented); the independent Python — reading the same TSV,
+  **zero code changes** — rejects **16/16** (it enforces `nfc` via stdlib
+  `unicodedata`). Positive round-trip still holds (3/3).
+- **Differential fuzzer** (`verification/differential/acs002_differential_fuzz.py`,
+  deterministic seed): **13,807 inputs** (canonical values + byte-level mutations +
+  random) fed to *both* decoders. Result: **0 hard divergences** — 3,135 accept/accept
+  with byte-identical re-encoding, 10,672 reject/reject (10,656 same reason; 16
+  multi-violation inputs where the two report a different but each-valid first
+  violation — permitted, ACS-002 mandates no check order, and both still REJECT).
+
+## Adversarial red-team (Rule 5/6 — destroy own work)
+A 5-lens red-team (false-accept, false-reject, differential-divergence,
+kit-self-sufficiency, evidence-integrity), each finding independently verified, raised
+**17 candidates → 7 confirmed**. All 7 were dispositioned:
+- **[major] Integer range** — the reference `Value::Int(i64)` wrongly rejected in-model
+  integers in `[i64::MAX+1, 2^64-1]` / `[-2^64, i64::MIN-1]` that ACS-002 §4 admits
+  (`[-2^64, 2^64-1]`). **Fixed:** widened to `i128`; the widened range now round-trips
+  and matches the independent Python.
+- **[major] Map key kind** — the decoder accepted maps with Null/Bool/Float/Bytes/Array
+  keys (`a1f600`), which §4 kind 8 forbids. **Fixed:** keys must be Text or Integer
+  (`reserved-or-unsupported`), matching the Python decoder.
+- **[minor] non-UTF-8 text** reported an unregistered code `invalid-utf8`. **Fixed:**
+  folded into `reserved-or-unsupported` (the Kit's §4 catch-all, matching Python).
+- **[minor] top-level `0xff` break** reported `reserved-or-unsupported`. **Fixed:** now
+  `indefinite-length`, matching Python and §5.1.
+- **[minor] tag with non-shortest argument** reported `non-shortest-int`. **Fixed:**
+  major 6 rejected up-front as `reserved-or-unsupported`.
+- **[minor] Kit prose** — ACS-002 §8.1 worked-example sort-order parenthetical
+  contradicted the normative §5.6 rule and the golden body. **Fixed** in the Kit.
+- **[minor] nfc-tier verdict semantics** were unspecified (the two runners diverged on
+  how to report a deferral). **Fixed:** CONFORMANCE.md now defines core-conformant
+  (nfc may be deferred, must be declared) vs fully-conformant (nfc enforced) tiers.
+
+The 3 new decoder bugs (map-key, utf8, break) were each turned into a shared negative
+vector; the independent Python already rejected all three with the exact reasons the
+fixes aligned Rust to — direct confirmation the reference now matches a spec-faithful
+peer.
+
+## Conclusion (Report #2)
+The ACS-002 codec is now **differentially validated in both directions** (encode and
+decode) across two independent implementations, over a curated 16-vector rejection
+corpus and ~13.8k fuzzed inputs, after an adversarial pass that found and fixed two
+real reference bugs. Evidence Level for the ACS-002 codec: **L3 (Reproduced).**
+
 **Not yet covered (honest scope):** runtime-behaviour conformance (the 12 Scenario
-axes, L1..L4 over a live Kernel/Query/Engine), a second *runtime* (not just codec)
-in a third language, and rejection/negative vectors. Those are later phases.
+axes, L1..L4 over a live Kernel/Query/Engine), and a second full *runtime* (not just
+codec) in a third language. Those are later phases. The residual 16 reason-code
+mismatches are interop-safe (both reject) and expected; reason agreement is guaranteed
+only on the single-violation curated corpus.

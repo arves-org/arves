@@ -232,8 +232,10 @@ toolchain and matched byte-for-byte.
 **What each vector pins.**
 - **V1** proves (a) map-key reordering: an author who supplies `type, confidence,
   observed_at, claim` and an author who supplies `claim, observed_at, type,
-  confidence` MUST both yield the body above (keys sorted by encoded-key bytes:
-  `claim < confidence < observed_at < type`); (b) the integer/float distinction:
+  confidence` MUST both yield the body above (keys sorted bytewise by each key's
+  full encoded bytes — the length-prefixed dCBOR key, per §5.6 — giving
+  `type < claim < confidence < observed_at`, i.e. `0x64… < 0x65… < 0x6a… < 0x6b…`,
+  which is the order of the body above); (b) the integer/float distinction:
   `confidence` is a binary64 Float (`fb3fe0000000000000`) while `observed_at` is a
   64-bit Integer held **exactly** (`1b180231d5856d0000` = 1 730 000 000 000 000 000),
   the case a JCS/float64 scheme would corrupt.

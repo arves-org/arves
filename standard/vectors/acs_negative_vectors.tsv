@@ -1,0 +1,17 @@
+standard	case	tier	input_hex	reject_reason
+ACS-002	non-shortest-int	core	1800	non-shortest-int
+ACS-002	non-shortest-len	core	780161	non-shortest-len
+ACS-002	indefinite-length	core	9f00ff	indefinite-length
+ACS-002	unsorted-map-keys	core	a2616201616102	unsorted-map-keys
+ACS-002	duplicate-map-keys	core	a2616101616102	duplicate-map-keys
+ACS-002	float-not-float64/half	core	f93c00	float-not-float64
+ACS-002	float-not-float64/single	core	fa3f800000	float-not-float64
+ACS-002	negative-zero-float	core	fb8000000000000000	negative-zero-float
+ACS-002	non-finite-float	core	fb7ff0000000000000	non-finite-float
+ACS-002	trailing-data	core	0000	trailing-data
+ACS-002	reserved-or-unsupported/tag	core	c000	reserved-or-unsupported
+ACS-002	truncated	core	6461	truncated
+ACS-002	map-key-not-in-model	core	a1f600	reserved-or-unsupported
+ACS-002	text-invalid-utf8	core	61ff	reserved-or-unsupported
+ACS-002	top-level-break	core	ff	indefinite-length
+ACS-002	non-nfc-text	nfc	6365cc81	non-nfc-text

@@ -18,6 +18,75 @@ Proven" DoD), `ARVES_Master_Roadmap.md`, and `RT-001`.
 
 ---
 
+## North Star & prime directive (overrides "finish ARVES")
+
+The organization does **not** optimize for "finish ARVES." It optimizes for **making
+ARVES a scientifically-proven, independently-implementable, certifiable global standard**
+(the class of HTTP / SQL / OCI / POSIX).
+
+> **Prime directive:** Do not maximize implementation. Maximize scientific evidence.
+> Every line of code must increase confidence that ARVES is an independently-implementable
+> standard.
+
+Consequently every agent's task is reframed: *not* "add a feature" but "raise the
+probability ARVES becomes a standard." **Success metric:** an unknown team, using ONLY
+the Standard Kit, builds a runtime that passes certification without ever seeing the
+reference implementation.
+
+## The eight rules (never relaxed)
+
+1. **Every claim requires evidence** — Claim → Evidence → Verification → Certification.
+2. No agent may violate **ownership** (OWN-001).
+3. No agent may **change the standard** (frozen corpus is immutable, ED-001).
+4. **Specification is frozen; Implementation evolves** — never the reverse.
+5. Every implementation must **try to destroy itself** (ED-003 adversarial hunt).
+6. Every milestone ends with **Independent Review → Red Team → Destroy Own Work**.
+7. Every milestone ends with a computed **Next Best Investment**.
+8. **No milestone is ever "Done."** It only earns an **Evidence Level** (below).
+
+## Evidence Levels (there is no "Done")
+
+| Level | Meaning | Gate |
+|---|---|---|
+| **L0** Specified | the property is defined in the frozen corpus / a ratified ACS | spec text exists |
+| **L1** Implemented | reference code produces the behaviour | unit + behaviour tests pass |
+| **L2** Verified | conformance + architecture gates + property/negative tests pass | Verification Office signs off |
+| **L3** Reproduced | an independent implementation (different language, Kit-only) reproduces it | Differential PASS |
+| **L4** Certified | passes the Certification Program (Scenario Conformance + 9-dim Independent Review) | Certification Authority attests |
+
+A milestone reports its Evidence Level per property, never a boolean "done."
+
+## Pipeline discipline (the ~100-agent org never all-codes at once)
+
+The organization is large but **staged**: at any moment most agents are idle; work flows
+downhill and each stage consumes the *verified* output of the prior stage.
+
+```
+Executive → Architecture → Standards → Verification → Engineering
+          → Independent Runtime → Certification → Evidence → PMO
+```
+
+The maintainer's headcount (Executive Council 5 · Standards 15 · Engineering 20 ·
+Verification 20 · Independent Runtime 15 · Industrialization 15 · PMO 10 ≈ 100) maps onto
+the six offices + executive layer below; headcount is a *capacity model*, realized as
+wave-batched agents (≤3 concurrent) inside each office workflow — never a simultaneous
+100-agent fan-out.
+
+## Product separation (Industrialization Office is walled off)
+
+Products are **forbidden until the platform is certified**, and even then the product
+side may not touch the platform:
+
+```
+Platform → Certified → SDK → Designer → Marketplace → Cloud → Products
+```
+
+The Industrialization Office consumes the platform as an **external dependency** with no
+privileged access; if a product needs a platform change it STOPS and files a **Platform
+Change Proposal** — it never edits the platform directly.
+
+---
+
 ## Corpus authority (reuse, don't reinvent)
 
 The offices map onto governance already in the frozen corpus:
@@ -44,9 +113,10 @@ schema-validated, writing to a fixed artifact path.
 | 1 | **Specification / Standards** | Reference Lifecycle, CCP-GATE, Invariant Registry | never writes code; guards the standard; drafts/integrates ACS & CCP; runs the Standard Lock Review | `standards-office.js` | `runtime/docs/standards/`, `runtime/docs/reviews/` |
 | 2 | **Verification** | Conformance Framework; ED-003 | never writes features; only proves (formal specs, model checks, architecture gates, property/replay/fuzz) | `verification-office.js` | `verification/` |
 | 3 | **Research / Red-Team** | Independent Architecture Review (9 dims) | attacks; tries to DISPROVE (academic, red-team, 20-year, alternative-architecture) | `research-office.js` | `runtime/docs/reviews/` |
-| 4 | **Runtime (Implementation)** | Principal Runtime Engineer | the ONLY office that writes `runtime/crates/` code (I2..I6) | *(the milestones themselves; not a review script)* | `runtime/crates/` |
-| 5 | **Certification** | Certification Authority; L1–L4 matrix | judges conformance; attests levels; drives Independent Runtime A/B | `certification-office.js` | `verification/certification/` |
-| 6 | **Ecosystem** | Reference Ecosystem stage | grows adoption (SDK, marketplace, connectors, products) | `ecosystem-office.js` | `runtime/docs/ecosystem/` |
+| 4 | **Engineering (Runtime)** | Principal Runtime Engineer | the ONLY office that writes `runtime/crates/` reference code (I2..I6) | *(the milestones themselves; not a review script)* | `runtime/crates/` |
+| 5 | **Independent Runtime** | Reference Lifecycle (Independent Runtime A/B) | builds runtimes in *other* languages (Go/Java/Python/C#/TS) from the Kit ALONE — Rust is reference-only, forbidden as input — and cross-compares. This is the L3 (Reproduced) evidence engine. | fresh-context agents (Kit-only, Rust-forbidden) → `verification/independent/<lang>/` | `verification/independent/` |
+| 6 | **Certification** | Certification Authority; L1–L4 matrix | judges conformance; attests Evidence Levels; drives Independent Runtime A/B | `certification-office.js` | `verification/certification/` |
+| 7 | **Industrialization (Ecosystem)** | Reference Ecosystem stage | walled-off product side (SDK, Designer, marketplace, connectors, products); consumes the platform as an EXTERNAL dependency — forbidden until platform is certified | `ecosystem-office.js` | `runtime/docs/ecosystem/` |
 
 ## Executive functions
 

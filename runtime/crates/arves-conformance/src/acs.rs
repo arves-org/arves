@@ -10,7 +10,7 @@
 //!
 //! Run: `cargo run -p arves-conformance --bin conformance` -> ARVES Conformance Report.
 
-use arves_acs::cbor::{encode, Value, Value::*};
+use arves_acs::cbor::{decode_canonical, encode, Value, Value::*};
 use arves_acs::{content_id, domain, hex};
 
 /// One checked golden vector.
@@ -201,6 +201,86 @@ pub fn run() -> AcsReport {
     AcsReport { results: r }
 }
 
+/// One negative (rejection) vector: a byte string that is NOT canonical dCBOR and
+/// that a conformant decoder MUST reject. `tier` "core" is enforced by every
+/// conformant implementation; "nfc" needs a Unicode NFC facility and may be
+/// DEFERRED by a dependency-free implementation (documented, not a failure).
+pub struct NegVector {
+    pub standard: &'static str,
+    pub case: &'static str,
+    pub tier: &'static str,
+    pub input_hex: String,
+    pub reason: &'static str,
+    pub outcome: String,
+    pub pass: bool,
+}
+
+/// The negative-vector corpus (ACS-002 canonical-form rejection). Each entry is a
+/// minimal non-canonical byte string paired with the normative reason it must be
+/// rejected. These are the SAME inputs the `arves-acs` unit tests assert, surfaced
+/// here as a machine-readable corpus for the Standard Kit so any implementation can
+/// prove it rejects them too.
+fn negative_corpus() -> Vec<(&'static str, &'static str, Vec<u8>, &'static str)> {
+    vec![
+        ("non-shortest-int", "core", vec![0x18, 0x00], "non-shortest-int"),
+        ("non-shortest-len", "core", vec![0x78, 0x01, 0x61], "non-shortest-len"),
+        ("indefinite-length", "core", vec![0x9f, 0x00, 0xff], "indefinite-length"),
+        ("unsorted-map-keys", "core", vec![0xa2, 0x61, 0x62, 0x01, 0x61, 0x61, 0x02], "unsorted-map-keys"),
+        ("duplicate-map-keys", "core", vec![0xa2, 0x61, 0x61, 0x01, 0x61, 0x61, 0x02], "duplicate-map-keys"),
+        ("float-not-float64/half", "core", vec![0xf9, 0x3c, 0x00], "float-not-float64"),
+        ("float-not-float64/single", "core", vec![0xfa, 0x3f, 0x80, 0x00, 0x00], "float-not-float64"),
+        ("negative-zero-float", "core", vec![0xfb, 0x80, 0, 0, 0, 0, 0, 0, 0], "negative-zero-float"),
+        ("non-finite-float", "core", vec![0xfb, 0x7f, 0xf0, 0, 0, 0, 0, 0, 0], "non-finite-float"),
+        ("trailing-data", "core", vec![0x00, 0x00], "trailing-data"),
+        ("reserved-or-unsupported/tag", "core", vec![0xc0, 0x00], "reserved-or-unsupported"),
+        ("truncated", "core", vec![0x64, 0x61], "truncated"),
+        // map key outside the §4 value model ({null:0}) — key must be Text or Integer.
+        ("map-key-not-in-model", "core", vec![0xa1, 0xf6, 0x00], "reserved-or-unsupported"),
+        // text item with a non-UTF-8 octet (0xff).
+        ("text-invalid-utf8", "core", vec![0x61, 0xff], "reserved-or-unsupported"),
+        // bare 'break' stop code at top level.
+        ("top-level-break", "core", vec![0xff], "indefinite-length"),
+        // "é" as base 'e' + combining acute (NFD) — MUST be rejected as non-NFC by
+        // an implementation with a Unicode NFC facility; the dependency-free Rust
+        // reference DEFERS this one rule (no Unicode table).
+        ("non-nfc-text", "nfc", vec![0x63, 0x65, 0xcc, 0x81], "non-nfc-text"),
+    ]
+}
+
+/// Run the ACS-002 negative (rejection) conformance suite against the reference
+/// `decode_canonical`. A "core" case passes iff it is rejected with the matching
+/// reason; an "nfc" case passes if rejected OR explicitly deferred.
+pub fn run_negative() -> Vec<NegVector> {
+    negative_corpus()
+        .into_iter()
+        .map(|(case, tier, bytes, reason)| {
+            let res = decode_canonical(&bytes);
+            let (outcome, pass) = match (tier, res) {
+                ("core", Err(e)) if e.code() == reason => (format!("REJECTED({})", e.code()), true),
+                ("core", Err(e)) => (format!("REJECTED({}) [want {reason}]", e.code()), false),
+                ("core", Ok(_)) => ("ACCEPTED [MUST reject]".to_string(), false),
+                (_, Err(e)) => (format!("REJECTED({})", e.code()), true), // nfc: caught anyway
+                (_, Ok(_)) => ("DEFERRED(needs Unicode NFC table)".to_string(), true),
+            };
+            NegVector { standard: "ACS-002", case, tier, input_hex: hex(&bytes), reason, outcome, pass }
+        })
+        .collect()
+}
+
+/// Every "core" negative vector was rejected with the correct reason.
+pub fn negative_core_pass(v: &[NegVector]) -> bool {
+    v.iter().filter(|n| n.tier == "core").all(|n| n.pass)
+}
+
+/// Machine-readable negative-vector corpus (TSV) for the Standard Kit.
+pub fn negative_tsv(v: &[NegVector]) -> String {
+    let mut s = String::from("standard\tcase\ttier\tinput_hex\treject_reason\n");
+    for n in v {
+        s.push_str(&format!("{}\t{}\t{}\t{}\t{}\n", n.standard, n.case, n.tier, n.input_hex, n.reason));
+    }
+    s
+}
+
 /// Render the human-readable ARVES Conformance Report.
 pub fn render(report: &AcsReport) -> String {
     let mut s = String::from("ARVES Conformance Report — ACS layer\n");
@@ -213,6 +293,20 @@ pub fn render(report: &AcsReport) -> String {
     let total = report.results.len();
     s.push_str("----------------------------------------\n");
     s.push_str(&format!("  ACS golden vectors: {passed}/{total} {}\n", if passed == total { "PASS" } else { "FAIL" }));
+
+    // Negative (rejection) conformance: a standard defines what MUST be rejected.
+    let neg = run_negative();
+    let core: Vec<&NegVector> = neg.iter().filter(|n| n.tier == "core").collect();
+    let core_rej = core.iter().filter(|n| n.pass).count();
+    let deferred = neg.iter().filter(|n| n.tier == "nfc").count();
+    s.push_str(&format!(
+        "  ACS-002 negative vectors: {}/{} core REJECTED {}",
+        core_rej, core.len(), if core_rej == core.len() { "PASS" } else { "FAIL" }
+    ));
+    if deferred > 0 {
+        s.push_str(&format!(" (+{deferred} nfc-tier DEFERRED: needs Unicode NFC table)"));
+    }
+    s.push('\n');
     s.push_str("  Architecture gate (LAYER-001/OWN-001): PASS (arves-conformance::architecture_gate)\n");
     s
 }
@@ -229,5 +323,17 @@ mod tests {
         }
         assert!(report.all_pass());
         assert_eq!(report.results.len(), 12);
+    }
+
+    #[test]
+    fn acs_negative_core_all_rejected() {
+        let neg = run_negative();
+        for n in &neg {
+            assert!(n.pass, "{} [{}/{}]: {}", n.standard, n.tier, n.case, n.outcome);
+        }
+        assert!(negative_core_pass(&neg));
+        // 15 core rejection rules + 1 nfc-tier (deferred by this reference).
+        assert_eq!(neg.iter().filter(|n| n.tier == "core").count(), 15);
+        assert_eq!(neg.iter().filter(|n| n.tier == "nfc").count(), 1);
     }
 }

@@ -19,6 +19,49 @@ An implementation is **ACS-conformant** iff every row passes both checks. Two
 independent implementations that both pass therefore agree byte-for-byte on every
 address and body — they interoperate.
 
+## The rejection check (negative vectors)
+
+Producing the right bytes is only half of conformance. A conformant **decoder** MUST
+also *reject* every byte string that is not in canonical form — otherwise two
+implementations could accept different encodings of "the same" value and disagree on
+its address. For each row in `../vectors/acs_negative_vectors.tsv` (`standard, case,
+tier, input_hex, reject_reason`):
+
+- **`tier = core`** — decode `input_hex` with your canonical decoder. It MUST fail,
+  and the failure reason MUST equal `reject_reason` (the stable codes below). These
+  are enforced by every conformant implementation.
+- **`tier = nfc`** — the input is valid UTF-8 but not NFC-normalized. An
+  implementation with a Unicode NFC facility MUST reject it (`non-nfc-text`); a
+  dependency-free implementation without a Unicode table MAY **defer** this one rule
+  (document the deferral — do not silently accept).
+
+Reason codes (ACS-002 §5): `non-shortest-int`, `non-shortest-len`,
+`indefinite-length`, `unsorted-map-keys`, `duplicate-map-keys`, `float-not-float64`,
+`negative-zero-float`, `non-finite-float`, `trailing-data`, `reserved-or-unsupported`,
+`truncated`, `non-nfc-text`. An implementation passes the rejection check iff it
+rejects every `core` row with the matching reason. (`reserved-or-unsupported` is the
+reason for anything not in the §4 value model: CBOR tags, the `undefined`/simple
+values, non-UTF-8 text octets, and a map key that is not a Text or Integer.)
+
+### Verdict semantics: core vs full conformance
+
+There are two conformance tiers, and the top-line verdict MUST name which one:
+
+- **Core-conformant** — passes all positive vectors and all `core` rejection rows.
+  This is the interoperability gate: any two core-conformant runtimes agree
+  byte-for-byte on every address and reject the same non-canonical inputs. A runtime
+  without a Unicode NFC facility MAY be core-conformant while **deferring** the
+  `nfc` tier; it MUST report the deferral explicitly, e.g.
+  `VERDICT: CONFORMANT (ACS core; nfc-tier DEFERRED)`, and MUST NOT silently treat
+  the deferred input as canonical — "defer" means "declare unenforced," not "accept."
+- **Fully conformant** — additionally enforces the `nfc` tier (rejects `non-nfc-text`).
+  A runtime that claims full conformance MUST reject every `nfc` row.
+
+The reference Rust runner is core-conformant with a documented nfc deferral (it has
+no Unicode table); the independent Python runner is fully conformant (stdlib
+`unicodedata`). Both are correct at their declared tier — the tier label is what
+makes the two verdicts comparable rather than contradictory.
+
 ## The report
 
 Group results by standard and emit:
@@ -42,8 +85,10 @@ thin re-implementation of the same two checks over the same TSV.
 - SHA-256 is FIPS 180-4. dCBOR is RFC 8949 §4.2 as profiled by ACS-002 (floats
   always 64-bit; NFC text; bytewise-sorted map keys; shortest ints; definite
   lengths).
-- A conformant decoder MUST also REJECT non-canonical inputs (ACS-002/003 §6);
-  negative/rejection vectors are a planned Kit addition.
+- A conformant decoder MUST also REJECT non-canonical inputs (ACS-002 §5); the
+  rejection check above runs over `../vectors/acs_negative_vectors.tsv` (16 vectors:
+  15 `core` + 1 `nfc`-tier). Reference: `cargo run -p arves-conformance --bin conformance`
+  reports `ACS-002 negative vectors: 15/15 core REJECTED`.
 - This procedure covers the ACS interoperability layer. Runtime-behaviour
   conformance (the 12 Scenario axes, L1..L4) is the Certification process
   (`../certification/`).
