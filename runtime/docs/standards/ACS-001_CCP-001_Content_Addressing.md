@@ -53,8 +53,10 @@ An implementation **SHALL** prefix every pre-image with exactly one domain tag:
 | `0x03` | capability-manifest |
 | `0x04` | invocation (idempotency key) |
 | `0x05` | decision-trace record |
+| `0x06` | canonical-envelope (allocated by ACS-003) |
+| `0x07` | type-schema (allocated by ACS-004) |
 
-Tags `0x06`–`0x7F` are RESERVED for future ACS standards. An implementation
+Tags `0x08`–`0x7F` are RESERVED for future ACS standards. An implementation
 **MUST NOT** compute an address without a domain tag, and **MUST NOT** reuse a tag
 for a different domain.
 
