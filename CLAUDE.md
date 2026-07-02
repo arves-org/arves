@@ -32,7 +32,8 @@ can be implemented **correctly, independently, deterministically, and at product
 | Implementation Era | COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
 | Standard Validation Era | IN PROGRESS — *prove ARVES wrong*; KPI = **Evidence Increased** (Evidence Ledger, `verification/evidence/`) |
 | Industrialization Era | GATED behind validation (I2–I6, Kernel Integration, scale) |
-| Product Program | **OPEN (parallel, IDR-006)** — products *develop* now on the frozen versioned platform; **GA** still gated on the four conditions |
+| **ARVES Runtime** | **v1.0 FROZEN** (tag `runtime-v1.0`) — the platform is a stable substrate; changes ONLY via a Runtime Change Request. See `runtime/RUNTIME_FREEZE_v1.0.md` |
+| Product Program | **OPEN** — products are *customers* of the frozen Runtime v1.0; **GA** still gated on the four conditions |
 | Current Milestone | *«supplied by task»* |
 
 > **Two-arm pivot (2026-07):** *Stop proving that ARVES can exist; start proving why
@@ -43,6 +44,15 @@ can be implemented **correctly, independently, deterministically, and at product
 > change is a Platform Change Proposal. The four-condition product gate (Independent
 > Runtime + External Team + Certification + Formal, all PASS) is retained for **GA /
 > production release**, not development start. Charter: `products/README.md`.
+
+> **Runtime v1.0 FROZEN (2026-07):** the Runtime Platform (Kernel · Persistence ·
+> Engine · Capability · Bridge · ACS · SDK) is frozen and byte-stable. Three teams,
+> three mandates: **Runtime Team — never break** (`runtime/`+`standard/`, changes only
+> via RCR); **Product Team — ship value** (`products/`, consumes the Runtime API);
+> **Verification Team — break everything** (`verification/`). A runtime gap found during
+> product work is a **Runtime Change Request** (→ v1.1 minor / v2.0 major), never a
+> product-side edit. Deferred v1.1 debt: bridge request-id correlation · engine-enforced
+> determinism · Kernel batch-commit. Full record: `runtime/RUNTIME_FREEZE_v1.0.md`.
 
 > **Era pivot (2→3):** stop building, start disproving. *You are no longer building
 > ARVES; you are trying to prove ARVES wrong. If you fail, only then ARVES becomes

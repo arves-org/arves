@@ -9,6 +9,11 @@ creates value: **"what products can we now build that were impossible before?"**
 in **parallel** with the Standard Program (G2 external validation + certification), on
 top of a platform that is ~90% mature (three independent G1 runtimes agree byte-for-byte).
 
+> **🔒 Products build on ARVES Runtime v1.0 (FROZEN).** The runtime is a stable substrate;
+> products are its **customers**. Never edit `runtime/` or `standard/` from product work —
+> a runtime gap is a **Runtime Change Request** (→ v1.1 / v2.0), not a product edit. See
+> `runtime/RUNTIME_FREEZE_v1.0.md`.
+
 ## The five product rules (every product obeys all five)
 
 1. **Platform-first.** The frozen specification is unchangeable; products only *consume*

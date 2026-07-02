@@ -57,6 +57,15 @@ work begins now — as a **consumer of the frozen, versioned platform** (see IDR
                                            P8 Industry Solutions
 ```
 
+> **🔒 ARVES Runtime v1.0 — FROZEN (tag `runtime-v1.0`, 2026-07).** The Runtime Platform
+> (Kernel · Persistence · Engine · Capability · Bridge · ACS · SDK) is now a stable
+> substrate: **products are customers, not co-authors.** The runtime changes ONLY via a
+> **Runtime Change Request** (→ v1.1 minor / v2.0 major, each with its own destroy→prove
+> cycle). Three teams: **Runtime — never break** · **Product — ship value** ·
+> **Verification — break everything.** A runtime gap found while building a product is an
+> RCR, never a product-side edit. Full record + v1.1 debt backlog:
+> `runtime/RUNTIME_FREEZE_v1.0.md`.
+
 **STANDARD PROGRAM** = everything that keeps ARVES *correct and independently
 implementable*: Program 1 (done), Program 2 (G2 Readiness — current), Program 3
 (Industrialization, post-G2). The exit criterion still stands: *can a completely
