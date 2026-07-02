@@ -14,6 +14,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod cbor;
+
 /// ACS-001 domain tags (the single registry authority is ACS-001).
 pub mod domain {
     pub const COMMIT_CONTENT: u8 = 0x01;
