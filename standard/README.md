@@ -31,19 +31,23 @@ standard.
    - **ACS-003** — the canonical envelope (a dCBOR map; `payload_cid` = ACS-001
      address of the dCBOR payload).
    - **ACS-004** — the type registry / schema + instance encoding.
-3. Run the conformance procedure (`conformance/CONFORMANCE.md`) against
-   `vectors/acs_golden_vectors.tsv`. Reproduce every `body_hex` (encoder) and every
-   `content_id` (addresser).
-4. If all vectors PASS, you have a conformant ARVES ACS implementation — verified
-   independently, not by comparison to anyone's source.
+3. Also implement a canonical **decoder** that REJECTS non-canonical input, per
+   `conformance/CONFORMANCE.md` "rejection check" (incl. the §5.10 max-depth bound).
+4. Run the conformance procedure against `vectors/acs_golden_vectors.tsv` (reproduce
+   every `body_hex` + `content_id`) AND `vectors/acs_negative_vectors.tsv` (reject
+   every `core` row with the matching reason). If both PASS, you have a conformant
+   ARVES ACS implementation — verified independently, not by comparison to any source.
 
 ## Status
-- **Rust reference:** all vectors PASS (`cargo run -p arves-conformance --bin conformance`
-  → VERDICT: CONFORMANT). The reference computes these with a dependency-free
-  SHA-256 + dCBOR, so this Kit is derivable from the spec, not from a library.
-- **Independent runtimes (Go / Java / Python / third-party):** ⬜ — the point of
-  this Kit. Reproducing the Conformance Report from the Kit alone is the
-  Independent-Runtime proof.
+- **Rust reference:** positive + negative vectors PASS
+  (`cargo run -p arves-conformance --bin conformance` → CONFORMANT), dependency-free
+  SHA-256 + dCBOR — so this Kit is derivable from the spec, not from a library.
+- **Independent runtimes:** Python (Kit-only) reproduces both directions —
+  **independence grade G1 (same-process)**. Go / Java / **third-party** ⬜.
+- **The exit criterion (G2):** *can a completely unknown team, using ONLY this Kit,
+  build a conformant runtime without asking a single question?* Reproducing the
+  Conformance Report from the Kit alone, by someone who did not help write it, is the
+  proof. Until then, independence is honestly **G1**, not "independent."
 
 ## Scope
 This Kit is the **interoperability / identity layer** (content addressing,
@@ -51,3 +55,13 @@ serialization, envelope, types, language) — the bytes every ARVES implementati
 must agree on. The full cognitive runtime (Kernel, LCW, Query, Engine, Capability,
 Execution) is the **ARVES Reference Runtime** (`runtime/`), a *consumer* of this
 standard, not part of the Kit.
+
+## Version & release
+- **Kit version:** see `VERSION` (`arves-standard-kit 0.2.0`). Semantics: the Kit is
+  versioned as a unit; each ACS carries its own version tag (e.g. `ACS-002/1`). A
+  byte-affecting change is a new ACS profile via CCP, never a silent edit (ED-001).
+- **Self-contained:** everything binding is under `standard/`. This directory is the
+  publishable artifact — it can be copied out of the repo and released on its own; it
+  references no file outside itself and no reference-runtime source.
+- **Registries** (domain tags, hash codes, reason codes) and their allocation policy
+  are normative in `acs/ACS-001 §4.1` and `conformance/CONFORMANCE.md`.

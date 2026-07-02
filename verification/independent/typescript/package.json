@@ -1,0 +1,13 @@
+{
+  "name": "arves-acs-independent-ts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent TypeScript/Node implementation of the ARVES ACS interoperability core (ACS-001..005), built from the Standard Kit alone. No third-party dependencies; SHA-256 via node:crypto.",
+  "type": "module",
+  "scripts": {
+    "conformance": "node src/conformance.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

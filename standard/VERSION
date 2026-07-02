@@ -1,0 +1,16 @@
+arves-standard-kit 0.2.0
+
+Contents:
+  ACS-001 Universal Content Identity        v1  (0x12 0x20 || SHA-256(domain_tag || body))
+  ACS-002 Canonical Serialization (dCBOR)   ACS-002/1
+  ACS-003 Canonical Envelope                v1
+  ACS-004 Universal Type Registry           v1
+  ACS-005 Normative Language + Glossary      v1
+
+Status: Standard Validation Era (Program 2). The ACS set is DRAFT pending CCP-GATE
+ratification; the golden + negative vectors are frozen for this Kit version. Any
+byte-affecting change is a new ACS profile via CCP Amendment, never a silent edit.
+
+Exit criterion (G2 — Independent Standard Validation): an unknown engineering team,
+using ONLY this Kit, builds a runtime that passes conformance/CONFORMANCE.md with no
+intervention, no clarification, and no hidden knowledge.

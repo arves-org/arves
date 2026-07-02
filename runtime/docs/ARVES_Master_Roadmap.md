@@ -37,38 +37,28 @@ See `verification/evidence/CERTIFICATION_PROGRAM.md`.
 ## Roadmap
 
 ```
-SPECIFICATION ERA .......................... ✅ COMPLETE  (frozen; ED-001)
-  Foundation · UCI · UCS · Reference Architecture · Reference Runtime Model
-  · Certification · AEOS · Freeze
+PROGRAM 1 — BUILD ........................... ✅ COMPLETE
+  Theory · Specification (frozen; ED-001) · Reference Runtime (I1, tag I1-complete)
+  · Executable Standards (ACS-001..005) · Conformance Platform · Standard Kit
+  · Internal Validation · Evidence OS.
+  ACS codec: Evidence Level L3 (reproduced) at independence grade G1.
 
-REFERENCE IMPLEMENTATION
-  I1 Runtime Core .......................... ✅ COMPLETE  (tag I1-complete)
+PROGRAM 2 — EXTERNAL VALIDATION ............. 🟢 CURRENT  (the "G2 Readiness Program")
+  Exit criterion (the whole program, one sentence):
+    "Can a completely unknown engineering team, using ONLY the ARVES Standard Kit,
+     build a conformant runtime without asking us a single question?"
+  Milestone: G2 — Independent Standard Validation (this is the next milestone; it is
+    NOT "I2"). DoD: third-party implementation → PASS → no intervention, no
+    clarification, no hidden knowledge.
+  Tracks: 1 Kit Publication · 2 Formal · 3 Academic · 4 Independent Runtime ·
+          5 External Challenge  (see below).
 
-STANDARDIZATION PROGRAM (v1.1) ............. 🟡 CURRENT
-  ARVES Core Standards (ACS) — CCP Batch 1
-    ACS-001 Universal Content Identity ..... ✅ draft (real vectors)
-    ACS-002 Canonical Serialization ........ 🟡 drafting
-    ACS-003 Canonical Envelope ............. 🟡 drafting
-    ACS-004 Universal Type Registry ........ 🟡 drafting
-    ACS-005 Normative Language + Glossary .. 🟡 drafting
-    Integration Review ..................... ⬜ (must PASS)
-  Verification Program
-    TLA+ formal spec ....................... 🟡 drafting
-    Architecture Gates (LAYER/OWN, CI) ..... ⬜ next (cheapest, highest-leverage)
-    Model checking ......................... ⬜
-    Conformance population ................. ⬜
-    Formal semantics (Truth, Entity) ....... ⬜
-  ARVES v1.0 Standard Lock Review .......... ⬜ GATE before I2 (see below)
-
-IMPLEMENTATION ERA
+PROGRAM 3 — INDUSTRIALIZATION ............... ⬜ starts only after G2 PASS
   I2 Cluster Kernel · I3 Distributed Query · I4 Capability Scheduling
-  · I5 Multi-Agent Runtime · I6 Reference Products
+  · I5 Multi-Agent Runtime · Kernel Integration · scale / enterprise
 
-CERTIFICATION
-  Independent Runtime · Certification Program · Third-party Runtime
-
-ECOSYSTEM
-  Marketplace · SDK · Products
+PROGRAM 4 — PRODUCT ......................... ⬜ separate org; gated (4 conditions below)
+  SDK · Marketplace · Cloud · Visual Designer · Management Console · Products
 ```
 
 ## ARVES Core Standards (ACS)
@@ -86,30 +76,41 @@ still ratified through CCP-GATE (draft + ≥1 conformance scenario), lives in
 | ACS-004 | Universal Type Registry | executable ontology (type + schema) |
 | ACS-005 | Normative Language | RFC 2119 convention + Terms & Definitions glossary |
 
-## Pre-I2 gate (sequence — do NOT enter I2 before this passes)
+## Program 2 — the G2 Readiness Program (current)
 
-```
-ACS-001 → ACS-002 → ACS-003 → ACS-004  →  Integration PASS
-                                        →  TLA+ + Architecture Gates PASS
-                                        →  ARVES v1.0 Standard Lock Review PASS
-                                        →  I2 Cluster Kernel
-```
+The next milestone is **G2 — Independent Standard Validation**, not I2. It is a
+scientific-validation program, not a feature program: the largest remaining gap is
+not code, it is **independent evidence** (today's honest state is *"reproduced within
+one program"* — grade G1). Five tracks:
 
-Rationale: building I2 replication before the byte-exact interop surface is
-locked would force a costly I2 redo. Lock the standards, prove them, THEN build.
+| Track | Name | Contents |
+|-------|------|----------|
+| 1 | **Kit Publication** | registry/IANA policy · packaging · versioning · public release of `standard/` |
+| 2 | **Formal** | TLA+ · model checking · property proofs |
+| 3 | **Academic** | ablation · measurements · quantitative evaluation vs baselines |
+| 4 | **Independent Runtime** | a runtime in another language (TypeScript / C# available here; Go/Java absent) |
+| 5 | **External Challenge** | public Kit → unknown team → conformant runtime → PASS (the exit gate) |
 
-## ARVES v1.0 Standard Lock Review (new gate)
+**Milestone DoD (one line):** a third-party implementation passes conformance with
+**no intervention, no clarification, no hidden knowledge**. Until that is "yes,"
+nothing is complete — claims carry an Evidence Level and an independence grade
+(G0/G1/G2), never "Done". The internal cold-build (fresh context, Kit-only, in a new
+language, logging every question it wanted to ask) is the G1 rehearsal that measures
+readiness; each logged question is a Kit defect to close before the real G2 attempt.
 
-After CCP Batch 1 + Verification kickoff, run ONE final independent audit that
-answers a single question:
+## Research-lab organization (Program 2)
 
-> **"Starting today, can 10 independent teams implement ARVES — from the frozen
-> corpus + the ratified ACS set alone — and interoperate / cross-certify?"**
+The org is re-shaped from a software team into a validation lab — **more agents break
+ARVES than build it**: Destroy 30 · Verification 20 · Independent Runtime 15 · Academic
+Review 15 · Certification 10 · Engineering 10 (≈100). Realized as wave-batched
+workflows (the "destroy-offices"); see `verification/evidence/CERTIFICATION_PROGRAM.md`.
 
-Method: an adversarial, spec-only re-run of the Independent Runtime Challenge
-(P01) + Independent Implementation (P04), now measured against the ratified ACS
-set and the differential-conformance tier. A "yes" unlocks I2 on solid ground; a
-"no" returns specific ACS gaps to close first. (ED-003 adversarial-hunt applies.)
+## Program 4 — Product gate (all four MUST hold, simultaneously)
+
+Products (Program 4) may begin only when: **Independent Runtime PASS + External Team
+PASS + Certification PASS + Formal Verification PASS**. At that point the platform is
+frozen for consumers; products become customers of the platform (a product needing a
+platform change files a Platform Change Proposal — it never edits the platform).
 
 ## verification/ layout (evidence, not spec — refined)
 

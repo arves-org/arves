@@ -62,6 +62,28 @@ Tags `0x0A`–`0x7F` are RESERVED for future ACS standards. An implementation
 **MUST NOT** compute an address without a domain tag, and **MUST NOT** reuse a tag
 for a different domain.
 
+### 4.1 Registry & allocation policy (normative)
+
+ARVES maintains three registries; this section is the allocation authority for all of
+them (analogous to an RFC "IANA Considerations" section).
+
+- **Domain-tag registry** (the table above). Range `0x01–0x09` are allocated;
+  `0x0A–0x7F` are unallocated and available; `0x80–0xFF` are RESERVED (never
+  allocated in v1). **Allocation policy:** *Specification Required* — a new tag is
+  allocated only by a ratified ACS or a CCP Amendment that defines the domain's
+  pre-image and a conformance vector; a tag, once allocated, is permanent and MUST
+  NOT be reassigned. (Two historical double-allocations of `0x06` were caught and
+  corrected during Batch 1; see `ACS_Batch_1_Consistency_Report.md`.)
+- **Multihash hash-code registry.** `0x12` = SHA-256 (mandatory, §5). New hash codes
+  (for algorithm agility, ACS-002 §11) are allocated by CCP Amendment; both the old
+  and new code MAY coexist during migration. Codes follow the multicodec table.
+- **Reason-code registry.** The canonical-form rejection reason codes are normative
+  and enumerated in `conformance/CONFORMANCE.md`; new codes are added only via a CCP
+  Amendment that also adds a negative conformance vector exercising the code.
+
+Each registry's designated maintainer is the ARVES Certification Authority; changes
+follow the Reference-Lifecycle CCP-GATE (never a silent edit; ED-001).
+
 ## 5. Address format (normative)
 
 The content address **SHALL** be a self-describing multihash:
