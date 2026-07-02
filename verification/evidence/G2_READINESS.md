@@ -117,6 +117,13 @@ the **oracle** a future CCP's negative vectors will be checked against.
 harness (per ACS-001 §4.1, maintainer-authorized); and **B2** (root-event `causation_id` — a CCP
 Amendment to ACS-003 §5). Both are frozen-touching spec/Kit changes for the next cycle.
 
+> **B1 now staged (2026-07-02):** a freeze-clean **CCP-006 DRAFT** proposes the fix concretely —
+> 11 stable reject reason codes + **18 oracle-verified candidate negative vectors** (7 envelope +
+> 7 instance + 4 language), machine-checked against the reference validators
+> (`verification/ccp-drafts/`, regenerate with `gen_candidate_vectors.py`). It touches no frozen
+> byte; ratification at CCP-GATE (which appends the vectors into `standard/vectors/`, extends the
+> registry + harness, and re-runs `freeze_check.py update`) remains maintainer-authorized.
+
 ---
 
 ## 3. What the Kit already carries (answered-in-Kit — NOT gaps)
