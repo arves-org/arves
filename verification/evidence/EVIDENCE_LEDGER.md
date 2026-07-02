@@ -26,7 +26,8 @@ Regenerate: `python verification/evidence/evidence_probe.py`
 | Independent Python reproduces golden vectors | Independent | L3 | **G1** | ✅ PASS | CONFORMANT | `python verification/independent/python/conformance.py` |
 | Independent Python reproduces rejection | Independent | L3 | **G1** | ✅ PASS | 17/17 REJECTED (16 core + nfc) | `python verification/independent/python/conformance_negative.py` |
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | **G1** | ✅ PASS | 13,807 inputs, **0 hard divergences** | `python verification/differential/acs002_differential_fuzz.py` |
-| Rust workspace tests (I1 runtime + gates + ACS) | Behaviour, Formal | L2 | G0 | ✅ PASS | 58 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
+| Independent **TypeScript** runtime (cold, Kit-only) | Independent | L3 | **G1** | ✅ PASS | 12/12 + 16 core + nfc | `node verification/independent/typescript/src/conformance.mjs` |
+| Rust workspace tests (I1 runtime + gates + ACS) | Behaviour, Formal | L2 | G0 | ✅ PASS | 59 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
 
 ## Section B — Declared evidence (destroy-office graded)
 
@@ -46,25 +47,41 @@ is tracked below.
 | Standards (IETF) | moderate | 🟡 partial | Security Considerations added; **IANA/registry policy still pending** (tracked) |
 | Academic (SOSP/OSDI/PLDI) | moderate | 🟡 tracked | would be rejected as a paper: **quantitative eval/ablation pending**; `dCBOR` naming citation pending; N=1 generality softened |
 
-**Tracked (Round 2 candidates, not yet done):** IANA/registry-policy section (domain-tag
-`0x0A–0x7F` + reason-code allocation authority); `dCBOR` name-collision citation
+**Cold third-party rehearsal (G2 Readiness Track 5, TypeScript).** A fresh-context agent
+built a runtime from `standard/` ALONE (Rust *and* Python forbidden) and logged every
+question. Result: **12/12 + 17/17 on the first run**, verdict **YES-WITH-CAVEATS**. The
+question-log found four Kit gaps — all **closed** this round: (1) exact §5.10 depth edge
+now pinned (d ≤ 128 valid, ≥ 129 reject) + boundary reject vector tightened to 129;
+(2) reason-code precedence for multi-defect inputs now scoped normatively (ACS-002 §6:
+reject guaranteed, code matches only for single-defect corpus); (3) exact 64-bit-integer
+carrier now mandated (ACS-002 §5.2); (4) Kit self-containment leak in
+`certification/README.md` removed. Track 1 also gained ACS-001 §4.1 registry policy +
+`standard/VERSION`.
+
+**Tracked (Round 2 candidates, not yet done):** `dCBOR` name-collision citation
 (`draft-mcnally-deterministic-cbor`); a quantitative differential-ablation harness
-(measure what the ACS number/NFC/sort rules buy vs cbor2/JCS); ≥2 more worked types for
-generality; I-D structural formatting; **NFC full-enforcement in the dependency-free
-reference** (currently deferred, documented).
+(measure what the ACS number/NFC/sort rules buy vs cbor2/JCS — Track 3 Academic); ≥2 more
+worked types for generality; I-D structural formatting; **NFC full-enforcement in the
+dependency-free Rust reference** (currently deferred, documented); a 3-way differential
+fuzzer (add TypeScript to the Rust↔Python harness). *(IANA/registry-policy — done,
+ACS-001 §4.1.)*
 
 ## Section C — Independence ledger (the honesty gate)
 
 | What | Grade | Why |
 |------|-------|-----|
 | Rust reference (arves-acs) | G0 self | the reference itself |
-| Independent Python (ACS codec) | **G1 same-process** | fresh-context, Kit-only, Rust-source-forbidden — but produced inside this program |
+| Independent Python (ACS codec) | **G1 same-process** | fresh-context, Kit-only, Rust-forbidden — inside this program |
+| Independent **TypeScript** (ACS codec) | **G1 same-process** | cold build: fresh context, Kit-only, Rust *and* Python forbidden; 12/12 + 17/17 on first run |
 | **Third-party runtime** | **G2 — NOT YET MET** | no stranger has built a passing runtime from the public Kit with no help |
 
-> **The Era-3 exit gate is G2.** Everything above is at most G1. ARVES is not yet
-> "independently validated" in the strong sense; it is *reproduced within one program*.
-> Closing this gap — a public Kit + a third party who passes with no help — is the
-> single highest-value evidence move remaining.
+> **The Era-3 exit gate is G2.** Three implementations in three languages
+> (Rust / Python / TypeScript) now agree byte-for-byte — but all are at most **G1**
+> (produced inside this program). ARVES is *reproduced within one program*, not yet
+> independently validated. The cold TypeScript build (Kit-only, question-logging) is the
+> sharpest G1 rehearsal to date and returned **YES-WITH-CAVEATS**: it built conformantly
+> on the first run with zero back-and-forth, and its question-log exposed four Kit gaps —
+> all now closed (§B). The only move left toward G2 is a genuine external team.
 
 ## Section D — Evidence Level summary
 

@@ -525,16 +525,23 @@ mod tests {
         }
     }
 
-    // A hostile depth bomb (nested definite arrays) must be REJECTED, not crash the
-    // decoder's stack; a body within MAX_DEPTH still decodes.
+    // The §5.10 depth edge is pinned exactly: a leaf at depth MAX_DEPTH is accepted,
+    // at depth MAX_DEPTH+1 is rejected (not merely "some deep input crashes").
     #[test]
-    fn decode_rejects_depth_bomb() {
-        let mut bomb = vec![0x81u8; MAX_DEPTH + 200]; // arrays-of-1, well past the limit
+    fn decode_depth_edge_is_exact() {
+        // MAX_DEPTH nested arrays -> leaf at depth MAX_DEPTH: accepted.
+        let mut at_limit = vec![0x81u8; MAX_DEPTH];
+        at_limit.push(0x00);
+        assert!(decode_canonical(&at_limit).is_ok(), "leaf at depth MAX_DEPTH must decode");
+
+        // MAX_DEPTH+1 nested arrays -> leaf at depth MAX_DEPTH+1: rejected.
+        let mut over = vec![0x81u8; MAX_DEPTH + 1];
+        over.push(0x00);
+        assert_eq!(decode_canonical(&over), Err(DecodeError::NestingTooDeep));
+
+        // A far-deeper bomb must also reject (and never overflow the stack).
+        let mut bomb = vec![0x81u8; MAX_DEPTH + 5000];
         bomb.push(0x00);
         assert_eq!(decode_canonical(&bomb), Err(DecodeError::NestingTooDeep));
-
-        let mut ok = vec![0x81u8; 100]; // 100 < MAX_DEPTH: still canonical
-        ok.push(0x00);
-        assert!(decode_canonical(&ok).is_ok());
     }
 }

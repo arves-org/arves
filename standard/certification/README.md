@@ -15,8 +15,9 @@ here so the Kit is self-contained.
 
 ## Levels (cumulative)
 - **L1 Core Runtime** — single-node: Kernel owns truth, Engine pure, Query
-  read-only, OWN-001 holds. *(Reference runtime: L1 GRANTED-with-conditions — see
-  `../../verification/certification/L1_Attestation_and_Standard_Lock_Review.md`.)*
+  read-only, OWN-001 holds. *(The reference runtime holds an L1
+  GRANTED-with-conditions attestation on record with the ARVES Certification
+  Authority; a third party does not need it — you certify against this Kit alone.)*
 - **L2 Cognitive Control** · **L3 Distributed** · **L4 Multi-Agent** ·
   **Certified Product**.
 

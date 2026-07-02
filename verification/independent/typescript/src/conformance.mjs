@@ -15,6 +15,7 @@ import { encode } from './encode.mjs';
 import { decode, RejectError } from './decode.mjs';
 import { contentId, toHex, fromHex } from './contentid.mjs';
 import * as V from './vectors.mjs';
+import { validateInstance } from './acs004.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VEC_DIR = join(__dirname, '..', '..', '..', '..', 'standard', 'vectors');
@@ -137,9 +138,19 @@ function runNegative() {
   return { corePass, coreTotal, nfcPass, nfcTotal, failures };
 }
 
+// ACS-004-CS-1 clauses 2 & 5: instance validation against the schema document.
+function runValidation() {
+  const schema = V.acs004Schema();
+  const inst = V.acs004Instance();
+  const checks = [];
+  checks.push(['observed instance validates (clause 2)', validateInstance(inst, schema).ok]);
+  return checks;
+}
+
 function main() {
   const pos = runPositive();
   const neg = runNegative();
+  const val = runValidation();
 
   const order = ['ACS-001', 'ACS-002', 'ACS-003', 'ACS-004', 'ACS-005'];
 
@@ -167,6 +178,12 @@ function main() {
   );
   console.log('');
 
+  // ACS-004 instance validation (§6.5).
+  const valOk = val.every(([, ok]) => ok);
+  console.log('  ACS-004 instance validation (§6.5):');
+  for (const [label, ok] of val) console.log(`    ${ok ? 'PASS' : 'FAIL'} ${label}`);
+  console.log('');
+
   if (pos.failures.length) {
     console.log('POSITIVE FAILURES:');
     for (const f of pos.failures) console.log(f);
@@ -178,7 +195,7 @@ function main() {
     console.log('');
   }
 
-  const corePass = allPositivePass && neg.corePass === neg.coreTotal;
+  const corePass = allPositivePass && neg.corePass === neg.coreTotal && valOk;
   const nfcPass = neg.nfcPass === neg.nfcTotal;
 
   console.log('----------------------------------------------------------------');

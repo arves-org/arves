@@ -113,6 +113,13 @@ represents it (RFC 8949 §4.2.1): the argument **SHALL** use the fewest bytes
 0; a negative Integer `n` uses major 1 with argument `−1 − n`. A longer-than-
 necessary encoding of an Integer is non-canonical and **MUST** be rejected.
 
+An implementation **MUST** carry an Integer in a representation that preserves its
+exact value across the whole §4 range `[-2^64, 2^64-1]` (e.g. a 64-bit-or-wider
+integer or a bignum). It **MUST NOT** back an Integer with a binary floating-point
+number: values whose magnitude exceeds `2^53` (such as a nanosecond `Timestamp`) would
+lose precision, producing a different body and a different `ContentId`. This is a
+conformance requirement, not advice — a float-backed integer carrier is non-conformant.
+
 ### 5.3 Floats — fixed binary64, finite only
 A Float **SHALL** be encoded as a 64-bit IEEE-754 double (major 7, additional
 information 27, initial byte `0xfb`), in network byte order. ACS-002 deliberately
@@ -171,13 +178,14 @@ leading or trailing bytes. A decoder **MUST** reject any input with trailing
 octets after the top-level item.
 
 ### 5.10 Maximum nesting depth
-A canonical body **SHALL NOT** nest Arrays and Maps deeper than **`MAX_DEPTH = 128`**
-structural levels (the top-level item is depth 0; each Array element and each Map key
-or value is one level deeper). A decoder **MUST** reject a body that exceeds this
-depth with reason `nesting-too-deep`, **before** recursing into it, so that a hostile
-"depth bomb" cannot exhaust the decoder's stack. The bound is a fixed constant shared
-by all implementations so they agree on the canonical set; 128 is ~30× the deepest
-structure any ACS type reaches. (See Security Considerations, §11.)
+Every data item has a **depth**: the top-level item is at depth 0, and each Array
+element and each Map key or value is one level deeper than its container. The bound is
+**`MAX_DEPTH = 128`**: an item at depth `d` is permitted **iff `d ≤ 128`**; a decoder
+**MUST** reject any item at depth **`≥ 129`** with reason `nesting-too-deep`, **before**
+recursing into it, so a hostile "depth bomb" cannot exhaust the decoder's stack. (Thus a
+chain of 128 nested arrays around a leaf is valid; 129 is rejected.) The bound is a fixed
+constant shared by all implementations so they agree on the canonical set; 128 is ~30×
+the deepest structure any ACS type reaches. (See Security Considerations, §11.)
 
 ## 6. Determinism, round-trip, and decoder validation (normative)
 
@@ -198,6 +206,19 @@ Three obligations bind every conformant implementation:
    input would let two byte strings that "mean the same value" carry different
    `ContentId`s, breaking ORCH-004 idempotency; therefore rejection is mandatory,
    not optional.
+
+**Rejection reason codes and precedence.** Each rejection carries one stable reason
+code (the registry is normative in `conformance/CONFORMANCE.md`). The
+interoperability-critical guarantee is the accept/reject decision, not the code: **a
+conformant decoder MUST reject the same set of byte strings**, so no non-canonical body
+is ever addressed. The specific reason code is **guaranteed to agree** across
+implementations only for an input that violates **exactly one** rule (the conformance
+corpus is built from such single-defect inputs). For an input that violates **several**
+rules at once, ACS-002 does **not** mandate a check order: any one applicable reason
+code is conformant, and two conformant decoders MAY report different codes for such an
+input while still both rejecting it. Implementations SHOULD, for diagnostics, prefer the
+structural reason (`nesting-too-deep`/`truncated`/`indefinite-length`) over a
+value-level reason when both apply.
 
 Determinism binds ACS-002 to ACS-001 as follows: the ACS-001 pre-image is
 `domain_tag || canon(v)`, so two implementations that both honor §5 produce the

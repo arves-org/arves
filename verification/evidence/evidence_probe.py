@@ -26,6 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 MANIFEST = os.path.join(ROOT, "runtime", "Cargo.toml")
 PYDIR = os.path.join(ROOT, "verification", "independent", "python")
+TSDIR = os.path.join(ROOT, "verification", "independent", "typescript")
 FUZZ = os.path.join(ROOT, "verification", "differential", "acs002_differential_fuzz.py")
 LEDGER_TSV = os.path.join(HERE, "evidence_ledger.tsv")
 
@@ -99,7 +100,16 @@ def probe():
                 if div else "no-parse")
     rows.append(r)
 
-    # 5. Full Rust workspace test suite — behaviour + architecture gate + invariants.
+    # 5. Independent TypeScript runtime (Node) — cold Kit-only build, grade G1.
+    rc, out = run(["node", "src/conformance.mjs"], cwd=TSDIR)
+    m = re.search(r"positive:\s*(\d+)/(\d+)", out)
+    r = Row("Independent TypeScript reproduces vectors (cold)", "Independent",
+            "L3", "G1", "node verification/independent/typescript/src/conformance.mjs")
+    r.ok = rc == 0 and "CONFORMANT" in out
+    r.metric = ("positive %s/%s + 16 core+nfc" % (m.group(1), m.group(2))) if m else ("CONFORMANT" if r.ok else "?")
+    rows.append(r)
+
+    # 6. Full Rust workspace test suite — behaviour + architecture gate + invariants.
     rc, out = run(["cargo", "test", "-q", "--manifest-path", MANIFEST, "--workspace"])
     passed = sum(int(x) for x in re.findall(r"test result: ok\.\s*(\d+) passed", out))
     failed = "FAILED" in out or "test result: FAILED" in out
