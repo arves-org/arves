@@ -29,6 +29,10 @@ ACS-004 (instance + 430-byte schema), and ACS-005 (tags 0x08/0x09). Each also em
   and still produced the identical 264-byte body — proving real encoded-key sorting.
 - The 430-byte ACS-004 schema was reconstructed **independently twice** (A's Rust
   runner and B's Python) from the field table, both hashing to `1220…6b3f99c6`.
+- **Anticipation:** when the shared TSV was single-sourced from 11 to 12 (adding the
+  schema row, SD-002), B's conformance runner reached **12/12 with ZERO code
+  changes** — it had pre-written the schema builder from ACS-004 §11.2, anticipating
+  the row. Both runners now emit `12/12 PASS · CONFORMANT`.
 
 ## Standard-Defects surfaced by B (and dispositioned)
 - **SD-001** (ACS-005 §6.1 vs §9.2 clause wording diverged) — FIXED: §9.2 byte form

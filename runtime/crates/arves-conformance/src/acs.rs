@@ -163,7 +163,7 @@ pub fn run() -> AcsReport {
     ]), "12206fce3fbcfce59860140942f7d1ca9e7b274fd936f2237011ff144552f091f07e"));
 
     // ACS-004 schema document (content-addressed type identity, domain 0x07).
-    r.push(dcbor("ACS-004", "uci.fact schema", domain::TYPE_SCHEMA, &Map(vec![
+    r.push(dcbor("ACS-004", "schema", domain::TYPE_SCHEMA, &Map(vec![
         (Text("urn".into()), Text("uci.fact".into())),
         (Text("ver".into()), Map(vec![(Text("major".into()), Int(1)), (Text("minor".into()), Int(0))])),
         (Text("root".into()), Text("Fact".into())),
