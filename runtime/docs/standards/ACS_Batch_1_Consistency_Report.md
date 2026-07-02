@@ -72,3 +72,22 @@ surface (identity + serialization + envelope + type registry + normative languag
 is coherent and byte-exact. Ready to proceed to PMO top-2 (L1 attestation) and
 top-3 (Standard Lock Review), which will test independent-implementability against
 this batch.
+
+## Addendum — a second collision this report MISSED (caught by the Lock Review)
+
+The Standard Lock Review (independent, arms-length) found a **third-party**
+domain-tag collision this consistency pass had missed: **ACS-005 §8 also allocated
+`0x06` (glossary term-set) and `0x07` (requirement clause)** — colliding again with
+ACS-003 (`0x06` envelope) and ACS-004 (`0x07` type-schema), with the collision
+baked into the `CCP-005-CS-1` pre-image vectors. This is exactly why independent
+review sits above the author: a single reconciler checked 003↔004 and stopped.
+
+**Fixed:** ACS-005 reassigned to `0x08` (term-set) / `0x09` (requirement clause);
+its three CS-1 vectors recomputed (`1220ced393…`, `12207f1a53…`, `12200c1c89…`,
+re-derived + verified); ACS-001 registry now authoritative for **0x01–0x09**,
+reserved `0x0A–0x7F`.
+
+**Governance lesson (strengthened):** a shared-registry reconciliation pass MUST
+cover **all** standards in a batch simultaneously (a pairwise check is
+insufficient), and it SHOULD be run by an independent reviewer, not the batch
+author. Recorded for future batches.

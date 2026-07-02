@@ -55,8 +55,10 @@ An implementation **SHALL** prefix every pre-image with exactly one domain tag:
 | `0x05` | decision-trace record |
 | `0x06` | canonical-envelope (allocated by ACS-003) |
 | `0x07` | type-schema (allocated by ACS-004) |
+| `0x08` | normative-glossary term-set (allocated by ACS-005) |
+| `0x09` | requirement clause (allocated by ACS-005) |
 
-Tags `0x08`–`0x7F` are RESERVED for future ACS standards. An implementation
+Tags `0x0A`–`0x7F` are RESERVED for future ACS standards. An implementation
 **MUST NOT** compute an address without a domain tag, and **MUST NOT** reuse a tag
 for a different domain.
 

@@ -218,19 +218,20 @@ ARVES normative document is a reference to its glossary entry.
 To make the glossary and the requirement set independently citable and
 tamper-evident, CCP-005 defines two content addresses using the ACS-001 multihash
 (`0x12 0x20 ‖ SHA-256(domain_tag ‖ body)`). This EXTENDS the ACS-001 domain-tag
-table into its reserved range (`0x06`–`0x7F`); it does not change any existing
-tag.
+table into its reserved range using tags `0x08`/`0x09` (tags `0x06`/`0x07` are
+already allocated to ACS-003 and ACS-004; the ACS-001 registry is the single
+authority). It does not change any existing tag.
 
 | Tag | Domain (added by CCP-005) |
 |-----|--------|
-| `0x06` | normative-glossary term-set (body = canonical term list) |
-| `0x07` | requirement clause (body = the keyworded clause text) |
+| `0x08` | normative-glossary term-set (body = canonical term list) |
+| `0x09` | requirement clause (body = the keyworded clause text) |
 
 - The **Term-Set Address** SHALL be the content address of the body formed by the
   glossary Term IDs `GL-001`…`GL-014`, sorted ascending, joined by a single `\n`
-  (LF, U+000A), UTF-8, no trailing newline, under tag `0x06`.
+  (LF, U+000A), UTF-8, no trailing newline, under tag `0x08`.
 - A **Requirement Address** SHALL be the content address of the exact clause text
-  under tag `0x07`.
+  under tag `0x09`.
 - Two implementations that publish the same glossary SHALL compute the same
   Term-Set Address (differential conformance). A change to the term set changes
   the address, giving a one-line integrity check that the corpus and a runtime
@@ -269,9 +270,9 @@ on all three vectors.
 
 | # | domain | body (canonical) | pre-image (hex) | ContentId (hex) |
 |---|--------|------------------|-----------------|-----------------|
-| 1 | `0x06` term-set (Term IDs) | `GL-001\nGL-002\n…\nGL-014` (LF-joined, sorted, no trailing LF) | `06474c2d3030310a474c2d3030320a474c2d3030330a474c2d3030340a474c2d3030350a474c2d3030360a474c2d3030370a474c2d3030380a474c2d3030390a474c2d3031300a474c2d3031310a474c2d3031320a474c2d3031330a474c2d303134` | `1220fb32705645b16b7231d5cc98ff6d6dd931e1610e95439d97a747e388c1fcf49b` |
-| 2 | `0x07` requirement clause | `ORCH-001-R1: The Control Plane MUST NOT own cognitive truth; only the Kernel MAY own cognitive truth.` | `074f5243482d3030312d52313a2054686520436f6e74726f6c20506c616e65204d555354204e4f54206f776e20636f676e69746976652074727574683b206f6e6c7920746865204b65726e656c204d4159206f776e20636f676e69746976652074727574682e` | `1220da37d0635c49ca8648f54df28562a1673976cf9de290492b06a9f5f78e9e00c3` |
-| 3 | `0x06` term-name list | `Capability\nCognitive Entity\n…\nTenant` (the §9.1 list, LF-joined, sorted, no trailing LF) | `064361706162696c6974790a436f676e697469766520456e746974790a436f676e69746976652054727574680a436f6d6d69740a436f6e666f726d616e63650a436f6e74656e7420416464726573730a436f6e74726f6c20506c616e650a4461746120506c616e650a4465636973696f6e2054726163650a456e67696e650a4b65726e656c0a5265706c61790a53686172640a54656e616e74` | `1220ceb1bf2eae8aea00e78867727d41df53493fa95b421de0225ed4b5a546231619` |
+| 1 | `0x08` term-set (Term IDs) | `GL-001\nGL-002\n…\nGL-014` (LF-joined, sorted, no trailing LF) | `08474c2d3030310a474c2d3030320a474c2d3030330a474c2d3030340a474c2d3030350a474c2d3030360a474c2d3030370a474c2d3030380a474c2d3030390a474c2d3031300a474c2d3031310a474c2d3031320a474c2d3031330a474c2d303134` | `1220ced393907a4d27eb54ac12acea65e29c7168c2991b3ca9df4b39765e870d2074` |
+| 2 | `0x09` requirement clause | `ORCH-001-R1: The Control Plane MUST NOT own cognitive truth; only the Kernel MAY own cognitive truth.` | `094f5243482d3030312d52313a2054686520436f6e74726f6c20506c616e65204d555354204e4f54206f776e20636f676e69746976652074727574683b206f6e6c7920746865204b65726e656c204d4159206f776e20636f676e69746976652074727574682e` | `12207f1a532d2be5061377d6664be065bbb45b6e61741bb70c1195454054e1cf0475` |
+| 3 | `0x08` term-name list | `Capability\nCognitive Entity\n…\nTenant` (the §9.1 list, LF-joined, sorted, no trailing LF) | `084361706162696c6974790a436f676e697469766520456e746974790a436f676e69746976652054727574680a436f6d6d69740a436f6e666f726d616e63650a436f6e74656e7420416464726573730a436f6e74726f6c20506c616e650a4461746120506c616e650a4465636973696f6e2054726163650a456e67696e650a4b65726e656c0a5265706c61790a53686172640a54656e616e74` | `12200c1c893c613d0f12976697084f05a76243589ed55a3d2cdae9dbce9d69df4751` |
 
 ### 9.3 Pass/fail semantics (normative)
 
