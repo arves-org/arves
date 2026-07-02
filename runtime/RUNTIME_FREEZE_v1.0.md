@@ -124,6 +124,14 @@ as v1.1/v2.0 debt and must enter via an RCR — never a silent crate edit under 
    host**; a multi-tenant / untrusted-host deployment requires a signed, hash-chained truth
    store (independent review `runtime/docs/reviews/P07_security-zero-trust.md`). Public docs
    must not imply cryptographic tamper-resistance of the persisted store under v1.0.
+   **PARTIALLY ADDRESSED by RCR-002 (v1.1):** a dependency-free SHA-256 **tamper-evident
+   hash-chain digest** (`FileWal::integrity_digest`) now detects any alteration of any committed
+   record — including a tamper that repairs the per-frame CRC32 (proven by a regression test:
+   `rcr002_integrity`). This closes the "edit one record + fix its CRC" hole and provides the
+   chain a signature scheme will sign. STILL OPEN (v2.0): cryptographic **signatures** +
+   **authenticated commit** (principal/authN on `Kernel::commit`) + digest **anchoring** — a
+   fully hostile host that rewrites the whole trace *and* the anchor still needs signatures to
+   stop. Threat model unchanged for v1.0 (trusted single host); see `runtime/rcr/RCR-002.md`.
 
 Each enters via an RCR into v1.1 (or v2.0 for #8's breaking parts), with regression + property tests.
 

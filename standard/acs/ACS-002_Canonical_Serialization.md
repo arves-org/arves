@@ -1,8 +1,8 @@
 # ACS-002 / CCP-002 — Canonical Serialization Contract
 
 **Type:** ARVES Core Standard (ACS) delivered as a Cognitive Change Proposal
-Amendment (CCP-002). **Status:** DRAFT (Candidate on CCP-GATE pass; not yet
-Ratified). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
+Amendment (CCP-002). **Status:** RATIFIED v1.1 (CCP-GATE passed 2026-07; see `CCP-GATE-Ratification-v1.md`) —
+normative at independence grade G1 (G2 external validation remains the open exit gate). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
 Interoperability). **Closes:** the ACS-001 dependency on a byte-exact canonical
 body (ACS-001 §2, §9) and the Global Readiness family that flagged the absence of
 a defined serialization. **Governs / activates:** the frozen invariants

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RCR-002 (truth-store integrity) · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><a href="acs-ratification.html">ACS Ratification (CCP-GATE)</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><a href="rcr-002.html" class="active">RCR-002 (truth-store integrity)</a><a href="success.html">Success — the North Star</a><a href="failure.html">Why ARVES Could Fail</a><a href="releasing.html">Releasing (Growth Protocol)</a><a href="dx-baseline.html">Developer Journey (DX baseline)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="rcr-002-truth-store-tamper-evident-integrity-digest-runtime-">RCR-002 — Truth-store tamper-evident integrity digest (Runtime v1.1)</h1>
+<p><strong>Status:</strong> Applied (v1.1) · <strong>Type:</strong> additive, non-breaking · <strong>Gate:</strong> <code>cargo test --workspace</code> must stay green (was 69) → <strong>71 passed / 0 failed</strong> after this change.</p>
+<h2 id="motivation">Motivation</h2>
+<p>The Build Program closure audit (freeze backlog item #8) found that the WAL/snapshot store uses <strong>CRC32</strong> (error-detection, <em>forgeable</em>) with no hash chain, Merkle root, or signature: an actor who edits a committed record can recompute the per-frame CRC and the tamper passes recovery undetected. This is a maintainer-directed, <strong>proactive</strong> v1.1 hardening (not incident-driven) — authorized as a planned RCR, executed through the sanctioned Runtime Change Request path, not a silent edit.</p>
+<h2 id="change-what-shipped">Change (what shipped)</h2>
+<p><code>runtime/crates/arves-persistence</code>: - A <strong>dependency-free SHA-256</strong> (FIPS 180-4) — no external crates (the workspace has zero non-<code>arves-*</code> dependencies), deterministic across runs/platforms. - <strong><code>FileWal::integrity_digest() -&gt; [u8; 32]</code></strong> — folds a SHA-256 hash-chain over the committed record trace: <code>d₀ = SHA256(genesis(shard))</code>, <code>dᵢ = SHA256(dᵢ₋₁ ‖ bodyᵢ)</code>. Any alteration of any committed record changes the digest, <strong>including a tamper that repairs the per-frame CRC32</strong>.</p>
+<p>The change is <strong>read-only and additive</strong>: it does <strong>not</strong> modify the WAL frame format, <code>append</code>, <code>decode_all</code>, recovery, or checkpoints — so all pre-existing behavior (and the 69 prior tests) is unchanged. No public API was removed; one method was added.</p>
+<h2 id="verification">Verification</h2>
+<ul><li><code>cargo test --manifest-path runtime/Cargo.toml --workspace</code> → <strong>71 passed / 0 failed</strong> (the 69 prior tests unchanged; +2 new).</li><li>New regressions (<code>rcr002_integrity</code>):</li><li><code>integrity_digest_is_deterministic_across_reopen</code> — a fresh store over the same durable root recomputes the identical digest.</li><li><code>integrity_digest_detects_crc_fixed_tamper</code> — flips a payload byte of a committed record <strong>and repairs its CRC32</strong> so recovery still accepts it (<code>head == 5</code>), yet the digest <strong>changes</strong> — proving detection of the exact attack CRC alone cannot see.</li></ul>
+<h2 id="scope-honest-what-this-is-and-is-not">Scope (honest — what this is and is NOT)</h2>
+<ul><li><strong>IS: tamper-EVIDENCE.</strong> With the digest anchored by a trusted holder (the Kernel, or a checkpoint records the expected value and compares later), any committed-record tamper is detectable; a single-record edit now forces rewriting the entire downstream chain.</li><li><strong>IS NOT: tamper-PROOFing against a hostile host.</strong> A fully compromised host that rewrites the whole trace <em>and</em> the anchor cannot be stopped by a hash-chain alone. That requires cryptographic <strong>signatures</strong> + an <strong>authenticated commit path</strong> (principal/authN on <code>Kernel::commit</code>) + durable <strong>anchoring</strong> — a <strong>v2.0</strong> change, outside v1.0's <em>trusted-single-host</em> threat model. This RCR adds the chain those signatures will sign; the signing/authN/anchoring remain open (freeze #8).</li></ul>
+<h2 id="follow-ups-still-open">Follow-ups (still open)</h2>
+<ul><li>v2.0: sign the digest; authenticate <code>Kernel::commit</code> (principal/authZ/tenant-scope); anchor the head digest durably (checkpoint/Kernel) and verify on recovery.</li><li>v1.1 (optional): have the Kernel record + compare <code>integrity_digest</code> at checkpoint boundaries so tamper is caught automatically on recovery, not only on explicit audit.</li></ul>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

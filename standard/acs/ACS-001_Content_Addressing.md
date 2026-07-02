@@ -1,8 +1,8 @@
 # ACS-001 / CCP-001 — Content Addressing Contract
 
 **Type:** ARVES Core Standard (ACS) delivered as a Cognitive Change Proposal
-Amendment (CCP-001). **Status:** DRAFT (Candidate on CCP-GATE pass; not yet
-Ratified). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
+Amendment (CCP-001). **Status:** RATIFIED v1.1 (CCP-GATE passed 2026-07; see `CCP-GATE-Ratification-v1.md`) —
+normative at independence grade G1 (G2 external validation remains the open exit gate). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
 Interoperability). **Closes:** Global Readiness Report R-01 (raised by 7/12
 lenses). **Governs / activates:** the frozen invariant **ORCH-004** ("every
 invocation is idempotent and content-addressable"), which names the property but

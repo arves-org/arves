@@ -1,8 +1,8 @@
 # ACS-003 / CCP-003 — Canonical Envelope Contract
 
 **Type:** ARVES Core Standard (ACS) delivered as a Cognitive Change Proposal
-Amendment (CCP-003). **Status:** DRAFT (Candidate on CCP-GATE pass; not yet
-Ratified). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
+Amendment (CCP-003). **Status:** RATIFIED v1.1 (CCP-GATE passed 2026-07; see `CCP-GATE-Ratification-v1.md`) —
+normative at independence grade G1 (G2 external validation remains the open exit gate). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
 Interoperability). **Closes:** the two divergent "event envelope" definitions in
 the frozen corpus — the Vol 9 Event Envelope (`Vol 9 Runtime & Event Fabric Bible
 v1`, Part 6; carried forward by `Vol 9 Cognitive Control Plane v2`, Part 11) and

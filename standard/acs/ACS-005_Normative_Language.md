@@ -1,8 +1,8 @@
 # CCP-005 — Normative Language Convention & Terms-and-Definitions Glossary
 
 **Type:** ARVES Core Standard (ACS) delivered as a Cognitive Change Proposal
-Amendment (CCP-005). **Status:** DRAFT (Candidate on CCP-GATE pass; not yet
-Ratified). **Program:** ARVES v1.1 Standardization, Goal 4 (Normative-Language
+Amendment (CCP-005). **Status:** RATIFIED v1.1 (CCP-GATE passed 2026-07; see `CCP-GATE-Ratification-v1.md`) —
+normative at independence grade G1 (G2 external validation remains the open exit gate). **Program:** ARVES v1.1 Standardization, Goal 4 (Normative-Language
 Convention) + Goal 5 (Vendor-Neutral Interoperability). **Closes:** Global
 Readiness Report R-06 (Normative-Language Convention & Glossary — the ISO/IEC
 Directives Part 2 / IEEE-SA prerequisite for a citable, independently-verifiable
@@ -358,7 +358,7 @@ CCP-GATE evidence.
 
 ## 12. Dependencies & sequence
 
-- **Depends on:** ACS-001/CCP-001 (multihash reused in §8) — already DRAFT; the
+- **Depends on:** ACS-001/CCP-001 (multihash reused in §8) — co-ratified v1.1 (CCP-GATE); the
   frozen Invariant Registry, Vol 9, and Amendments CCP Batch 1 as read-only
   sources; the Reference Lifecycle CCP-GATE (Part 6) as the ratification gate.
 - **Blocks / enables:** every subsequent ARVES v1.1 standard's normative-language

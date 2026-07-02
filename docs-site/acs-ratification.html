@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACS Ratification (CCP-GATE) · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><a href="acs-ratification.html" class="active">ACS Ratification (CCP-GATE)</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="closure.html">Build Program Closure</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><a href="rcr-002.html">RCR-002 (truth-store integrity)</a><a href="success.html">Success — the North Star</a><a href="failure.html">Why ARVES Could Fail</a><a href="releasing.html">Releasing (Growth Protocol)</a><a href="dx-baseline.html">Developer Journey (DX baseline)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="ccp-gate-ratification-acs-001-005-v1-1">CCP-GATE Ratification — ACS-001..005 (v1.1)</h1>
+<p><strong>Decision:</strong> ACS-001, ACS-002, ACS-003, ACS-004, ACS-005 are <strong>RATIFIED</strong> as the ARVES v1.1 normative core standards, effective 2026-07, <strong>at independence grade G1</strong>.</p>
+<p><strong>Instrument:</strong> CCP-GATE (Reference Lifecycle, Part 6): <code>DRAFT → CCP-GATE (spec + conformance scenario) → Candidate → Ratified</code>. This record is the governance act; it is not a silent edit.</p>
+<h2 id="the-gate-and-the-evidence-it-is-met">The gate, and the evidence it is met</h2>
+<p>CCP-GATE requires, for each standard, a complete normative specification <strong>and</strong> a conformance scenario that reference implementations pass. For ACS-001..005:</p>
+<div class="table-wrap"><table><thead><tr><th>Requirement</th><th>Evidence</th></tr></thead><tbody><tr><td>Complete normative spec (RFC 2119)</td><td><code>standard/acs/ACS-001..005_*.md</code> (ACS-005 supplies the normative language)</td></tr><tr><td>Conformance scenario per standard</td><td><code>ACS-001-CS-1 … ACS-005-CS-1</code> + golden/negative vectors (<code>standard/vectors/*.tsv</code>)</td></tr><tr><td>Reference impls pass it</td><td><strong>3 independent implementations</strong> (Rust / Python / TypeScript) reproduce every golden ContentId byte-for-byte and reject every core negative with the matching reason</td></tr><tr><td>Cross-impl agreement</td><td>Rust↔Python <strong>differential fuzz: 13,807 inputs, 0 divergences</strong></td></tr><tr><td>Runtime certification</td><td><code>certify_runtime.py</code>: <strong>2/2 runtimes certified under ONE conformance</strong></td></tr><tr><td>Pre-ratification defect sweep</td><td>the domain-tag collision (0x06/0x07) found + fixed during drafting (<code>ACS_Batch_1_Consistency_Report.md</code>); vectors recomputed and re-verified</td></tr></tbody></table></div>
+<p>The gate is <strong>met</strong>: the specs are complete, each has a conformance scenario, and multiple implementations agree. The ACS set moves from DRAFT to <strong>Ratified</strong>.</p>
+<h2 id="honest-scope-of-this-ratification-what-it-does-and-does-not-">Honest scope of this ratification (what it does and does NOT claim)</h2>
+<ul><li><strong>Two different axes, not conflated.</strong> <em>Ratification</em> is the <strong>spec-maturity</strong> axis: the ACS specs are complete, conformance-backed, and stable — a byte-affecting change now requires a new <strong>CCP Amendment / major version</strong>, never a silent edit. <em>Independence</em> is a <strong>separate</strong> axis, graded G0/G1/G2.</li><li><strong>Independence remains G1.</strong> Every implementation that agrees today was produced <strong>inside this program</strong> (same-process). Ratification is the maintainer authority declaring the spec final and conformance-backed — it is <strong>NOT</strong> a claim of external/independent validation.</li><li><strong>G2 is still the open exit gate</strong> (unchanged): an unknown team, using ONLY the Kit, building a conformant runtime with no help. Ratifying the spec does not close G2; it defines the stable target that a G2 party implements against.</li></ul>
+<h2 id="effect">Effect</h2>
+<ul><li><code>standard/VERSION</code> and each ACS doc's <code><strong>Status:</strong></code> now read <strong>RATIFIED v1.1 (G1)</strong>.</li><li>The golden + negative vectors are <strong>normative</strong> for v1.x; changes go through CCP Amendment.</li><li>The independence ledger (<code>verification/evidence/</code>) is unchanged: <strong>maximum G1; G2 NOT YET MET</strong>.</li></ul>
+<p><em>Ratified under ARVES 2.0 governance. Recorded in the living repository (ED-001); the frozen <code>.docx</code> corpus is unchanged. Independence validation continues toward G2 — the real exit gate.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>

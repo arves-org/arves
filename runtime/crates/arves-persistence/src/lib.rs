@@ -574,6 +574,61 @@ fn crc32_ieee(bytes: &[u8]) -> u32 {
     !crc
 }
 
+/// Dependency-free SHA-256 (FIPS 180-4). Used by `FileWal::integrity_digest` (RCR-002) to fold a
+/// tamper-evident hash-chain over the committed record trace. Deterministic across runs/platforms;
+/// no external crates (the workspace has zero non-`arves-*` dependencies).
+fn sha256(data: &[u8]) -> [u8; 32] {
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    ];
+    let mut h: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    ];
+    let bit_len = (data.len() as u64).wrapping_mul(8);
+    let mut msg = data.to_vec();
+    msg.push(0x80);
+    while msg.len() % 64 != 56 {
+        msg.push(0);
+    }
+    msg.extend_from_slice(&bit_len.to_be_bytes());
+    for chunk in msg.chunks_exact(64) {
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([chunk[i * 4], chunk[i * 4 + 1], chunk[i * 4 + 2], chunk[i * 4 + 3]]);
+        }
+        for i in 16..64 {
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        }
+        let (mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh) =
+            (h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]);
+        for i in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let ch = (e & f) ^ ((!e) & g);
+            let t1 = hh.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let t2 = s0.wrapping_add(maj);
+            hh = g; g = f; f = e; e = d.wrapping_add(t1); d = c; c = b; b = a; a = t1.wrapping_add(t2);
+        }
+        h[0] = h[0].wrapping_add(a); h[1] = h[1].wrapping_add(b); h[2] = h[2].wrapping_add(c); h[3] = h[3].wrapping_add(d);
+        h[4] = h[4].wrapping_add(e); h[5] = h[5].wrapping_add(f); h[6] = h[6].wrapping_add(g); h[7] = h[7].wrapping_add(hh);
+    }
+    let mut out = [0u8; 32];
+    for i in 0..8 {
+        out[i * 4..i * 4 + 4].copy_from_slice(&h[i].to_be_bytes());
+    }
+    out
+}
+
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
 /// Reversible, filesystem-safe encoding of a shard-key component's bytes.
@@ -905,6 +960,42 @@ impl FileWal {
         inner.current_start = inner.head;
         inner.current_count = 0;
         Ok(())
+    }
+
+    /// RCR-002 — tamper-EVIDENT integrity digest over the committed trace.
+    ///
+    /// Folds a SHA-256 hash-chain over every retained record in offset order:
+    /// `d₀ = SHA256(genesis(shard))`, `dᵢ = SHA256(dᵢ₋₁ ‖ bodyᵢ)`, where `bodyᵢ` is the record's
+    /// canonical serialization. ANY alteration of ANY committed record changes the digest —
+    /// including a tamper that repairs the per-frame CRC32 (which `decode_all` would otherwise
+    /// accept). Intended use is *anchoring*: a trusted holder (the Kernel, or a checkpoint) records
+    /// the expected digest and compares later; a mismatch proves tampering.
+    ///
+    /// SCOPE (honest): this is tamper-EVIDENCE, not tamper-PROOFing. A fully hostile host that
+    /// rewrites the whole trace AND the anchor cannot be stopped by a hash-chain alone — that needs
+    /// cryptographic signatures + an authenticated commit path (a v2.0 change, outside v1.0's
+    /// trusted-single-host threat model). This method adds the chain such a scheme will sign, and
+    /// closes the "edit one committed record + repair its CRC" hole today.
+    pub fn integrity_digest(&self) -> Result<[u8; 32], WalError> {
+        let inner = self.inner.lock().expect("filewal poisoned");
+        // Genesis binds the chain to the shard identity (SHARD-001), so digests are not
+        // comparable across shards.
+        let mut genesis = self.shard.tenant.as_bytes().to_vec();
+        genesis.push(0);
+        genesis.extend_from_slice(self.shard.workspace.as_bytes());
+        let mut running = sha256(&genesis);
+        for seg in list_segments(&inner.dir) {
+            let bytes = fs::read(&seg.path)
+                .map_err(|e| WalError::Durability(format!("integrity read: {e}")))?;
+            let (recs, _good) = decode_all(&bytes, &self.shard, seg.start);
+            for r in recs {
+                let body = encode_body(&r.shard, r.offset, r.term, &r.kind, &r.content, &r.payload);
+                let mut buf = running.to_vec();
+                buf.extend_from_slice(&body);
+                running = sha256(&buf);
+            }
+        }
+        Ok(running)
     }
 }
 
@@ -1310,5 +1401,82 @@ impl WalStore for FileWalStore {
         // still per-shard; this only fixes iteration order, not a global index).
         out.sort();
         out
+    }
+}
+
+#[cfg(test)]
+mod rcr002_integrity {
+    //! RCR-002: the WAL integrity digest is deterministic and detects a CRC-repaired tamper of a
+    //! committed record — the exact hole a per-frame CRC cannot cover.
+    use super::*;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("arves-rcr002-{}-{}", tag, std::process::id()))
+    }
+    fn shard() -> ShardKey {
+        ShardKey { tenant: "acme".into(), workspace: "w1".into() }
+    }
+    fn append_n(wal: &mut FileWal, sh: &ShardKey, n: u64) {
+        for i in 0..n {
+            wal.append(PendingRecord {
+                shard: sh.clone(),
+                term: 1,
+                kind: RecordKind::Outcome,
+                content: ContentId(vec![i as u8]),
+                payload: vec![i as u8; 8],
+            })
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn integrity_digest_is_deterministic_across_reopen() {
+        let root = tmp_root("det");
+        let _ = fs::remove_dir_all(&root);
+        let sh = shard();
+        let store = FileWalStore::open_root(&root).unwrap();
+        let mut wal = store.open(&sh).unwrap();
+        append_n(&mut wal, &sh, 5);
+        let d1 = wal.integrity_digest().unwrap();
+        // A FRESH store over the same durable root must recompute the SAME digest.
+        let store2 = FileWalStore::open_root(&root).unwrap();
+        let wal2 = store2.open(&sh).unwrap();
+        assert_eq!(d1, wal2.integrity_digest().unwrap(), "digest must be deterministic");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn integrity_digest_detects_crc_fixed_tamper() {
+        let root = tmp_root("tamper");
+        let _ = fs::remove_dir_all(&root);
+        let sh = shard();
+        let store = FileWalStore::open_root(&root).unwrap();
+        let mut wal = store.open(&sh).unwrap();
+        append_n(&mut wal, &sh, 5);
+        let d1 = wal.integrity_digest().unwrap();
+
+        // TAMPER a committed record on disk: flip a payload byte AND repair its CRC32, so the frame
+        // still passes decode_all (the exact attack a per-frame CRC cannot detect).
+        let dir = root.join(format!(
+            "{}__{}",
+            hex_encode(sh.tenant.as_bytes()),
+            hex_encode(sh.workspace.as_bytes())
+        ));
+        let seg = dir.join(seg_name(0));
+        let mut bytes = fs::read(&seg).unwrap();
+        let body_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+        let flip = 4 + body_len - 1; // last payload byte of the first frame
+        bytes[flip] ^= 0xFF;
+        let new_crc = crc32_ieee(&bytes[4..4 + body_len]);
+        bytes[4 + body_len..8 + body_len].copy_from_slice(&new_crc.to_le_bytes());
+        fs::write(&seg, &bytes).unwrap();
+
+        // Recovery ACCEPTS the tampered record (CRC now matches) — CRC is blind to this...
+        let store2 = FileWalStore::open_root(&root).unwrap();
+        let wal2 = store2.open(&sh).unwrap();
+        assert_eq!(wal2.head(), 5, "recovery accepts the CRC-repaired frame");
+        // ...but the integrity digest CHANGES — the tamper is detected.
+        assert_ne!(d1, wal2.integrity_digest().unwrap(), "digest must change on tamper");
+        let _ = fs::remove_dir_all(&root);
     }
 }

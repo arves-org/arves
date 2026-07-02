@@ -30,7 +30,7 @@ that the G2 third-party exit gate is **NOT YET MET**. This document does not con
 
 | Asset | Where | Change instrument |
 |-------|-------|-------------------|
-| **Specification** (frozen corpus + ACS-001..005 draft set) | `standard/`, frozen `.docx` | CCP / Amendment / IDR (never a silent edit, ED-001) |
+| **Specification** (frozen corpus + ACS-001..005, ratified v1.1 · CCP-GATE · independence G1) | `standard/`, frozen `.docx` | CCP / Amendment / IDR (never a silent edit, ED-001) |
 | **Certification** (vectors + harnesses) | `standard/vectors/`, `verification/certification/`, Authoring Kit `certify` | vectors are versioned; new checks via CCP |
 | **Registries** (domain tags, hash codes, reason codes) | ACS-001 §4.1, `conformance/CONFORMANCE.md` | Specification-Required allocation (ACS-001 §4.1) |
 | **Runtime** (frozen reference, single-node I1) | `runtime/`, tag `runtime-v1.0` | Runtime Change Request → v1.1 / v2.0 |

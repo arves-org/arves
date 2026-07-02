@@ -7,9 +7,10 @@ Contents:
   ACS-004 Universal Type Registry           v1
   ACS-005 Normative Language + Glossary      v1
 
-Status: Standard Validation Era (Program 2). The ACS set is DRAFT pending CCP-GATE
-ratification; the golden + negative vectors are frozen for this Kit version. Any
-byte-affecting change is a new ACS profile via CCP Amendment, never a silent edit.
+Status: Standard Validation Era (Program 2). ACS-001..005 are RATIFIED (v1.1) via CCP-GATE
+(see acs/CCP-GATE-Ratification-v1.md) at independence grade G1; the golden + negative vectors
+are normative for v1.x. Any byte-affecting change is a new ACS profile via CCP Amendment /
+major version, never a silent edit. Independence remains G1 — G2 (below) is still the open gate.
 
 Exit criterion (G2 — Independent Standard Validation): an unknown engineering team,
 using ONLY this Kit, builds a runtime that passes conformance/CONFORMANCE.md with no

@@ -1,8 +1,8 @@
 # ACS-004 / CCP-004 — Universal Type Registry
 
 **Type:** ARVES Core Standard (ACS) delivered as a Cognitive Change Proposal
-Amendment (CCP-004). **Status:** DRAFT (Candidate on CCP-GATE pass; not yet
-Ratified). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
+Amendment (CCP-004). **Status:** RATIFIED v1.1 (CCP-GATE passed 2026-07; see `CCP-GATE-Ratification-v1.md`) —
+normative at independence grade G1 (G2 external validation remains the open exit gate). **Program:** ARVES v1.1 Standardization, Goal 1 (Universal
 Interoperability). **Closes:** Global Readiness Report **R-03** (`uci.*` Type
 Schemas v1 — "populate the reserved `schema` slot for all root types + aspects +
 relations, plus additive schema-evolution rules"), the keystone finding P04-F1
