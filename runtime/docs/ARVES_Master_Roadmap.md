@@ -6,17 +6,33 @@ cross-era planning.
 
 ---
 
-## Three eras
+## Five eras (maintainer-set, 2026-07)
 
 | Era | Question | Status |
 |-----|----------|--------|
-| **1. Foundation** | *What is ARVES?* | ✅ COMPLETE (Specification Era frozen + AEOS) |
-| **2. Standardization** | *Can ARVES be implemented universally & identically by independent teams?* | 🟡 **CURRENT — the most critical era** |
-| **3. Industrialization** | *Can ARVES run on millions of nodes?* | ⬜ later (Implementation Era I2–I6, enterprise, scale) |
+| **1. Specification** | *What is ARVES?* | ✅ COMPLETE (frozen corpus + AEOS) |
+| **2. Implementation** | *Can we build a reference + executable standard + Kit?* | ✅ COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
+| **3. Standard Validation** | *Is ARVES scientifically sound, and can a THIRD PARTY implement it — with no help — and pass?* | 🟢 **CURRENT ERA** |
+| **4. Industrialization** | *Can ARVES run on millions of nodes?* | ⬜ gated behind Era 3 (I2–I6, Kernel Integration, enterprise, scale) |
+| **5. Product** | *Can real products be built on the certified platform?* | ⬜ separate org; forbidden until the platform is certified |
 
-The decisions taken in Era 2 (content identity, serialization, envelope, type
-registry, formal verification) bind every implementation for the next 10–20
-years. This is the highest-leverage era of the whole project.
+**The pivot (Era 2 → 3):** we stop *building* ARVES and start trying to *prove it
+wrong*. The KPI is no longer "Tests Passed" — it is **Evidence Increased**. Every
+milestone updates the **Evidence Ledger** (`verification/evidence/`), and no property
+is ever "Done" — it only earns an Evidence Level. Philosophy:
+
+> *You are no longer building ARVES. You are trying to prove ARVES wrong. If you
+> fail, only then ARVES becomes stronger.*
+
+**Era-3 exit gate (the decisive proof):** a stranger downloads ONLY the Standard Kit
+from a public source, implements a runtime with **no help and no access to any
+reference source**, and PASSES certification. Until that happens, independence is
+graded honestly (self → same-process-independent → third-party-independent), never
+laundered into "independent."
+
+The "destroy-offices" that run this era: **Scientific Review · Security · Performance/
+Robustness · Academic (SOSP/OSDI/PLDI) · Standards (IETF WG) · Independent Runtime**.
+See `verification/evidence/CERTIFICATION_PROGRAM.md`.
 
 ## Roadmap
 

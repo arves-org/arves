@@ -27,10 +27,20 @@ can be implemented **correctly, independently, deterministically, and at product
 
 | | |
 |---|---|
-| Current Era | **Implementation Era** |
+| Current Era | **Standard Validation Era** (maintainer-set 2026-07) |
 | Specification Era | COMPLETE / FROZEN |
-| Implementation | IN PROGRESS |
+| Implementation Era | COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
+| Standard Validation Era | IN PROGRESS — *prove ARVES wrong*; KPI = **Evidence Increased** (Evidence Ledger, `verification/evidence/`) |
+| Industrialization Era | GATED behind validation (I2–I6, Kernel Integration, scale) |
+| Product Era | separate org; forbidden until the platform is certified |
 | Current Milestone | *«supplied by task»* |
+
+> **Era pivot (2→3):** stop building, start disproving. *You are no longer building
+> ARVES; you are trying to prove ARVES wrong. If you fail, only then ARVES becomes
+> stronger.* Independence is graded (self → same-process → third-party); the Era-3
+> exit gate is a **third-party runtime** that passes certification with no help.
+> Further implementation (I2–I6) is gated behind this era. See
+> `verification/evidence/CERTIFICATION_PROGRAM.md` and `ARVES_Master_Roadmap.md`.
 
 Milestones (from the frozen ARVES v1.0 Baseline, Part 5 — single-sourced, do not diverge):
 `I1 Distributed Runtime` · `I2 Cluster Kernel` · `I3 Distributed Query` ·

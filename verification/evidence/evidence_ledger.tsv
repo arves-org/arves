@@ -1,0 +1,7 @@
+claim	dimension	level	independence	status	metric	reproduce
+ACS-001..005 golden vectors (encode + address)	Behaviour+Implementation	L2	G1	PASS	positive 12/12	cargo run -q --manifest-path runtime/Cargo.toml -p arves-conformance --bin conformance
+ACS-002 rejection / negative vectors (decode)	Differential+Implementation	L2	G1	PASS	core 15/15 REJECTED	cargo run -q --manifest-path runtime/Cargo.toml -p arves-conformance --bin conformance
+Independent Python reproduces golden vectors	Independent	L3	G1	PASS	CONFORMANT	python verification/independent/python/conformance.py
+Independent Python reproduces rejection (16/16)	Independent	L3	G1	PASS	15/15 REJECTED	python verification/independent/python/conformance_negative.py
+Rust<->Python differential (encode+decode)	Differential+Independent	L3	G1	PASS	13807 inputs, 0 hard divergences	python verification/differential/acs002_differential_fuzz.py
+Rust workspace tests (I1 runtime + gates + ACS)	Behaviour+Formal	L2	G0	PASS	58 tests passed	cargo test --manifest-path runtime/Cargo.toml --workspace
