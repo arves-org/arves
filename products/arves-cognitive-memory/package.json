@@ -1,0 +1,15 @@
+{
+  "name": "@arves/cognitive-memory",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Cognitive Memory (P2) — the content-addressed common core of every ARVES product: one identity, full evidence, tamper-evident audit, exact replay, provable reasoning.",
+  "platform": {
+    "consumes": "@arves/sdk (P1) -> arves-standard-kit 0.2.0",
+    "idr": "IDR-006 — product code; modifies no platform file.",
+    "proves": ["Identity", "Deduplication", "Evidence", "Truth", "Audit", "Replay", "Reasoning"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/three-systems.mjs" }
+}
