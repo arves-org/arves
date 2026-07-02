@@ -16,4 +16,5 @@ members = [
     "crates/arves-consensus",
     "crates/arves-conformance",
     "crates/arves-runtime",
+    "crates/arves-bridge",
 ]

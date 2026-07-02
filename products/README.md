@@ -46,25 +46,38 @@ the constitution's own instrument for an engineering decision (not a silent edit
   need migration if G2/certification forces a breaking platform change; pinning the Kit
   version bounds the blast radius.
 
-## The product ladder (P0 → P9) — each product PROVES a capability
+## The product ladder (P0 → P10) — each product PROVES a capability
 
 | # | Product | Proves (ARVES capability) | Builds on |
 |---|---------|---------------------------|-----------|
-| **P0** | Developer Experience | 10-minutes-to-first-app | — |
-| **P1** | **Developer SDK** ✅ | ergonomic content-addressing | Standard Kit |
-| **P2** | **Cognitive Memory** 🟢 | **Identity · Evidence · Replay · Truth · Audit · Deduplication** | P1 |
-| P3 | Agent Runtime | Reasoning · Planning · Memory · Capability · Execution | P1, P2, Kernel |
-| P4 | Personal AI | multi-source cognition → reasoning → actions | P2, P3 |
-| P5 | Enterprise AI | Multi-Agent · Governance · Policy · Security · Workflow | P2, P3 |
-| P6 | Visual Cognitive Studio | visual authoring of cognitive graphs | P2, P3 |
-| P7 | Marketplace | engines/capabilities/agents/connectors | P1–P5 |
-| P8 | Cloud Platform | hosted ARVES | P1–P7 |
-| P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P1–P8 |
+| **P0** | **Developer SDK** ✅ | ergonomic content-addressing | Standard Kit |
+| **P1** | **Cognitive Memory** ✅ | Identity · Evidence · Replay · Truth · Audit · Deduplication | P0 |
+| **P2** | **Kernel Bridge** ✅ | one-world identity: SDK ↔ real Kernel commit under the SAME ACS address | P0, Kernel |
+| P3 | Agent Runtime | Reasoning · Planning · Capability selection · Execution · Truth update — **on the real Kernel** | P0–P2 |
+| P4 | Personal AI | Autonomy · Learning · Preferences · Scheduling · Decision support | P1–P3 |
+| P5 | Enterprise AI | Multi-Agent · Governance · Policy · Compliance · Security | P1–P3 |
+| P6 | Visual Cognitive Studio | visual authoring of cognitive graphs | P1–P3 |
+| P7 | Marketplace | engines/capabilities/agents/connectors | P0–P5 |
+| P8 | Cloud Platform | hosted ARVES | P0–P7 |
+| P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P0–P8 |
+| P10 | ARVES OS | the cognitive operating system | P0–P9 |
 
-Cognitive Memory (P2) is deliberately one step *below* Personal AI: it is the common
-core of Personal AI, Enterprise AI, and every industry solution. Because each product
-proves a capability, the product ladder is simultaneously a second, product-level proof
-of ARVES — value and evidence become the same artifact.
+**Kernel Bridge (P2) was brought forward on purpose:** it prevents an "SDK world" and a
+"runtime world" from diverging — the largest architectural risk of the product era. The
+target chain is `Products → SDK → Kernel Bridge → Kernel → LCW → Capability → Engine`,
+all sharing one ACS-001 identity. P3 Agent Runtime therefore runs on the *real* Kernel,
+not a stand-in.
+
+## Program 4 — the IMPOSSIBLE PRODUCTS filter
+
+Every product must pass one gate: **"Could this be built without ARVES?"** If **YES →
+reject it** — the product is wrong (it doesn't need the platform). We only build products
+that ARVES makes uniquely possible. The KPI is no longer PASS, it is **WOW** — a person
+seeing the demo asks *"how did you do this?"*. The question the whole org now answers:
+*Can ARVES create products that nobody else can build?*
+
+New validation ladder (beyond conformance/certification):
+`Product Validation → Developer Adoption → Commercial Adoption`.
 
 ## Six-month tracks (parallel)
 
@@ -74,17 +87,20 @@ Product arm: **C** Developer SDK · **D** Visual Designer · **E** Personal AI �
 
 ## Organization (re-weighted for the Apollo phase)
 
-**Products 50 · Platform 20 · Evidence 15 · Research 15** (≈100). The platform is now the
-*supplier*; products are its *customers*. Platform + Evidence keep the destroy-lab
-discipline on a near-frozen base; Research explores what the platform makes newly possible.
+**Products 35 · Platform 20 · Verification 15 · Research 15 · Developer Experience 15**
+(≈100). Success is no longer "how many standards did we write?" but **"how many
+developers actually built a product with ARVES?"** The platform is the *supplier*;
+products are its *customers*; Developer Experience is now a first-class function.
 
 ## Layout
 
 ```
 products/
-  README.md               this charter
-  arves-sdk-ts/           P1 — TypeScript Developer SDK ✅ (on the platform)
-  arves-cognitive-memory/ P2 — Cognitive Memory 🟢 (flagship; on the SDK)
+  README.md                       this charter
+  arves-sdk-ts/                   P0 — TypeScript Developer SDK ✅
+    src/bridge.mjs                P2 client — talks to the real Kernel
+  arves-cognitive-memory/         P1 — Cognitive Memory ✅ (flagship)
+runtime/crates/arves-bridge/      P2 — the SDK↔Kernel bridge (PLATFORM side; Kernel consumes ACS)
 ```
 
 Every product directory states, at its top, the platform version it pins and affirms it

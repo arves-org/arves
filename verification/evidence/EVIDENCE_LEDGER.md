@@ -27,7 +27,8 @@ Regenerate: `python verification/evidence/evidence_probe.py`
 | Independent Python reproduces rejection | Independent | L3 | **G1** | ✅ PASS | 17/17 REJECTED (16 core + nfc) | `python verification/independent/python/conformance_negative.py` |
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | **G1** | ✅ PASS | 13,807 inputs, **0 hard divergences** | `python verification/differential/acs002_differential_fuzz.py` |
 | Independent **TypeScript** runtime (cold, Kit-only) | Independent | L3 | **G1** | ✅ PASS | 12/12 + 16 core + nfc | `node verification/independent/typescript/src/conformance.mjs` |
-| Rust workspace tests (I1 runtime + gates + ACS) | Behaviour, Formal | L2 | G0 | ✅ PASS | 59 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
+| **SDK ↔ Kernel one-world** (arves-bridge) | Identity, Integration | L2 | G1 | ✅ PASS | Kernel commits under the ACS-001 address; TS SDK id == Kernel id; idempotent | `cargo test -p arves-bridge` · `node products/arves-sdk-ts/examples/kernel-bridge.mjs` |
+| Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | ✅ PASS | 61 tests | `cargo test --manifest-path runtime/Cargo.toml --workspace` |
 
 ## Section B — Declared evidence (destroy-office graded)
 

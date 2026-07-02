@@ -1,0 +1,15 @@
+[package]
+name = "arves-bridge"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# The SDK<->Kernel bridge: the single seam between the product/SDK world and the
+# reference runtime. It binds the Kernel's opaque ContentHash to the ACS-001 content
+# address, so the SDK and the Kernel share ONE identity (no "two worlds"). This is the
+# point at which the Kernel consumes the ACS standard.
+
+[dependencies]
+arves-kernel = { path = "../arves-kernel" }
+arves-persistence = { path = "../arves-persistence" }
+arves-acs = { path = "../arves-acs" }

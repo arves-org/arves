@@ -38,6 +38,7 @@ fn layer_rank(name: &str) -> Option<i32> {
         "arves-information-platform" => 80,
         "arves-control-plane" => 90,                 // decides, owns no truth
         "arves-runtime" => 100,                      // top orchestrator (bin)
+        "arves-bridge" => 105,                       // SDK<->Kernel seam (kernel+acs consumer)
         "arves-conformance" => 110,                  // test harness (may read all)
         _ => return None,
     })
