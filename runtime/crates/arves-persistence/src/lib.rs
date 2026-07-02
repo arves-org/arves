@@ -178,6 +178,19 @@ pub enum WalError {
     /// A detected append-only violation (attempt to overwrite/reorder a
     /// committed record). Rejecting this upholds the append-only WAL (IDR-005).
     AppendOnlyViolation { shard: ShardKey, offset: Offset },
+    /// The retained log is not dense/complete over the requested range: a
+    /// committed record is missing (e.g. an interior segment is corrupt or a
+    /// frame failed its CRC), so replay cannot faithfully reconstruct truth.
+    /// Recovery MUST fail loudly on this rather than return a gapped trace
+    /// (ORCH-003 losslessness; "lossless or loud").
+    Corruption {
+        /// The shard whose log is incomplete.
+        shard: ShardKey,
+        /// The first offset that was expected but not found (the gap point).
+        missing_offset: Offset,
+        /// Human-readable detail; not a stable API surface.
+        detail: String,
+    },
 }
 
 /// Read cursor over a shard's WAL, yielding records in offset order.
@@ -1097,6 +1110,34 @@ impl Wal for FileWal {
                 }
             }
         }
+        // INTEGRITY (I1.7): the range [offset, head) MUST be dense and complete.
+        // decode_all stops at the first torn/corrupt frame, so a corrupt INTERIOR
+        // (sealed) segment silently drops its suffix -- detect that here and fail
+        // loudly instead of returning a gapped trace ("lossless or loud").
+        let mut expected = offset;
+        for r in &records {
+            if r.offset != expected {
+                return Err(WalError::Corruption {
+                    shard: self.shard.clone(),
+                    missing_offset: expected,
+                    detail: format!(
+                        "non-contiguous replay: expected offset {expected}, found {}",
+                        r.offset
+                    ),
+                });
+            }
+            expected += 1;
+        }
+        if expected != inner.head {
+            return Err(WalError::Corruption {
+                shard: self.shard.clone(),
+                missing_offset: expected,
+                detail: format!(
+                    "incomplete replay: reached offset {expected}, head is {}",
+                    inner.head
+                ),
+            });
+        }
         Ok(VecReplayCursor {
             records,
             pos: 0,
@@ -1175,6 +1216,20 @@ impl WalStore for FileWalStore {
         let dir = self.dir_for(shard);
         fs::create_dir_all(&dir)
             .map_err(|e| WalError::Durability(format!("create shard dir: {e}")))?;
+
+        // Sweep orphan checkpoint temp files left by a crash in install_snapshot's
+        // fsync->rename window (I1.7). They are harmless to recovery (parse_snap
+        // ignores them) but would otherwise leak without bound across crash
+        // cycles, so recovery reclaims them.
+        if let Ok(rd) = fs::read_dir(&dir) {
+            for e in rd.flatten() {
+                if let Some(n) = e.file_name().to_str() {
+                    if n.starts_with("snap-") && n.ends_with(".snap.tmp") {
+                        let _ = fs::remove_file(e.path());
+                    }
+                }
+            }
+        }
 
         // Recover head/earliest by scanning the directory. Only the LAST (current)
         // segment can have a torn tail (a crash mid-append); repair it there.

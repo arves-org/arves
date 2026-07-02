@@ -20,8 +20,15 @@ I4 Capability Scheduling -> I5 Multi-Agent Runtime -> I6 Reference Products`.
 | I1.3 | Implementation Baseline (commit + tag) | Completed | tag `I1-baseline` |
 | I1.4 | First Executable Behaviour (commit -> WAL -> replay) | Completed | tag `I1.4-first-behaviour` |
 | I1.5 | Persistent WAL (memory -> disk, fsync, real restart) | Completed | tag `I1.5-durable-wal` |
-| I1.6 | Checkpoint Semantics (snapshot + compaction + WAL rotation + recovery point + restore) | Implemented - tests PASS; awaiting commit+tag | `runtime/docs/I1.6_Checkpoint_Semantics_Design.md` |
-| I1.7 | Recovery (restart from checkpoint + WAL tail) | Next | - |
+| I1.6 | Checkpoint Semantics (snapshot + compaction + WAL rotation + recovery point + restore) | Completed | tag `I1.6-checkpoint-semantics` |
+| I1.7 | Recovery hardening (fault-injection; lossless-or-loud) | Completed | tag `I1.7-recovery-hardening` |
+
+**I1 — Distributed Runtime: COMPLETE** (storage side) — tags `I1-complete` +
+`I1.7-recovery-hardening`. Proven end to end: commit -> durable segmented WAL ->
+checkpoint/compaction -> fault-hardened, lossless-or-loud recovery. Retrospective:
+`runtime/docs/I1_Retrospective.md`. Next milestone: **I2 Cluster Kernel** (first
+deliverable = a proven replication model `Leader append -> Follower apply -> same
+truth_hash`; Raft/quorum layer afterward).
 
 > **I1.6 scope note (tracker-level refinement, not a spec change).** The frozen
 > Baseline Part 5 defines only the top-level `I1..I6` milestones; the `I1.x`
@@ -124,6 +131,44 @@ under RT-001 (dormant->active). Honest limits carried forward from I1.5 (no
 parent-dir fsync; corrupt sealed segment conservatively truncates suffix -
 repaired by replication at I2). `cargo check --workspace --all-targets`: 0
 warnings. **27/27 behaviour tests PASS** (6 I1.4 + 12 I1.5 + 9 I1.6).
+
+## I1.7 - Recovery hardening (implemented; awaiting user commit+tag)
+
+Closes the storage side of I1. Recovery already worked on the happy path (I1.6);
+I1.7 subjected it to an **adversarial recovery-bug hunt** (a multi-agent
+workflow, the constitution's "destroy your own design" phase) and hardened every
+confirmed gap so recovery is now **lossless or loud** — it restores all committed
+truth or fails with a typed error, never silently returns partial truth.
+
+**Adversarial hunt:** 6 fault lenses x (hunt -> independent adversarial verify),
+15 agents, 9 raw findings -> **7 CONFIRMED, 2 REFUTED**. Consolidated to four
+root defects, each now fixed with a fault-injection regression proof:
+
+| Defect | Was | Now | Proof |
+|--------|-----|-----|-------|
+| A: lost/corrupt prefix snapshot after compaction | silent partial truth | `RecoveryError::CompactedPrefixWithoutSnapshot` (loud) | R-A |
+| B: corrupt interior (sealed) segment | silent gapped trace | `replay_from` completeness check -> `WalError`/`RecoveryError::Corruption` (loud) | R-B, interior_segment_corruption_is_detected |
+| C: snapshot covers beyond truncated head | panic / hard-brick | skip empty tail, restore from snapshot (lossless) | R-C |
+| D: orphan `*.snap.tmp` after crash | unbounded disk leak | swept on `open()` | orphan_snapshot_tmp_is_swept_on_open |
+
+**REFUTED (considered, shown safe):** two "crash mid-compaction leaves a hole"
+claims - refuted because compaction unlinks segments ascending AND the snapshot
+is durable before any compaction, so partial compaction stays recoverable.
+
+**Interface evolution (RT-001):** recovery became fallible -
+`try_recover -> Result<Self, RecoveryError>` (checked entry point); `recover`
+panics loudly on error. New `WalError::Corruption` variant; `replay_from` now
+guarantees a dense/complete range or errors. Frozen spec untouched; Kernel still
+sole truth owner; Persistence still opaque bytes only. See
+`I1.7_Recovery_Design.md` §D.
+
+**Independent architecture review verdict (I1.7): PASS.** The hunt provided the
+independent critical review; residual single-node limits (a corrupt sole
+snapshot is unrecoverable — now *detected and refused*, repaired by replication
+at I2) are documented, not hidden. `cargo check --workspace --all-targets`: 0
+warnings. **Full suite: 37 passed, 0 failed** = 34 authored behaviour/integration
+proofs (6 I1.4 + 12 I1.5 + 9 I1.6 + 7 I1.7) + 3 pre-existing crate unit tests.
+I1.7 adds 7 (4 kernel recovery + 3 persistence recovery).
 
 ## I1.4 - conformance status (honest)
 

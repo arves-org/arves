@@ -62,14 +62,28 @@ fn run_write(dir: &str) {
 fn run_recover(dir: &str) {
     let store = FileWalStore::open_root(dir).expect("open file store");
     // A genuinely fresh Kernel: no commits, only restore (snapshot + tail replay).
-    let kernel = FileKernel::recover(store);
+    // Recovery is lossless-or-loud (I1.7): surface an unrecoverable state instead
+    // of running on partial truth.
+    let kernel = match FileKernel::try_recover(store) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("RECOVERY_ERROR={e}");
+            process::exit(3);
+        }
+    };
     println!("TRUTH_HASH={:#018x}", kernel.truth_hash());
     println!("COUNT={}", kernel.committed_count());
 }
 
 fn run_checkpoint(dir: &str) {
     let store = FileWalStore::open_root(dir).expect("open file store");
-    let kernel = FileKernel::recover(store);
+    let kernel = match FileKernel::try_recover(store) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("RECOVERY_ERROR={e}");
+            process::exit(3);
+        }
+    };
     let before = kernel.truth_hash();
     let shards = kernel.checkpoint().expect("checkpoint");
     // A checkpoint is a durability operation; it must not change truth.

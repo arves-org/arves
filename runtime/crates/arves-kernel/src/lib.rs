@@ -260,7 +260,7 @@ use std::sync::Mutex;
 
 use arves_persistence::{
     ContentId, FileWalStore, MemWalStore, PendingRecord, RecordKind, ReplayCursor,
-    ShardKey as PShardKey, Wal, WalStore,
+    ShardKey as PShardKey, Wal, WalError, WalStore,
 };
 
 fn to_pshard(s: &ShardKey) -> PShardKey {
@@ -348,6 +348,92 @@ struct KernelState {
     index: HashMap<(String, String, Vec<u8>), usize>,
 }
 
+/// Why recovery could not faithfully reconstruct committed truth (I1.7).
+///
+/// Recovery is contractually **lossless or loud**: it either restores every
+/// committed truth or fails with one of these, never silently returns a
+/// partially-recovered Kernel. In a future replicated runtime (I2) a node that
+/// hits one of these repairs from a peer; a single-node caller surfaces it and
+/// refuses to start.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum RecoveryError {
+    /// A prefix `[0..earliest)` was compacted away but no valid snapshot loads,
+    /// so that committed truth is unrecoverable on this node (defect A).
+    CompactedPrefixWithoutSnapshot {
+        /// The shard whose compacted prefix is unrecoverable.
+        shard: ShardKey,
+        /// First still-retained offset; everything below it is lost.
+        earliest: u64,
+    },
+    /// The retained log is not dense/complete: a committed record is missing
+    /// (corrupt/interior segment), so the trace has a gap (defect B).
+    Corruption {
+        /// The shard whose log is incomplete.
+        shard: ShardKey,
+        /// The first offset expected but not found.
+        missing_offset: u64,
+        /// Human-readable detail; not a stable API surface.
+        detail: String,
+    },
+    /// Any other durable-store failure encountered during recovery.
+    Wal {
+        /// The shard being recovered when the error occurred.
+        shard: ShardKey,
+        /// Human-readable detail; not a stable API surface.
+        detail: String,
+    },
+}
+
+impl RecoveryError {
+    /// Map a [`WalError`] raised during recovery to a [`RecoveryError`],
+    /// preserving a detected gap as [`RecoveryError::Corruption`].
+    fn from_wal(shard: &ShardKey, e: WalError) -> Self {
+        match e {
+            WalError::Corruption {
+                missing_offset,
+                detail,
+                ..
+            } => RecoveryError::Corruption {
+                shard: shard.clone(),
+                missing_offset,
+                detail,
+            },
+            other => RecoveryError::Wal {
+                shard: shard.clone(),
+                detail: format!("{other:?}"),
+            },
+        }
+    }
+}
+
+impl fmt::Display for RecoveryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RecoveryError::CompactedPrefixWithoutSnapshot { shard, earliest } => write!(
+                f,
+                "compacted prefix [0..{}) for shard {}/{} has no recoverable snapshot",
+                earliest, shard.tenant, shard.workspace
+            ),
+            RecoveryError::Corruption {
+                shard,
+                missing_offset,
+                detail,
+            } => write!(
+                f,
+                "corrupt/incomplete log for shard {}/{} at offset {}: {}",
+                shard.tenant, shard.workspace, missing_offset, detail
+            ),
+            RecoveryError::Wal { shard, detail } => write!(
+                f,
+                "recovery failure for shard {}/{}: {}",
+                shard.tenant, shard.workspace, detail
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RecoveryError {}
+
 /// The reference Kernel: the sole commit gateway. Owns truth in memory, backed
 /// by an append-only [`WalStore`] it replays on recovery. Generic over the
 /// durable substrate so identical logic runs over the in-memory WAL
@@ -380,35 +466,89 @@ impl<S: WalStore> RefKernel<S> {
         }
     }
 
-    /// Recover a Kernel by REPLAYING the durable WAL (ORCH-003: reconstruct from
-    /// the recorded trace, never recompute). This is what a restart runs.
+    /// Recover a Kernel by REPLAYING the durable WAL (ORCH-003). Convenience
+    /// wrapper over [`try_recover`](RefKernel::try_recover) that PANICS loudly on
+    /// an unrecoverable durable state -- it never returns a partially-recovered
+    /// Kernel ("lossless or loud").
     pub fn recover(store: S) -> Self {
-        let k = RefKernel::new(store);
-        k.replay();
-        k
+        Self::try_recover(store)
+            .unwrap_or_else(|e| panic!("unrecoverable durable state: {e}"))
     }
 
-    /// Recover the truth set for every shard, idempotently, via
-    /// **checkpoint + tail replay** (I1.6): if a durable snapshot exists, install
-    /// its materialized state and replay only records after it; otherwise replay
-    /// from the earliest retained offset. A record whose content is already
-    /// present is skipped, so replay never creates new truth (ORCH-003).
+    /// Fallible recovery: reconstruct the truth set, or return a [`RecoveryError`]
+    /// if the durable state cannot be faithfully restored (I1.7). A future
+    /// replicated node (I2) will repair from a peer on such an error; a
+    /// single-node caller surfaces it and refuses to start on partial truth.
+    pub fn try_recover(store: S) -> Result<Self, RecoveryError> {
+        let k = RefKernel::new(store);
+        k.try_replay()?;
+        Ok(k)
+    }
+
+    /// Recover the truth set for every shard (panicking wrapper over
+    /// [`try_replay`](RefKernel::try_replay); kept for the idempotent-replay
+    /// behaviour proofs).
     pub fn replay(&self) {
+        self.try_replay().unwrap_or_else(|e| panic!("replay failed: {e}"))
+    }
+
+    /// Recover every shard idempotently via **checkpoint + tail replay** (I1.6),
+    /// hardened to be LOSSLESS OR LOUD (I1.7):
+    /// - if a prefix was compacted (`earliest > 0`) but no valid snapshot loads,
+    ///   the compacted truth is unrecoverable -> fail loudly (defect A);
+    /// - if the snapshot covers beyond the recovered head (a corrupt segment
+    ///   truncated the tail below the snapshot), the snapshot IS the full truth;
+    ///   skip the empty tail instead of panicking (defect C);
+    /// - `replay_from` rejects a gapped/incomplete tail, surfacing here as
+    ///   [`RecoveryError::Corruption`] (defect B).
+    ///
+    /// A record whose content is already present is skipped (ORCH-003 idempotent).
+    pub fn try_replay(&self) -> Result<(), RecoveryError> {
         let shards = self.store.shards();
         for sh in shards {
-            let wal = self.store.open(&sh).expect("open wal");
             let kernel_shard = from_pshard(&sh);
+            let wal = self
+                .store
+                .open(&sh)
+                .map_err(|e| RecoveryError::from_wal(&kernel_shard, e))?;
             // load_snapshot() -> install_state() -> replay(tail).
-            let base = match wal.load_snapshot().expect("load snapshot") {
+            let base = match wal
+                .load_snapshot()
+                .map_err(|e| RecoveryError::from_wal(&kernel_shard, e))?
+            {
                 Some((meta, blob)) => {
                     self.install_state(&kernel_shard, &blob);
                     meta.up_to_offset + 1
                 }
-                None => wal.earliest(),
+                None => {
+                    let earliest = wal.earliest();
+                    if earliest > 0 {
+                        // Defect A: a compacted prefix with no recoverable snapshot
+                        // means truths [0..earliest) are gone. Refuse loudly rather
+                        // than silently return partial truth.
+                        return Err(RecoveryError::CompactedPrefixWithoutSnapshot {
+                            shard: kernel_shard,
+                            earliest,
+                        });
+                    }
+                    0
+                }
             };
-            let mut cur = wal.replay_from(base).expect("replay");
+            let head = wal.head();
+            if base > head {
+                // Defect C: the snapshot already covers every committed offset;
+                // there is no tail (a corrupt segment may have truncated head below
+                // the snapshot). The installed snapshot state stands. Lossless.
+                continue;
+            }
+            let mut cur = wal
+                .replay_from(base)
+                .map_err(|e| RecoveryError::from_wal(&kernel_shard, e))?;
             let mut state = self.state.lock().expect("state poisoned");
-            while let Some(rec) = cur.next().expect("cursor") {
+            while let Some(rec) = cur
+                .next()
+                .map_err(|e| RecoveryError::from_wal(&kernel_shard, e))?
+            {
                 let key = (
                     rec.shard.tenant.clone(),
                     rec.shard.workspace.clone(),
@@ -427,6 +567,7 @@ impl<S: WalStore> RefKernel<S> {
                 state.index.insert(key, pos);
             }
         }
+        Ok(())
     }
 
     /// Serialize a shard's materialized truths into an opaque state blob, in
