@@ -6,7 +6,7 @@
 //! is implemented here so the reference does not lean on a specific crate and an
 //! independent runtime can derive the identical bytes from the spec alone.
 //!
-//! Governing: ACS-001 (runtime/docs/standards/ACS-001_CCP-001_Content_Addressing.md);
+//! Governing: ACS-001 (standard/acs/ACS-001_Content_Addressing.md);
 //! ORCH-004 (idempotent + content-addressable). ACS-002 dCBOR bodies follow.
 //!
 //! The unit tests assert the ACS-001-CS-1 golden vectors byte-for-byte; they are

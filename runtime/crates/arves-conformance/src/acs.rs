@@ -17,6 +17,8 @@ use arves_acs::{content_id, domain, hex};
 pub struct VectorResult {
     pub standard: &'static str,
     pub vector: &'static str,
+    pub domain: u8,
+    pub body_hex: String,
     pub content_id: String,
     pub expected: &'static str,
     pub pass: bool,
@@ -31,6 +33,20 @@ impl AcsReport {
     pub fn all_pass(&self) -> bool {
         self.results.iter().all(|r| r.pass)
     }
+    /// Machine-readable, language-neutral golden-vector corpus (TSV). Any
+    /// implementation loads this + reads the ACS specs for the logical inputs, then
+    /// checks its own `body_hex` (encoder) and `content_id` (addresser).
+    pub fn tsv(&self) -> String {
+        let mut s = String::from("standard\tvector\tdomain\tbody_hex\tcontent_id\n");
+        for r in &self.results {
+            s.push_str(&format!(
+                "{}\t{}\t0x{:02x}\t{}\t{}\n",
+                r.standard, r.vector, r.domain, r.body_hex, r.content_id
+            ));
+        }
+        s
+    }
+
     /// (standard, passed, total) grouped in declaration order.
     pub fn by_standard(&self) -> Vec<(&'static str, usize, usize)> {
         let mut out: Vec<(&'static str, usize, usize)> = Vec::new();
@@ -51,7 +67,15 @@ impl AcsReport {
 
 fn check(standard: &'static str, vector: &'static str, domain_tag: u8, body: &[u8], expected: &'static str) -> VectorResult {
     let cid = hex(&content_id(domain_tag, body));
-    VectorResult { standard, vector, pass: cid == expected, content_id: cid, expected }
+    VectorResult {
+        standard,
+        vector,
+        domain: domain_tag,
+        body_hex: hex(body),
+        pass: cid == expected,
+        content_id: cid,
+        expected,
+    }
 }
 
 fn raw(standard: &'static str, vector: &'static str, domain_tag: u8, body: &[u8], expected: &'static str) -> VectorResult {
