@@ -47,7 +47,9 @@ floats. Timestamps are integers (e.g. epoch-ms × `1_000_000n` for nanoseconds).
 > model, vacuous certification, weak signature) are the fixes above.
 - **Host** — `CapabilityHost`: installs certified, signature-verified capabilities and
   invokes them, committing effects as truth via the frozen runtime.
-- **CLI** — `arves certify <file>` · `arves package <file>`.
+- **CLI** — `arves init <name>` (scaffold a green, certifiable capability) · `arves doctor
+  <file>` (conformance assistant: every violation with its exact fix) · `arves certify <file>`
+  · `arves package <file>`.
 
 ## Author + publish a capability (the 10-minute path)
 
@@ -64,6 +66,8 @@ export default { capability, testInputs, source };
 ```
 
 ```
+node bin/arves.mjs init my.capability                    # scaffold a green capability file
+node bin/arves.mjs doctor my.capability.capability.mjs   # HEALTHY, or every fix you need
 node bin/arves.mjs certify examples/invoice-ocr.capability.mjs   # → CERTIFIED
 node bin/arves.mjs package examples/invoice-ocr.capability.mjs   # → signed artifact id
 node examples/third-party-capability.mjs                         # author→…→truth (exits 0)
