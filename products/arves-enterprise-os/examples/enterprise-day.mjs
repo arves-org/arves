@@ -6,7 +6,7 @@
 // no shared enforced truth, no compliance ledger, and no cross-agent consistency.
 //
 // Runs on the FROZEN Runtime v1.0 (SDK + Bridge). Edits no runtime file.
-// Run: node examples/enterprise-day.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge)
+// Run: node examples/enterprise-day.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { KernelBridge } from '../../arves-sdk-ts/src/bridge.mjs';
 import { EnterpriseCognitiveOS } from '../src/enterprise-os.mjs';

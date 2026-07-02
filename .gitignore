@@ -4,3 +4,8 @@ target/
 Cargo.lock
 __pycache__/
 *.pyc
+
+# arves init scaffolds — keep the curated examples/, ignore ad-hoc scaffolds anywhere else
+*.capability.mjs
+!products/arves-ecosystem-sdk/examples/*.capability.mjs
+/hello-arves.mjs

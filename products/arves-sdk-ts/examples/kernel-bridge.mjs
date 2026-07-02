@@ -3,7 +3,7 @@
 // identity the Kernel assigns — because both address by ACS-001.
 //
 // Products → SDK → Bridge → Kernel. Run: node examples/kernel-bridge.mjs
-// (requires the platform bridge built once: cargo build -p arves-bridge --bin arves-bridge)
+// (requires the platform bridge built once: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { Arves } from '../src/arves.mjs';
 import { KernelBridge } from '../src/bridge.mjs';

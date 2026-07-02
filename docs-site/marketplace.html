@@ -20,7 +20,7 @@
 <pre><code>Publisher → author → certify → sign → PUBLISH →  Marketplace  → INSTALL → run → Truth
 Consumer  ────────────────────────── discover ──┘                      (frozen Runtime v1.0)</code></pre>
 <h2 id="run">Run</h2>
-<pre><code>cargo build -p arves-bridge --bin arves-bridge
+<pre><code>cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml
 node examples/publish-install.mjs      # publish (Acme) → install+run (a different org) — exits 0</code></pre>
 <h2 id="why-it-matters">Why it matters</h2>
 <p>This is the loop that makes ARVES self-sustaining: a company publishes a Risk engine, a hospital installs a Radiology capability, a developer ships a connector — all certified, signed, and running on the same frozen runtime, with no coordination and no runtime change. Combined with P6.5 (authoring) it answers the platform KPI — <em>how much value do others create on ARVES?</em> Next: the <strong>ARVES Foundation</strong> (governance + registry + multiple certified runtimes behind one conformance), so the ecosystem outlives any single maintainer.</p>

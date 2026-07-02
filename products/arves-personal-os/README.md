@@ -27,7 +27,7 @@ core features **cannot**:
 ## Run
 
 ```
-cargo build -p arves-bridge --bin arves-bridge   # once: the frozen Runtime API
+cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml   # once: the frozen Runtime API
 node examples/my-day.mjs                          # your day as reproducible cognition (exits 0)
 ```
 

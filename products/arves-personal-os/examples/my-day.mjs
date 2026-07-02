@@ -6,7 +6,7 @@
 // IMPOSSIBLE for a ChatGPT/LangGraph/n8n/AutoGen wrapper — that is the point.
 //
 // Runs entirely on the FROZEN Runtime v1.0 API (SDK + Bridge). It edits no runtime file.
-// Run: node examples/my-day.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge)
+// Run: node examples/my-day.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { KernelBridge } from '../../arves-sdk-ts/src/bridge.mjs';
 import { PersonalCognitiveOS } from '../src/personal-os.mjs';

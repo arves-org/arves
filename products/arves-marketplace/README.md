@@ -15,7 +15,7 @@ Consumer  ───────────────────────�
 ## Run
 
 ```
-cargo build -p arves-bridge --bin arves-bridge
+cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml
 node examples/publish-install.mjs      # publish (Acme) → install+run (a different org) — exits 0
 ```
 

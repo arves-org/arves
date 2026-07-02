@@ -5,7 +5,7 @@
 //   Author → Certify → Package(sign) → Install → Invoke → Truth (frozen Kernel)
 //
 // This is the proof of platform-hood: "how much code did someone else write?"
-// Run: node examples/third-party-capability.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge)
+// Run: node examples/third-party-capability.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import thirdParty from './invoice-ocr.capability.mjs';
 import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from '../src/kit.mjs';

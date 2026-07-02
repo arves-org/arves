@@ -5,7 +5,7 @@
 // capability binding, runs the pure Engine, and commits the engine's proposed effect as
 // ACS-001-addressed truth in the real Kernel — the id equal to what the SDK computes
 // locally (one world). An unbound capability is refused. Run: node examples/engine-invoke.mjs
-// (requires: cargo build -p arves-bridge --bin arves-bridge)
+// (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { Arves } from '../src/arves.mjs';
 import { KernelBridge } from '../src/bridge.mjs';

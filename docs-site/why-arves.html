@@ -25,18 +25,15 @@ Runtime / Specification / Standard: FROZEN · changes: RCR only</code></pre>
 <p>A wrapper gives you a chain of prompts and side effects you <strong>cannot reproduce, audit, or defend</strong>. ARVES gives you cognition as <em>truth</em>:</p>
 <div class="table-wrap"><table><thead><tr><th>You get…</th><th>Because…</th><th>A wrapper can't</th></tr></thead><tbody><tr><td><strong>One identity across systems</strong></td><td>identity is a content address (ACS-001)</td><td>double-counts the same fact from 3 sources</td></tr><tr><td><strong>Reproducible reasoning</strong></td><td>every step is content-addressed truth in a Kernel</td><td>answers differently each run</td></tr><tr><td><strong>Full audit + replay</strong></td><td>append-only, content-addressed WAL = a deterministic decision trace (ORCH-003)</td><td>no reproducible, replayable record</td></tr><tr><td><strong>Decision-aware memory</strong></td><td>prior decisions are addressable truths</td><td>no persistent, provable history</td></tr><tr><td><strong>Governed multi-agent</strong></td><td>policy enforced as truth; compliance ledger</td><td>no shared enforced truth</td></tr></tbody></table></div>
 <p>If a product could be built cheaply with a wrapper, it doesn't need ARVES. ARVES is for the products that <strong>can't</strong> be — see the Personal &amp; Enterprise Cognitive OS demos below.</p>
-<h2 id="10-minutes-to-your-first-arves-app">10 minutes to your first ARVES app</h2>
+<h2 id="your-first-capability-in-5-minutes-node-18-no-rust">Your first capability in ~5 minutes (Node ≥18 — no Rust)</h2>
+<p>Authoring runs entirely on Node — you do <strong>not</strong> need the Rust runtime build for this path:</p>
+<pre><code class="lang-bash">node products/arves-ecosystem-sdk/bin/arves.mjs init hospital.incident
+node products/arves-ecosystem-sdk/bin/arves.mjs doctor hospital.incident.capability.mjs   # HEALTHY, or the exact fix
+node products/arves-ecosystem-sdk/bin/arves.mjs certify hospital.incident.capability.mjs  # → CERTIFIED</code></pre>
+<h3 id="also-want-the-runtime-demos-needs-rust-rustup-rs-https-rustu">Also want the runtime demos? (needs Rust — <a href="https://rustup.rs">rustup.rs</a>)</h3>
 <pre><code class="lang-bash">cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml   # the frozen Runtime API (once)
-
-# A personal cognitive OS: 6 systems → one truth → a reproducible, audited daily briefing
-node products/arves-personal-os/examples/my-day.mjs
-
-# An enterprise cognitive OS: policy enforced as truth, compliance ledger, multi-agent
-node products/arves-enterprise-os/examples/enterprise-day.mjs
-
-# Author + certify your OWN capability (no runtime source needed)
-node products/arves-ecosystem-sdk/bin/arves.mjs certify \
-  products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs</code></pre>
+node products/arves-personal-os/examples/my-day.mjs            # 6 systems → one reproducible, audited truth
+node products/arves-enterprise-os/examples/enterprise-day.mjs  # policy-as-truth + a compliance ledger</code></pre>
 <p>Full path: <strong><a href="quickstart.html">QUICKSTART.md</a></strong>.</p>
 <h2 id="architecture">Architecture</h2>
 <pre><code>Products      Personal OS · Enterprise OS · (your product)          products/

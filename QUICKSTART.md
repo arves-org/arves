@@ -1,8 +1,10 @@
 # ARVES Quickstart — your first cognitive app in ~10 minutes
 
-Everything below runs on the **frozen Runtime v1.0** and is verified. Prerequisites:
-**Rust** (cargo) for the runtime bridge, **Node ≥18** for the SDK and products. No network
-or third-party packages are required.
+Everything below is verified. **Two paths — pick one:**
+- **(A) Author a capability — Node ≥18 only, no Rust, ~5 min.** Jump straight to **step 4**.
+- **(B) Run the full runtime + demos — also needs Rust ([rustup.rs](https://rustup.rs)), ~10 min.** Start at **step 1**.
+
+No network or third-party packages are required either way.
 
 ## 1. Build the Runtime API (once, ~1–2 min)
 

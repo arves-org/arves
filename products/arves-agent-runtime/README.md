@@ -24,7 +24,7 @@ Truth Update** — and it runs on the *real* Kernel, not a stand-in.
 ## Run
 
 ```
-cargo build -p arves-bridge --bin arves-bridge   # once: the platform bridge (P2)
+cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml   # once: the platform bridge (P2)
 node examples/agent-run.mjs                       # the agent commits its trace to the real Kernel
 ```
 

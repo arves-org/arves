@@ -18,7 +18,7 @@ unchanged runtime, and thus the proof that ARVES is a platform, not one app.
 ## Run
 
 ```
-cargo build -p arves-bridge --bin arves-bridge
+cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml
 node examples/enterprise-day.mjs
 ```
 

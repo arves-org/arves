@@ -6,7 +6,7 @@
 // accepts certified, signed artifacts and refuses uncertified/tampered/duplicate ones. This
 // is the loop that makes ARVES a platform others ship on.
 //
-// Run: node examples/publish-install.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge)
+// Run: node examples/publish-install.mjs   (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { defineCapability, certifyCapability, packageCapability, CapabilityHost } from '../../arves-ecosystem-sdk/src/kit.mjs';
 import { KernelBridge } from '../../arves-sdk-ts/src/bridge.mjs';

@@ -5,7 +5,7 @@
 // every step (what it knew, what it concluded, what it planned, which capability it
 // chose, what it did) is truth in a real Kernel — run it twice and it is byte-identical
 // and idempotent. Run: node examples/agent-run.mjs
-// (requires: cargo build -p arves-bridge --bin arves-bridge)
+// (requires: cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml)
 
 import { CognitiveMemory } from '../../arves-cognitive-memory/src/memory.mjs';
 import { allSources } from '../../arves-cognitive-memory/src/connectors.mjs';

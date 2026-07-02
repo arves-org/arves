@@ -18,11 +18,25 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const KIT = path.resolve(HERE, '..', 'src', 'kit.mjs');
 const CMDS = ['init', 'doctor', 'certify', 'package'];
 
+const HELP = `arves — the ARVES Ecosystem Authoring CLI
+
+usage: arves <command> <name-or-file>
+
+commands:
+  init <name>     scaffold a green, certifiable capability file (<name>.capability.mjs)
+  doctor <file>   conformance assistant: report every violation and its exact fix
+  certify <file>  run certification and print the PASS/FAIL verdict + per-check status
+  package <file>  produce a signed, content-addressed, versioned artifact
+
+A capability file default-exports { capability, testInputs, source }.
+Authoring needs only Node >=18 — no Rust build required.
+Docs: the documentation site (docs-site/) or products/arves-ecosystem-sdk/README.md`;
+
 const [, , cmd, arg] = process.argv;
-if (!cmd || !arg || !CMDS.includes(cmd)) {
-  console.error('usage: arves <init|doctor|certify|package> <name-or-file>');
-  process.exit(2);
-}
+if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') { console.log(HELP); process.exit(cmd ? 0 : 2); }
+if (!CMDS.includes(cmd)) { console.error(`arves: unknown command '${cmd}'\n`); console.log(HELP); process.exit(2); }
+if (arg === '--help' || arg === '-h') { console.log(HELP); process.exit(0); }
+if (!arg) { console.error(`usage: arves ${cmd} <${cmd === 'init' ? 'name' : 'file'}>   (try: arves --help)`); process.exit(2); }
 
 // ---- init: scaffold a working, certifiable capability -----------------------
 if (cmd === 'init') {

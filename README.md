@@ -34,20 +34,22 @@ defend**. ARVES gives you cognition as *truth*:
 If a product could be built cheaply with a wrapper, it doesn't need ARVES. ARVES is for the
 products that **can't** be — see the Personal & Enterprise Cognitive OS demos below.
 
-## 10 minutes to your first ARVES app
+## Your first capability in ~5 minutes (Node ≥18 — no Rust)
+
+Authoring runs entirely on Node — you do **not** need the Rust runtime build for this path:
+
+```bash
+node products/arves-ecosystem-sdk/bin/arves.mjs init hospital.incident
+node products/arves-ecosystem-sdk/bin/arves.mjs doctor hospital.incident.capability.mjs   # HEALTHY, or the exact fix
+node products/arves-ecosystem-sdk/bin/arves.mjs certify hospital.incident.capability.mjs  # → CERTIFIED
+```
+
+### Also want the runtime demos? (needs Rust — [rustup.rs](https://rustup.rs))
 
 ```bash
 cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml   # the frozen Runtime API (once)
-
-# A personal cognitive OS: 6 systems → one truth → a reproducible, audited daily briefing
-node products/arves-personal-os/examples/my-day.mjs
-
-# An enterprise cognitive OS: policy enforced as truth, compliance ledger, multi-agent
-node products/arves-enterprise-os/examples/enterprise-day.mjs
-
-# Author + certify your OWN capability (no runtime source needed)
-node products/arves-ecosystem-sdk/bin/arves.mjs certify \
-  products/arves-ecosystem-sdk/examples/invoice-ocr.capability.mjs
+node products/arves-personal-os/examples/my-day.mjs            # 6 systems → one reproducible, audited truth
+node products/arves-enterprise-os/examples/enterprise-day.mjs  # policy-as-truth + a compliance ledger
 ```
 
 Full path: **[QUICKSTART.md](QUICKSTART.md)**.
