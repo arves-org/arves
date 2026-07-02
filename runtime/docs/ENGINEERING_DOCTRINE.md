@@ -70,3 +70,26 @@ specification corpus. Companion rule: `RT-001_Reference_Runtime_Interface_Evolut
   the passing happy-path suite).
 
 *Ratified by the maintainer at the close of I1 (first applied in I1.7).*
+
+---
+
+## ED-004 — Milestone Definition of Done is "Scientifically Proven", not "Complete"
+
+> A milestone is done when its property is *scientifically proven and
+> independently reproducible*, not merely when the code compiles and tests pass.
+
+Every milestone (and the standardization program) closes with this table
+answered — it IS the Definition of Done:
+
+| Question | Bar |
+|---|---|
+| Specification complete | the governing spec/ACS exists and is frozen or ratified |
+| Runtime complete | the reference runtime implements it |
+| Behaviour proven | executable behaviour proofs pass |
+| Architecture gates pass | LAYER/OWN (and peers) enforced at build time, not just documented |
+| Formal model exists | the core properties have a machine-checkable formal statement |
+| Conformance pass | populated conformance scenarios pass |
+| Independent implementation possible | a different team could build it from the spec + ACS alone and interoperate |
+
+The last row is the ultimate bar: **the standard is real only when independent
+implementations converge.** Ratified at the opening of the Standardization era.
