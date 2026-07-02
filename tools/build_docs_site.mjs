@@ -134,6 +134,8 @@ const PAGES = [
   { section: 'Foundation', slug: 'foundation', title: 'Foundation', src: 'FOUNDATION.md' },
   { section: 'Foundation', slug: 'closure', title: 'Build Program Closure', src: 'ARVES_BUILD_PROGRAM_CLOSURE.md' },
   { section: 'Foundation', slug: 'rcr-001', title: 'RCR-001 (Runtime v1.1)', src: 'runtime/rcr/RCR-001.md' },
+  { section: 'Foundation', slug: 'success', title: 'Success — the North Star', src: 'SUCCESS.md' },
+  { section: 'Foundation', slug: 'releasing', title: 'Releasing (Growth Protocol)', src: 'RELEASING.md' },
   { section: 'Getting Started', slug: 'cli-reference', title: 'CLI Reference', src: 'docs/CLI_REFERENCE.md' },
   { section: 'Getting Started', slug: 'deploy', title: 'Deploy (Docker)', src: 'docs/DEPLOY.md' },
   { section: 'Platform', slug: 'runtime-authors', title: 'Add Your Own Runtime (G2)', src: 'standard/RUNTIME_AUTHORS_GUIDE.md' },
