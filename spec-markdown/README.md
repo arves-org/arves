@@ -1,7 +1,7 @@
 # ARVES Specification Corpus — Markdown Mirror (v1.0.1)
 
 This directory is a **faithful, regenerable Markdown rendering** of the frozen ARVES
-specification corpus — the ~50 `.docx` files at the repository root. It exists so the corpus
+specification corpus — the ~50 `.docx` files in [`corpus/`](../corpus/). It exists so the corpus
 can be **searched, `git diff`ed, reviewed line-by-line in pull requests, version-controlled,
 and read by tools/AI agents** — the capabilities the binary `.docx` format denied (the
 replaceability gap surfaced by the Build Program closure audit, pillar 16).

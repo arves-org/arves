@@ -2,7 +2,7 @@
 """
 ARVES corpus renderer — .docx -> Markdown (v1.0.1 Foundation Improvement).
 
-Renders the frozen specification corpus (the ~50 root .docx files) into a committed,
+Renders the frozen specification corpus (the ~50 .docx files in corpus/) into a committed,
 grep-/diff-/PR-able Markdown MIRROR under `spec-markdown/`. This is a FORMAT conversion
 only: content is preserved, not changed.
 
@@ -15,7 +15,7 @@ Order-preserving: iterates the document body so paragraphs and tables interleave
 Maps Word heading styles to Markdown headings, list paragraphs to bullets, tables to GFM
 tables, and bold/italic runs to Markdown emphasis.
 
-Usage: python tools/docx_to_markdown.py           # convert all root *.docx -> spec-markdown/
+Usage: python tools/docx_to_markdown.py           # convert all corpus/*.docx -> spec-markdown/
        python tools/docx_to_markdown.py --check    # verify parity only (no write), exit 1 on drift
 """
 import glob
@@ -133,7 +133,7 @@ def docx_wordcount(path):
 
 def main():
     check = "--check" in sys.argv
-    files = sorted(glob.glob(os.path.join(ROOT, "*.docx")))
+    files = sorted(glob.glob(os.path.join(ROOT, "corpus", "*.docx")))
     if not files:
         print("no .docx at repo root", file=sys.stderr)
         return 1
