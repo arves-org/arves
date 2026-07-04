@@ -260,4 +260,31 @@ SOUND-CERTIFIED.
 - **Still G1.** The validators were authored in-program. This raises self-conformance; it does
   **not** manufacture G2. A genuine external runtime rejecting these vectors from the Kit alone
   would be the G2 evidence — the corpus now *exists to be tested*.
-- **#3 / #18 / #19 / #20 / #21 / #22 / #24 remain open** Bucket-B items (unchanged).
+- **#3 / #18 / #19 / #20 / #21 / #22 / #24 remain open** Bucket-B items (unchanged). *(Updated by §9: #19/#22 ratified, #24 confirmed done, #20/#21 classified.)*
+
+---
+
+## 9. Remediation log (2026-07-04) — CCP-007 minor clarifying clauses + #24 confirmed
+
+`standard/acs/CCP-GATE-Ratification-v3.md`, Kit `0.3.0 → 0.3.1`. **No golden vector, ContentId, or
+canonical byte changed** — the two clauses make the normative text match already-enforced rules.
+Freeze re-baselined 150 → **151 files, 0 drift**; evidence_probe `--check` **9/9** (semantic now
+`instance 8/8`); Rust workspace 75/75; certify 2/2; sound 2/2.
+
+| # | Gap | Status | How |
+|---|-----|--------|-----|
+| **#22** | ACS-002 §5 had no explicit shortest-form LENGTH clause | ✅ **closed** | ACS-002 §5.2 clause: shortest-argument rule covers Text/Bytes/Array/Map length prefixes (`non-shortest-len`); documents the existing `780161` vector, no byte change |
+| **#19** | ACS-004 int/u32 can't type an Integer in [2^63, 2^64-1] | ✅ **closed** | ACS-004 §6.3 range-coverage note (int=i64, u32; u64 is a future CCP) **+** new gate vector `instance-int-above-i64` (2^63 typed `int` → `value-out-of-range`), oracle-verified, `conformance_semantic.py` instance 8/8 |
+| **#24** | ACS-005 §9.3 glossary-resolution lint unimplemented | ✅ **confirmed done** | `acs005_checker.py glossary_resolution_lint` (commit `f3a7e86`) resolves 13/14 terms + flags "Data Plane" GATED; residual is the #21 spec decision |
+
+**NOT ratified — classified as maintainer design decisions (constitutional STOP, not a rushed edit):**
+- **#20** — the ACS-004 §5.1 urn↔type binding is normative but §6.5 doesn't enforce it, and *"modulo
+  namespace"* is underspecified for the shipped `uci.fact` (schema) vs `urn:arves:uci.core:fact@1.0`
+  (instance) example. A §6.5 clause + vector would encode a guess. Needs the exact binding rule fixed
+  first (CCP-GATE-Ratification-v3 §"NOT ratified").
+- **#21** — "Data Plane" has no `GL-nnn` entry; the real fix (`GL-015`) **changes the §9.2 golden
+  term-set vector** → byte-affecting → an ACS-005 **profile bump (v2)**, not a minor clause. Two
+  honest options recorded; a deliberate maintainer choice, not a batch edit.
+
+**Still open (unchanged):** #3 (Kernel content-integrity, RCR), #18 (PropertyCheck harness, RCR),
+#20, #21, and RCR-004 (native Rust ACS-003/004/005 validators). Independence still **G1**.

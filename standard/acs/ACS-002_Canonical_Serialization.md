@@ -113,6 +113,15 @@ represents it (RFC 8949 §4.2.1): the argument **SHALL** use the fewest bytes
 0; a negative Integer `n` uses major 1 with argument `−1 − n`. A longer-than-
 necessary encoding of an Integer is non-canonical and **MUST** be rejected.
 
+The **same** shortest-argument rule (RFC 8949 §4.2.1) applies to the **length
+argument** of every definite-length major type: the length prefix of a Text
+(major 3), Bytes (major 2), Array (major 4), and Map (major 5) **SHALL** use the
+fewest additional-information bytes that represent that length (inline `0..23`,
+then 1, 2, 4, or 8 bytes). A length prefix wider than necessary is non-canonical
+and **MUST** be rejected as `non-shortest-len` (e.g. `78 01` — a 1-byte length
+sentinel for a 1-octet Text — where the canonical form is the inline `61`;
+negative vector `non-shortest-len`, `780161`).
+
 An implementation **MUST** carry an Integer in a representation that preserves its
 exact value across the whole §4 range `[-2^64, 2^64-1]` (e.g. a 64-bit-or-wider
 integer or a bignum). It **MUST NOT** back an Integer with a binary floating-point

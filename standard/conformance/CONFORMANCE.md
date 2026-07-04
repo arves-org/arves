@@ -115,14 +115,15 @@ thin re-implementation of the same two checks over the same TSV.
   always 64-bit; NFC text; bytewise-sorted map keys; shortest ints; definite
   lengths).
 - A conformant decoder MUST also REJECT non-canonical inputs (ACS-002 §5); the
-  rejection check above runs over `../vectors/acs_negative_vectors.tsv` (**35 vectors**:
-  16 `core` + 1 `nfc` + 7 `envelope` + 7 `instance` + 4 `language`, the last three added
-  by **CCP-006**). Reference (ACS-002 layer): `cargo run -p arves-conformance --bin
-  conformance` reports `ACS-002 negative vectors: 16/16 core REJECTED` and defers the
-  semantic tiers (no ACS-003/004/005 validators in the frozen v1.0 reference — tracked
-  as **RCR-004**). The ACS-003/004/005 semantic tiers are exercised by the living
-  reference validators: `python verification/independent/python/conformance_semantic.py`
-  reports `envelope 7/7  instance 7/7  language 4/4 REJECTED`.
+  rejection check above runs over `../vectors/acs_negative_vectors.tsv` (**36 vectors**:
+  16 `core` + 1 `nfc` + 7 `envelope` + 8 `instance` + 4 `language`; the semantic tiers were
+  added by **CCP-006**, and the 8th instance row — `int`-above-i64 — by **CCP-007**).
+  Reference (ACS-002 layer): `cargo run -p arves-conformance --bin conformance` reports
+  `ACS-002 negative vectors: 16/16 core REJECTED` and defers the semantic tiers (no
+  ACS-003/004/005 validators in the frozen v1.0 reference — tracked as **RCR-004**). The
+  ACS-003/004/005 semantic tiers are exercised by the living reference validators:
+  `python verification/independent/python/conformance_semantic.py` reports
+  `envelope 7/7  instance 8/8  language 4/4 REJECTED`.
 - This procedure covers the ACS interoperability layer. Runtime-behaviour
   conformance (the 12 Scenario axes, L1..L4) is the Certification process
   (`../certification/`).

@@ -307,6 +307,16 @@ exactly the ACS-002 model while giving the schema layer real semantic types. The
 code set is **closed** in `ACS-004/1`; adding a code is a new minor profile via CCP
 (§9, §12).
 
+**Integer range coverage (normative note — CCP-007).** The two registered integer
+type codes cover `int` = signed i64 `[-2^63, 2^63-1]` and `u32` = `[0, 2^32-1]`.
+ACS-002 Integers are valid across the wider `[-2^64, 2^64-1]` range (ACS-002 §5.2),
+so a value in `[2^63, 2^64-1]` (or `[-2^64, -2^63-1]`) is representable on the wire
+but has **no** registered `ACS-004/1` refinement type; a schema needing the full
+unsigned-64 (`u64`) or wider range is a future type-code addition via CCP (the code
+set is closed, above). A conformant validator **SHALL** reject an `int`-typed value
+outside `[-2^63, 2^63-1]` with reason `value-out-of-range` (negative vector
+`instance-int-above-i64`, `2^63` typed `int`).
+
 ### 6.4 Cardinality codes (normative)
 
 A field `card` **SHALL** be exactly one of:

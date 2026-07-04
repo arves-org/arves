@@ -84,6 +84,9 @@ CASES = [
     ("ACS-004", "instance-unknown-field", "instance", "unknown-field", "inst", _inst(_set("x_extra", "nope"))),
     ("ACS-004", "instance-missing-required-field", "instance", "missing-required-field", "inst", _inst(_drop("claim"))),
     ("ACS-004", "instance-conf-out-of-range", "instance", "value-out-of-range", "inst", _inst(_set("confidence", AFloat(1.5)))),
+    # CCP-007 (#19): a valid ACS-002 Integer above the `int` i64 ceiling (2^63) — decodes
+    # clean (ACS-002 range is [-2^64, 2^64-1]) but is out of the ACS-004 `int` [-2^63, 2^63-1].
+    ("ACS-004", "instance-int-above-i64", "instance", "value-out-of-range", "inst", _inst(_set("valid_from", AInt(2**63)))),
     ("ACS-004", "instance-int-as-text", "instance", "field-type-mismatch", "inst", _inst(_set("valid_from", "not-an-int"))),
     ("ACS-004", "instance-urn-not-arves", "instance", "field-type-mismatch", "inst", _inst(_set("urn", "not-a-urn"))),
     ("ACS-004", "instance-evidence-scalar-not-array", "instance", "cardinality-violation", "inst", _inst(_set("evidence", AInt(1)))),

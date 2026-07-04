@@ -1,4 +1,4 @@
-arves-standard-kit 0.3.0
+arves-standard-kit 0.3.1
 
 Contents:
   ACS-001 Universal Content Identity        v1  (0x12 0x20 || SHA-256(domain_tag || body))
@@ -9,8 +9,8 @@ Contents:
 
 Vectors:
   acs_golden_vectors.tsv     positive (encode + address)
-  acs_negative_vectors.tsv   35 rows: 16 core + 1 nfc + 7 envelope + 7 instance + 4 language
-                             (the 18 semantic rows added by CCP-006, ACS-001 §4.1)
+  acs_negative_vectors.tsv   36 rows: 16 core + 1 nfc + 7 envelope + 8 instance + 4 language
+                             (18 semantic rows by CCP-006; +1 instance int-range row by CCP-007)
 
 Status: Standard Validation Era (Program 2). ACS-001..005 are RATIFIED (v1.1) via CCP-GATE
 (see acs/CCP-GATE-Ratification-v1.md) at independence grade G1; the golden + negative vectors
@@ -21,6 +21,14 @@ major version, never a silent edit. Independence remains G1 — G2 (below) is st
 vectors + 11 reason codes (envelope/instance/language tiers). Vector-set change only — no
 byte-affecting change to any ACS profile. The frozen Rust v1.0 reference defers the semantic
 tiers (RCR-004 tracks native validators); the living Python reference validators exercise them.
+
+0.3.1 (CCP-007, acs/CCP-GATE-Ratification-v3.md): two clarifying clauses that change NO byte or
+vector — ACS-002 §5.2 (shortest-form applies to length prefixes, matching the existing
+`non-shortest-len` vector) and ACS-004 §6.3 (integer range-coverage note: int=i64, u32; the
+[2^63,2^64-1] band has no v1 type code) — plus one new instance negative vector
+`instance-int-above-i64` (36 rows total). NOT ratified by CCP-007 and still open: #20 (ACS-004
+urn↔type binding — an ambiguous "modulo namespace" design decision) and #21 (ACS-005 GL-015
+"Data Plane" — a byte-affecting golden-vector change needing an ACS-005 profile bump).
 
 Exit criterion (G2 — Independent Standard Validation): an unknown engineering team,
 using ONLY this Kit, builds a runtime that passes conformance/CONFORMANCE.md with no
