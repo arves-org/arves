@@ -116,6 +116,20 @@ def probe():
     r.metric = ("%s/%s REJECTED" % (m.group(1), m.group(2))) if m else ("CONFORMANT" if r.ok else "?")
     rows.append(r)
 
+    # 3b. Independent Python SEMANTIC rejection — ACS-003/004/005 reject surfaces
+    #     (CCP-006). Each frozen envelope/instance/language vector decodes clean as
+    #     dCBOR and is REJECTED by a spec-only reference validator. Closes the
+    #     zero-negative-vector hole for ACS-003/004/005 (SYSTEM_GAP_ANALYSIS #1/#2/#23).
+    rc, out = run([sys.executable, "conformance_semantic.py"], cwd=PYDIR)
+    ms = re.search(r"envelope\s+(\d+)/(\d+)\s+instance\s+(\d+)/(\d+)\s+language\s+(\d+)/(\d+)", out)
+    r = Row("acs-semantic-reject", "ACS-003/004/005 semantic rejection (envelope/instance/language)",
+            "Differential+Independent", "L2", "G1",
+            "python verification/independent/python/conformance_semantic.py")
+    r.ok = rc == 0 and "CONFORMANT" in out and bool(ms) and \
+        ms.group(1) == ms.group(2) and ms.group(3) == ms.group(4) and ms.group(5) == ms.group(6)
+    r.metric = ("envelope %s/%s + instance %s/%s + language %s/%s REJECTED" % ms.groups()) if ms else "no-parse"
+    rows.append(r)
+
     # 4. Rust <-> Python differential fuzzer — accept/reject agreement.
     rc, out = run([sys.executable, FUZZ])
     div = re.search(r"hard divergences\s*:\s*(\d+)", out)

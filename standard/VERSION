@@ -1,4 +1,4 @@
-arves-standard-kit 0.2.0
+arves-standard-kit 0.3.0
 
 Contents:
   ACS-001 Universal Content Identity        v1  (0x12 0x20 || SHA-256(domain_tag || body))
@@ -7,10 +7,20 @@ Contents:
   ACS-004 Universal Type Registry           v1
   ACS-005 Normative Language + Glossary      v1
 
+Vectors:
+  acs_golden_vectors.tsv     positive (encode + address)
+  acs_negative_vectors.tsv   35 rows: 16 core + 1 nfc + 7 envelope + 7 instance + 4 language
+                             (the 18 semantic rows added by CCP-006, ACS-001 §4.1)
+
 Status: Standard Validation Era (Program 2). ACS-001..005 are RATIFIED (v1.1) via CCP-GATE
 (see acs/CCP-GATE-Ratification-v1.md) at independence grade G1; the golden + negative vectors
 are normative for v1.x. Any byte-affecting change is a new ACS profile via CCP Amendment /
 major version, never a silent edit. Independence remains G1 — G2 (below) is still the open gate.
+
+0.3.0 (CCP-006, acs/CCP-GATE-Ratification-v2.md): adds the ACS-003/004/005 semantic negative
+vectors + 11 reason codes (envelope/instance/language tiers). Vector-set change only — no
+byte-affecting change to any ACS profile. The frozen Rust v1.0 reference defers the semantic
+tiers (RCR-004 tracks native validators); the living Python reference validators exercise them.
 
 Exit criterion (G2 — Independent Standard Validation): an unknown engineering team,
 using ONLY this Kit, builds a runtime that passes conformance/CONFORMANCE.md with no

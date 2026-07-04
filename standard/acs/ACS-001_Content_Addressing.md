@@ -77,9 +77,16 @@ them (analogous to an RFC "IANA Considerations" section).
 - **Multihash hash-code registry.** `0x12` = SHA-256 (mandatory, §5). New hash codes
   (for algorithm agility, ACS-002 §11) are allocated by CCP Amendment; both the old
   and new code MAY coexist during migration. Codes follow the multicodec table.
-- **Reason-code registry.** The canonical-form rejection reason codes are normative
-  and enumerated in `conformance/CONFORMANCE.md`; new codes are added only via a CCP
-  Amendment that also adds a negative conformance vector exercising the code.
+- **Reason-code registry.** The rejection reason codes are normative and enumerated in
+  `conformance/CONFORMANCE.md`; new codes are added only via a CCP Amendment that also
+  adds a negative conformance vector exercising the code. Two bands are registered:
+  the ACS-002 canonical-form codes (`core`/`nfc` tiers), and — via **CCP-006**
+  (`acs/CCP-GATE-Ratification-v2.md`) — the ACS-003/004/005 *semantic* codes
+  (`envelope`/`instance`/`language` tiers): `missing-required-field`, `unknown-field`,
+  `field-type-mismatch`, `value-out-of-range`, `malformed-content-id`,
+  `empty-shard-scope`, `cardinality-violation`, `provenance-invariant`,
+  `terms-not-sorted`, `duplicate-term`, `malformed-term-list`. Every one ships with its
+  exercising negative vector in `vectors/acs_negative_vectors.tsv`.
 
 Each registry's designated maintainer is the ARVES Certification Authority; changes
 follow the Reference-Lifecycle CCP-GATE (never a silent edit; ED-001).

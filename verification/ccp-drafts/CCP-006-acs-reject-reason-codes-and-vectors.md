@@ -1,9 +1,22 @@
-# CCP-006 (DRAFT) — ACS-003/004/005 reject reason codes + negative vectors
+# CCP-006 — ACS-003/004/005 reject reason codes + negative vectors
 
-**Status:** **DRAFT proposal — NOT ratified, NOT applied.** Freeze-clean: this document and its
-oracle-verified candidate vectors live under `verification/ccp-drafts/` (living). **Nothing here
-edits the frozen `standard/`.** Ratification (which *does* touch frozen material) is a separate,
-maintainer-authorized **CCP-GATE** step — see §6.
+**Status:** **✅ RATIFIED (2026-07-04)** via `standard/acs/CCP-GATE-Ratification-v2.md`. The 11
+codes + 18 vectors are now in the frozen Kit (`arves-standard-kit 0.3.0`); freeze re-baselined
+to 150 files, 0 drift. This draft is retained as the design record. **Two corrections the
+ratification made to this draft:** (1) §6 called the TSV append "mechanical" — in fact the frozen
+TSV is the *generated output* of the frozen Rust `arves-conformance` crate and is consumed by
+three living Kit-only runners, so ratification also made every consumer **tier-aware** (living,
+freeze-clean) rather than a bare append; (2) the frozen Rust v1.0 reference cannot reject these
+(they are valid ACS-002), so the semantic tiers are **declared-deferred** by the reference (like
+`nfc`) and exercised by the living Python validators (`conformance_semantic.py`) — native Rust
+validators are tracked as **RCR-004**. Original draft header below (historical).
+
+---
+
+**Status (original draft):** **DRAFT proposal — NOT ratified, NOT applied.** Freeze-clean: this
+document and its oracle-verified candidate vectors live under `verification/ccp-drafts/` (living).
+**Nothing here edits the frozen `standard/`.** Ratification (which *does* touch frozen material)
+is a separate, maintainer-authorized **CCP-GATE** step — see §6.
 
 **Instrument:** CCP Amendment, mandated by **ACS-001 §4.1**: *"new [reason] codes are added only
 via a CCP Amendment that also adds a negative conformance vector exercising the code."* This

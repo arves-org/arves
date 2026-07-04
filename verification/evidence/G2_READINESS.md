@@ -123,6 +123,15 @@ Amendment to ACS-003 §5). Both are frozen-touching spec/Kit changes for the nex
 > (`verification/ccp-drafts/`, regenerate with `gen_candidate_vectors.py`). It touches no frozen
 > byte; ratification at CCP-GATE (which appends the vectors into `standard/vectors/`, extends the
 > registry + harness, and re-runs `freeze_check.py update`) remains maintainer-authorized.
+>
+> **✅ B1 RATIFIED (2026-07-04):** CCP-006 is ratified (`standard/acs/CCP-GATE-Ratification-v2.md`,
+> Kit `0.3.0`). The 18 semantic vectors + 11 reason codes are now in the frozen Kit
+> (`acs_negative_vectors.tsv` 17 → 35 rows); freeze re-baselined to **150 files, 0 drift**.
+> Exercised + drift-proof: `conformance_semantic.py` → `envelope 7/7 instance 7/7 language 4/4
+> REJECTED`, wired into `evidence_probe.py` (now **9/9** rows). **Caveat (honest):** the frozen
+> Rust v1.0 reference has no ACS-003/004/005 validators, so it **declares the semantic tiers
+> deferred** (like `nfc`); native Rust validators are tracked as **RCR-004**. B1 is closed at the
+> **standard** level; the reference *runtime* does not yet reject these natively. Still **G1**.
 
 ---
 
@@ -188,7 +197,7 @@ ACS-001 §4.1); the verdict is unchanged until that CCP and B2 land.
 
 | Gap | Instrument | Closes when |
 |-----|-----------|-------------|
-| **B1** — ACS-003/004/005 reject surface uncertified | **Kit packaging** (vectors + harness) | Envelope/instance/language negative fixtures ship in `acs_negative_vectors.tsv` and `certify_runtime.py` drives a runtime's validators over them. |
+| ~~**B1** — ACS-003/004/005 reject surface uncertified~~ ✅ **CLOSED (standard)** 2026-07-04 via **CCP-006** | **CCP** (vectors + reason codes) | ✅ 18 envelope/instance/language negative vectors + 11 reason codes shipped in `acs_negative_vectors.tsv` (Kit 0.3.0); exercised by `conformance_semantic.py` (`evidence_probe` 9/9). Runtime-side native validators tracked as **RCR-004**. |
 | **B2** — root-event `causation_id` undecided vs ACS-004 §6.4 | **CCP Amendment** (+ one negative vector) | ACS-003 §5 fixes `causation_id` cardinality (harmonized with ACS-004 §6.4) and a root-omits-`causation_id` reject vector is added. |
 | **B3** — harness trusts adapter answers (gameable) | **Tooling fix** | `certify()` recomputes the ContentId and runs a canonical decode itself; the runtime-under-test is given inputs only, never the key. |
 | **B4** — harness crashes on Kit-only checkout | **Tooling fix** | Missing reference bins degrade to a printed `NOT CERTIFIED` row; the record list is data-driven so a vendor runs only their own runtime; `ERR` lines are flagged. |

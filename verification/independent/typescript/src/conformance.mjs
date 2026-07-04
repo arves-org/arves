@@ -104,9 +104,18 @@ function runNegative() {
   let coreTotal = 0;
   let nfcPass = 0;
   let nfcTotal = 0;
+  let deferred = 0;
 
   for (const row of rows) {
     const { case: caseName, tier, input_hex, reject_reason } = row;
+    // CCP-006 semantic tiers (envelope/instance/language) decode CLEAN as dCBOR — they
+    // are NOT ACS-002 byte-layer rejects, so this ACS-002 decoder DEFERS them (like the
+    // `nfc` tier a decoder without a Unicode table defers). They are exercised by the
+    // Python reference validators (conformance_semantic.py), not this decoder.
+    if (tier !== 'core' && tier !== 'nfc') {
+      deferred++;
+      continue;
+    }
     const input = fromHex(input_hex);
     // Core tier defers NFC; nfc tier enforces it (full conformance check).
     const enforceNfc = tier === 'nfc';
@@ -135,7 +144,7 @@ function runNegative() {
     }
   }
 
-  return { corePass, coreTotal, nfcPass, nfcTotal, failures };
+  return { corePass, coreTotal, nfcPass, nfcTotal, deferred, failures };
 }
 
 // ACS-004-CS-1 clauses 2 & 5: instance validation against the schema document.
@@ -176,6 +185,12 @@ function main() {
     `  ACS-002 negative vectors: ${neg.corePass}/${neg.coreTotal} core REJECTED` +
       (neg.nfcTotal > 0 ? ` (+ ${neg.nfcPass}/${neg.nfcTotal} nfc)` : '')
   );
+  if (neg.deferred > 0) {
+    console.log(
+      `  (+ ${neg.deferred} semantic envelope/instance/language rows DEFERRED — above the ` +
+        `ACS-002 byte layer, CCP-006; exercised by conformance_semantic.py)`
+    );
+  }
   console.log('');
 
   // ACS-004 instance validation (§6.5).

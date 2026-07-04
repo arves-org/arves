@@ -225,3 +225,39 @@ with explicit maintainer authorization; Bucket C is external by definition. The 
 highest-leverage Bucket-B item remains **#1 — the ACS-001/003/004/005 negative-vector CCP**, for
 which the living reference validators (`acs003_envelope.py` / `acs004_instance.py` /
 `acs005_checker.py`, + the §9.3 lint) are now the ready **oracle**.
+
+---
+
+## 8. Remediation log (2026-07-04) — Bucket B #1 / #2 / #23 ratified via CCP-006
+
+The single highest-leverage **Bucket-B** item — the ACS-003/004/005 negative-vector CCP — was
+ratified (`standard/acs/CCP-GATE-Ratification-v2.md`, Kit `0.2.0 → 0.3.0`). This is a **sanctioned
+frozen `standard/` change** (not freeze-clean): the freeze-diff gate reported exactly the 5
+intended edits, then the manifest was re-baselined via `freeze_check.py update` **as part of the
+CCP** (150 frozen files, 0 drift). No `runtime/` byte changed.
+
+| # | Gap | Status | How |
+|---|-----|--------|-----|
+| **#1** | Negative corpus was 100 % ACS-002 | ✅ **closed (standard)** | 18 semantic vectors (7 envelope + 7 instance + 4 language) + 11 registered reason codes added to the frozen Kit; `acs_negative_vectors.tsv` 17 → 35 rows |
+| **#2** | ACS-003 Canonical Envelope had zero negative vectors | ✅ **closed (standard)** | 7 envelope negative vectors, each decode-clean + rejected by the spec-only `acs003_envelope.py` reference validator |
+| **#23** | ACS-004 instance-invalidity never gate-tested | ✅ **closed (standard)** | 7 instance negative vectors exercised by `acs004_instance.py` |
+
+**Exercised + drift-proof.** `python verification/independent/python/conformance_semantic.py` →
+`envelope 7/7  instance 7/7  language 4/4 REJECTED`, wired into `evidence_probe.py` (now **9/9**
+probe-verified rows, `--check` drift gate green). All prior gates stay green: freeze 150/0,
+Rust workspace 75/75, `certify_runtime.py` 2/2 CERTIFIED, `verify_runtime_sound.py` 2/2
+SOUND-CERTIFIED.
+
+**Honest residual (NOT closed by this):**
+- **Runtime side — RCR-004 (tracked).** The frozen Rust v1.0 reference has no ACS-003/004/005
+  validators; it **declares the semantic tiers deferred** (exactly like the `nfc` tier). Native
+  Rust validators are a runtime v1.1 change (RCR-004), not this CCP. So #2/#23 are closed at the
+  **standard** level (the corpus exists, is normative, is exercised by a from-scratch reference
+  validator) but the *reference runtime* does not yet reject them natively.
+- **Reference validators emit prose / R-codes, not the kebab codes** — `conformance_semantic.py`
+  asserts rejection + a registered expected code; upgrading the validators to emit the CCP-006
+  codes natively is a small living follow-up.
+- **Still G1.** The validators were authored in-program. This raises self-conformance; it does
+  **not** manufacture G2. A genuine external runtime rejecting these vectors from the Kit alone
+  would be the G2 evidence — the corpus now *exists to be tested*.
+- **#3 / #18 / #19 / #20 / #21 / #22 / #24 remain open** Bucket-B items (unchanged).

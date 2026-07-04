@@ -60,6 +60,7 @@ def run_rejection_check(rows):
     core_rejected_ok = 0
     nfc_total = 0
     nfc_rejected_ok = 0
+    deferred = 0            # rows in a tier ABOVE the ACS-002 byte layer (CCP-006)
     mismatches = []
 
     print("ARVES Negative Conformance — ACS-002")
@@ -67,9 +68,16 @@ def run_rejection_check(rows):
     print("")
 
     for r in rows:
+        tier = r["tier"]
+        # CCP-006 semantic tiers (envelope/instance/language) decode CLEAN as dCBOR —
+        # they are NOT ACS-002 byte-layer rejects, so this ACS-002 decoder DEFERS them
+        # (exactly like a runtime without a Unicode NFC table defers `nfc`). They are
+        # exercised by conformance_semantic.py, not here. Do not run them through decode.
+        if tier not in ("core", "nfc"):
+            deferred += 1
+            continue
         raw = bytes.fromhex(r["input_hex"])
         want = r["reject_reason"]
-        tier = r["tier"]
         if tier == "core":
             core_total += 1
         elif tier == "nfc":
@@ -111,6 +119,9 @@ def run_rejection_check(rows):
     print("  core: %d/%d REJECTED with matching reason"
           % (core_rejected_ok, core_total))
     print("  nfc : %d/%d REJECTED as non-nfc-text" % (nfc_rejected_ok, nfc_total))
+    if deferred:
+        print("  semantic (envelope/instance/language): %d row(s) DEFERRED — above the "
+              "ACS-002 byte layer (CCP-006); see conformance_semantic.py" % deferred)
 
     return core_total, core_rejected_ok, nfc_total, nfc_rejected_ok, mismatches
 
