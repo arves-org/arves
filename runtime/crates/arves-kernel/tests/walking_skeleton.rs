@@ -14,6 +14,12 @@ fn shard() -> ShardKey {
     }
 }
 
+/// True iff `needle` occurs as a contiguous subsequence of `haystack` (used to assert one
+/// tenant's payload does NOT appear in another tenant's shard snapshot).
+fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack.windows(needle.len()).any(|w| w == needle)
+}
+
 fn proposal(content: &[u8], payload: &[u8]) -> ProposedWrite {
     ProposedWrite {
         shard: shard(),
@@ -123,4 +129,45 @@ fn behaviour_7_content_integrity_same_address_different_payload() {
         other => panic!("expected ContentIntegrity, got {other:?}"),
     }
     assert_eq!(k.committed_count(), 1, "the mismatched fork was not committed");
+}
+
+/// Behaviour 8 (RCR-007 / SHARD-001): tenant/workspace isolation at the truth gateway.
+/// Two tenants commit under the SAME content bytes but DIFFERENT shards — they are
+/// **distinct** truths (the shard is part of identity; no cross-tenant dedup), and neither
+/// tenant's payload appears in the other tenant's shard snapshot. This is the executable
+/// "a shard MUST NOT contain cross-tenant data" proof (SHARD-001), replacing the prior
+/// structural-only citation.
+#[test]
+fn behaviour_8_two_tenant_isolation() {
+    let k = MemKernel::new(MemWalStore::new());
+    let acme = ShardKey { tenant: "acme".into(), workspace: "research".into() };
+    let globex = ShardKey { tenant: "globex".into(), workspace: "research".into() };
+
+    // Same content address, two tenants, distinct payloads -> two truths (shard-scoped).
+    let tr1 = k
+        .commit(ProposedWrite {
+            shard: acme.clone(),
+            content: ContentHash(b"same-cid".to_vec()),
+            payload: b"acme-secret".to_vec(),
+        })
+        .expect("acme commit ok");
+    let tr2 = k
+        .commit(ProposedWrite {
+            shard: globex.clone(),
+            content: ContentHash(b"same-cid".to_vec()),
+            payload: b"globex-secret".to_vec(),
+        })
+        .expect("globex commit ok");
+
+    assert_eq!(k.committed_count(), 2, "same content under two tenants is NOT deduplicated");
+    assert_eq!(tr1.shard, acme);
+    assert_eq!(tr2.shard, globex);
+
+    // Each shard's snapshot carries ONLY its own tenant's payload — no cross-tenant leak.
+    let snap_acme = k.snapshot_shard(&acme);
+    let snap_globex = k.snapshot_shard(&globex);
+    assert!(contains_bytes(&snap_acme, b"acme-secret"), "acme shard is missing its own truth");
+    assert!(contains_bytes(&snap_globex, b"globex-secret"), "globex shard is missing its own truth");
+    assert!(!contains_bytes(&snap_acme, b"globex-secret"), "SHARD-001: acme snapshot leaked globex data");
+    assert!(!contains_bytes(&snap_globex, b"acme-secret"), "SHARD-001: globex snapshot leaked acme data");
 }

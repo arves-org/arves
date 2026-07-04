@@ -241,13 +241,16 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (behaviour_3_replay_same_truth, behaviour_4_crash_restart_replay_identical)",
             },
         },
-        // SHARD-001 — commits are keyed by (tenant, workspace); the shard key is the
-        // partition (arves-kernel commit keying + persistence PShardKey).
+        // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
+        // isolation test at the truth gateway (RCR-007) + the persistence wrong-shard
+        // rejection test (no structural-only citation).
         PropertyCheck {
             invariant: Shard001TenantWorkspacePartition,
             proof: ProofKind::CitedTest {
-                location: "arves-kernel::RefKernel::commit (keys truth by (tenant, workspace, content)); \
-                           arves-persistence per-shard WAL",
+                location: "arves-kernel::tests::walking_skeleton \
+                           (behaviour_8_two_tenant_isolation); \
+                           arves-persistence::tests::file_wal (wrong_shard_append_rejected, \
+                           multi_shard_isolation_survives_disk)",
             },
         },
         // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Owning crate is

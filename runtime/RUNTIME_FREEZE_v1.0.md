@@ -85,7 +85,11 @@ While building products, if the runtime is found lacking:
 > 77→**78/0**), **RCR-006** (PropertyCheck/Suite — the invariant→executable-proof catalog
 > `arves-conformance::property_check`: LAYER-001/OWN-001 executed in-process, ORCH-003/004/SHARD-001
 > cited to their biting tests, ORCH-001/002 honestly Pending; shared-checker refactor of the
-> architecture gate; additive, `cargo test --workspace` 78→**80/0**; closes gap #18).
+> architecture gate; additive, `cargo test --workspace` 78→**80/0**; closes gap #18), **RCR-007**
+> (SHARD-001 two-tenant isolation test at the truth gateway — `behaviour_8_two_tenant_isolation`
+> proves same-content/different-shard is distinct truth with no cross-tenant snapshot leak; upgrades
+> the PropertyCheck SHARD-001 citation from structural to a named biting test; closes Madde-11 audit
+> finding SHARD-001-F1; additive, `cargo test --workspace` 80→**81/0**).
 
 ## Organization (three teams, three mandates)
 
