@@ -62,9 +62,12 @@ export class PersonalCognitiveOS {
       .sort((a, b) => (a.id < b.id ? -1 : 1)); // stable → reproducible reasoning
   }
 
-  /** Record a decision as truth in the real Kernel — a persistent, addressable part of the
-   *  world model. This is what lets the OS later notice a contradiction; a chatbot has no
-   *  such durable, evidence-backed decision history. */
+  /** Record a decision as truth in the real Kernel — the decision itself is a durable,
+   *  content-addressed truth in the WAL. NOTE (audit P1): the contradiction-detection index
+   *  (`#decisions`) is an in-memory, process-scoped cache rebuilt per run, not read back from
+   *  the Kernel — so it is the *commit* that is durable, and cross-session contradiction
+   *  detection requires replaying the decisions into a fresh instance. The demo detects within
+   *  one process. A chatbot still has no durable, evidence-backed decision *record* at all. */
   async recordDecision(decision) {
     const step = { type: 'uci.decision', subject: decision.subject, action: decision.action, because: decision.because };
     const res = await this.#bridge.commit(step, 'trace');

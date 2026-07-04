@@ -338,3 +338,33 @@ lib (shared by the gate + the catalog). Additive; `cargo test --workspace` **78 
 content-integrity, #3 Kernel-owned half), RCR-006 (PropertyCheck catalog, #18) all applied; the
 full ACS-001-recompute half of #3 is a recorded RULE #9 decision; RCR-004b (harness exposure of the
 Rust semantic arm) is the remaining tracked follow-up.
+
+---
+
+## 13. Deep audit (2026-07-04) — §5 un-audited surfaces closed (Madde 11)
+
+Full record: **`verification/evidence/DEEP_AUDIT_2026-07.md`** (four parallel read-only auditors:
+SHARD-001 isolation · differential-fuzzer internals · the four not-yet-audited products · spec-Volume
+/ mirror fidelity). **Net: the load-bearing machinery holds and is substantially honest.** The fuzzer
+genuinely cross-checks two languages deterministically (13807/0 reproduced); SHARD-001 isolation is
+enforced at persistence; products route commits through the real Kernel with honest file caveats;
+mirror fidelity is 1:1 and the substantive Volumes use only registered invariant IDs.
+
+**Fixed this round (freeze-clean + one RCR):**
+- **SHARD-001-F1** (Kernel had no cross-tenant test) → **RCR-007** (`behaviour_8_two_tenant_isolation`;
+  SHARD-001 catalog citation upgraded structural → named test).
+- **E1** (enterprise-os "requires legal approval" is proposer-self-attested) → claim scoped honestly
+  in `enterprise-os.mjs` + the P5 ledger row (full fix — authenticated approval truths — tracked).
+- **P1** (personal-os "durable decision history" overstated) → wording softened + P4 ledger caveat.
+- **X1** (ledger caveat asymmetry) → P4/P5 rows now carry the in-memory/process-scoped caveat.
+- **F4** (G2_READINESS filed an envelope presence-check under SHARD-001) → wording corrected.
+
+**Tracked (not fixed):** SHARD-001-F2 (runtime `ShardKey` fields `pub`; opaque key unused — RCR),
+F3 (products single-tenant — doc/RCR), E2 (spend prefix matcher — living_fix), M1 (marketplace
+signature not bound to catalog identity — living_fix), Fz1 (fuzzer "0 divergences" silent on 16
+interop-safe reason-differ — noted).
+
+**Recorded (frozen corpus → CCP/regenerate, maintainer-gated, cannot edit `.docx` from the living
+tree):** V1 (Invariant Registry "no runtime code exists yet" — already acknowledged in CLAUDE.md),
+V2 (IDR Batch 1 cites G-001/QUERY-001 without a "proposed" qualifier), V3 (milestone M10-12 vs I1-6
+divergence). Independence unchanged: **G1**.

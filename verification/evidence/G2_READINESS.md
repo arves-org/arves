@@ -105,7 +105,7 @@ proving the rules are implementable from the Kit spec alone:
 
 | Validator (living) | Reject rules proven (self-test) | Result |
 |---|---|---|
-| `verification/independent/python/acs003_envelope.py` | §6.3: not-a-Map, missing-required, unknown-key, wrong-type, malformed `payload_cid` shape, empty tenant/workspace (SHARD-001), bad `causation_id` type | **8/8** (1 accept + 7 reject) |
+| `verification/independent/python/acs003_envelope.py` | §6.3: not-a-Map, missing-required, unknown-key, wrong-type, malformed `payload_cid` shape, empty tenant/workspace (SHARD-001 shard-scope **presence** — that a scope is *named*, NOT cross-tenant isolation, which is proven by the Kernel/persistence isolation tests), bad `causation_id` type | **8/8** (1 accept + 7 reject) |
 | `verification/independent/python/acs004_instance.py` | §6.5/§7/§8: unknown-field, required-absent, type (int/u32/conf/urn), cardinality (both ways), provenance state machine (`invocation` iff `origin==derived`, both ways) | **11/11** (1 + 10) |
 | `verification/independent/python/acs005_checker.py` | §8/§9.2/§9.3: UTF-8, NFC, no lead/trail/blank LF, strict sort, no-dup, per-body grammar; anchored to the 3 golden ContentIds | **17/17** (6 + 11) |
 

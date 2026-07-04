@@ -58,12 +58,20 @@ export class EnterpriseCognitiveOS {
     return res.contentId;
   }
 
-  /** Check a candidate decision against the committed policy truths. Deterministic. */
+  /** Check a candidate decision against the committed policy truths. Deterministic.
+   *  SCOPE CAVEAT (audit E1): `d.approvals` and `d.agent` are fields the PROPOSER supplies on
+   *  its own decision — this demo does NOT authenticate them, so a proposer can self-declare
+   *  `approvals:['legal']` (the demo's finance agent does exactly that) and clear the gate. The
+   *  policy is enforced-as-truth in that a violating decision is committed as a compliance event,
+   *  but "requires legal approval" here means "the proposer asserted legal approved," not "an
+   *  authenticated legal agent committed a separate approval truth." Real enforcement (separate
+   *  authenticated approval truths from a legal-role identity) is a tracked product living_fix.
+   *  The subject match is also an exact `spend:` prefix — a renamed subject is out of policy scope. */
   checkPolicy(d) {
     for (const { id, policy } of this.#policies) {
       if (policy.domain === 'spend' && String(d.subject).startsWith('spend:')) {
         const amount = d.amountUsd ?? 0n;
-        const approvals = d.approvals ?? [];
+        const approvals = d.approvals ?? []; // proposer-declared, NOT authenticated (see caveat)
         if (d.action === 'approve' && amount > (policy.thresholdUsd ?? 0n) && !approvals.includes('legal')) {
           return { ok: false, policyId: id, rule: policy.rule };
         }
@@ -72,10 +80,11 @@ export class EnterpriseCognitiveOS {
     return { ok: true };
   }
 
-  /** A department agent proposes a decision. It is only committed as truth if it (a) passes
-   *  every policy and (b) does not conflict with a prior committed decision on the same
-   *  subject. A violation or conflict is recorded as a compliance-event truth instead —
-   *  a real, replayable audit trail, not a promise. */
+  /** A department agent proposes a decision. It is only committed as an approved-decision truth
+   *  if it (a) passes every policy (subject to the E1 caveat above: approvals are proposer-declared,
+   *  not authenticated) and (b) does not conflict with a prior committed decision on the same
+   *  subject. A violation or conflict is recorded as a compliance-event truth instead — a real,
+   *  replayable audit trail of what was proposed, not a promise. */
   async proposeDecision(decision) {
     const check = this.checkPolicy(decision);
     if (!check.ok) {
