@@ -304,3 +304,19 @@ reads the shipped Kit vectors). Additive change — no existing behavior/ABI tou
 Rust semantic validators (no `acs_validate` line-protocol bin / runner display), so a certification
 run still reports the Rust semantic arm as deferred; the capability exists and is proven in-crate.
 Independence unchanged: **G1**.
+
+---
+
+## 11. Remediation log (2026-07-04) — RCR-005 applied (Kernel content-integrity, #3 partial)
+
+`runtime/rcr/RCR-005.md`. The sole commit gateway now enforces **content-integrity**: a
+re-proposal that binds the same `ContentHash` to a *different* payload is rejected
+(`CommitError::ContentIntegrity`) instead of silently returning the prior truth — closing the
+"same address, different content" hole that made ORCH-004 idempotency unsound. Additive; `cargo
+test --workspace` **77 → 78/0**; freeze **153 → 154, 0 drift**. **#3 is partially closed:** the
+Kernel-owned `ContentHash ⇒ payload` binding is enforced with **no ACS coupling**; the fuller
+"recompute the ACS-001 multihash at the gateway" is deliberately **not** done — it needs a `domain`
+field on `ProposedWrite` + a Kernel→`arves-acs` dependency, which **NON-NEGOTIABLE RULE #9**
+(never couple runtime components unnecessarily) forbids taking lightly. Address integrity remains
+enforced at the bridge (its layered-correct owner); moving it into the Kernel is a recorded
+maintainer decision. Independence unchanged: **G1**.

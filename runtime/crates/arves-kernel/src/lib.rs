@@ -172,6 +172,18 @@ pub enum CommitError {
         /// Human-readable reason; not a stable API surface.
         reason: String,
     },
+    /// **Content-integrity violation (RCR-005):** the proposal's [`ContentHash`] is
+    /// already bound to a *different* payload. A content address MUST denote exactly
+    /// one content (ORCH-004 idempotency is only sound when *address ⇒ content*;
+    /// OWN-001, one owner per state). The Kernel rejects this fork rather than
+    /// silently returning the prior truth for a mismatched re-proposal — closing the
+    /// "same address, different content" hole at the sole commit gateway. (This is the
+    /// Kernel-owned half of address integrity; recomputing the ACS-001 multihash from
+    /// the payload pre-image is deliberately NOT done here — see RCR-005 §"layering".)
+    ContentIntegrity {
+        /// The shard the mismatched proposal targeted (SHARD-001).
+        shard: ShardKey,
+    },
     /// Replication of the committed outcome did not reach quorum, so no truth
     /// was durably established (IDR-001, truth is CP under CAP). The write may be
     /// retried; it must remain idempotent (ORCH-004).
@@ -191,6 +203,12 @@ impl fmt::Display for CommitError {
                 write!(f, "unknown shard {}/{}", shard.tenant, shard.workspace)
             }
             CommitError::Rejected { reason } => write!(f, "proposal rejected: {reason}"),
+            CommitError::ContentIntegrity { shard } => write!(
+                f,
+                "content-integrity violation on shard {}/{}: the content address is already \
+                 bound to a different payload",
+                shard.tenant, shard.workspace
+            ),
             CommitError::NotReplicated => write!(f, "commit did not reach quorum"),
         }
     }
@@ -663,7 +681,19 @@ impl<S: WalStore> Kernel for RefKernel<S> {
         );
         // ORCH-004: an identical re-proposal resolves to existing truth, never a fork.
         if let Some(&pos) = state.index.get(&key) {
-            return Err(CommitError::AlreadyCommitted(state.committed[pos].0.clone()));
+            let (existing_tr, existing_payload) = &state.committed[pos];
+            // RCR-005 content-integrity: the address MUST bind exactly one content. A
+            // re-proposal under the same ContentHash but with a DIFFERENT payload is a
+            // caller-supplied address that does not match its content — reject the fork
+            // instead of silently returning the prior truth (ORCH-004 is only sound when
+            // address ⇒ content; OWN-001). This is enforced with the Kernel's own state,
+            // needing no ACS-001 coupling (see RCR-005).
+            if *existing_payload != proposed.payload {
+                return Err(CommitError::ContentIntegrity {
+                    shard: proposed.shard.clone(),
+                });
+            }
+            return Err(CommitError::AlreadyCommitted(existing_tr.clone()));
         }
         let pshard = to_pshard(&proposed.shard);
         let mut wal = self.store.open(&pshard).map_err(|e| CommitError::Rejected {

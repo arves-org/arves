@@ -65,6 +65,14 @@ just ACS-001/002.
 
 ## RCR-005 (#3) — Kernel commit-gateway content-integrity
 
+> **✅ RCR-005 APPLIED (2026-07-04)** — `runtime/rcr/RCR-005.md`. Implemented the **Kernel-owned,
+> non-coupling** half: the gateway now rejects a re-proposal that binds the same `ContentHash` to a
+> *different* payload (`CommitError::ContentIntegrity`), closing the "same address, different
+> content" fork; workspace **77→78/0**. Per **NON-NEGOTIABLE RULE #9**, full ACS-001 multihash
+> re-derivation at the Kernel (which needs a `domain` on `ProposedWrite` + a Kernel→`arves-acs`
+> coupling) was **NOT** taken — address integrity stays at the bridge (its layered-correct owner);
+> that coupling is a recorded maintainer decision, not this RCR.
+
 **Motivation.** The Kernel's sole commit gateway trusts a **caller-supplied ContentId**; address
 integrity is enforced only in the optional bridge. A buggy/malicious caller can commit a payload
 under the wrong address, breaking the ACS-001 "equal address ⇒ same content" guarantee at the one

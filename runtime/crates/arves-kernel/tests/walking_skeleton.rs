@@ -99,3 +99,28 @@ fn behaviour_6_truth_hash_preserved() {
     let after = MemKernel::recover(store.clone()).truth_hash();
     assert_eq!(before, after, "truth hash is preserved across replay");
 }
+
+/// Behaviour 7 (RCR-005): content-integrity at the sole commit gateway. A content
+/// address MUST bind exactly one payload. An IDENTICAL re-proposal is an idempotent
+/// no-op (Behaviour 2); a re-proposal under the SAME ContentHash but a DIFFERENT
+/// payload is a caller-supplied address that does not match its content and MUST be
+/// rejected as `ContentIntegrity` — never silently accepted as the prior truth and
+/// never forked (ORCH-004 sound only when address ⇒ content; OWN-001).
+#[test]
+fn behaviour_7_content_integrity_same_address_different_payload() {
+    let k = MemKernel::new(MemWalStore::new());
+    k.commit(proposal(b"c1", b"p1")).expect("first commit ok");
+    // Same address, same payload -> idempotent no-op (not an integrity violation).
+    assert!(matches!(
+        k.commit(proposal(b"c1", b"p1")),
+        Err(CommitError::AlreadyCommitted(_))
+    ));
+    // Same address, DIFFERENT payload -> content-integrity violation, rejected.
+    match k.commit(proposal(b"c1", b"p2-different")) {
+        Err(CommitError::ContentIntegrity { shard: got }) => {
+            assert_eq!(got, shard(), "reports the mismatched shard");
+        }
+        other => panic!("expected ContentIntegrity, got {other:?}"),
+    }
+    assert_eq!(k.committed_count(), 1, "the mismatched fork was not committed");
+}

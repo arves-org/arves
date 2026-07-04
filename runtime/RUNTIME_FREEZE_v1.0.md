@@ -79,7 +79,10 @@ While building products, if the runtime is found lacking:
 > ACS-003/004/005 semantic validators in `arves-conformance::semantic` — retires the CCP-006
 > semantic-tier deferral; rejects all 19 frozen envelope/instance/language vectors with the exact
 > registered codes; additive, `cargo test --workspace` 75→**77/0**; harness exposure deferred to
-> RCR-004b).
+> RCR-004b), **RCR-005** (Kernel commit-gateway **content-integrity** — reject a re-proposal that
+> binds the same `ContentHash` to a *different* payload, `CommitError::ContentIntegrity`; closes the
+> Kernel-owned half of gap #3 with no ACS coupling per RULE #9; additive, `cargo test --workspace`
+> 77→**78/0**).
 
 ## Organization (three teams, three mandates)
 
