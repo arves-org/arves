@@ -46,7 +46,7 @@ it as an ambiguity in the relevant ACS.
 | 8 | [`standard/acs/ACS-004_Universal_Type_Registry.md`](standard/acs/ACS-004_Universal_Type_Registry.md) | The type registry (domain `0x07`): schema-document shape, type codes + cardinality, the §6.5 closed-schema validator, and the §8 `invocation`-iff-`origin==derived` state machine. |
 | 9 | [`standard/conformance/CONFORMANCE.md`](standard/conformance/CONFORMANCE.md) | **The pass gate.** The two language-neutral checks (encoder+addresser over the golden TSV; rejection over the negative TSV), the stable reason-code list, and the core-vs-full verdict semantics. |
 | 10 | [`standard/vectors/acs_golden_vectors.tsv`](standard/vectors/acs_golden_vectors.tsv) | The 12 positive byte-exact targets you must reproduce. |
-| 11 | [`standard/vectors/acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) | The 17 negatives (16 `core` + 1 `nfc`) your decoder must reject with the matching reason. |
+| 11 | [`standard/vectors/acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) | 35 negatives: **16 `core`** (your gate) + 1 `nfc` + 18 semantic `envelope`/`instance`/`language` (deferrable by a core ACS-002 codec — §3d). Reject each with the matching reason. |
 
 Optional but useful, in this order, once the above is understood:
 
@@ -104,15 +104,19 @@ Passing all 12 (both checks each) = **ACS-conformant on the positive surface**. 
 runtimes that both pass agree byte-for-byte on every address and body — they
 interoperate.
 
-### 3b. What you MUST REJECT — the 17 negative vectors
+### 3b. What you MUST REJECT — the negative vectors (the 16 `core` rows are your gate)
 
 Producing the right bytes is only half of conformance. A conformant **decoder** must
 also refuse every non-canonical byte string, with the **exact** reason code — otherwise
 two runtimes accept different encodings of "the same" value and disagree on its address.
 Validate canonical form **inline while parsing**; never pattern-match whole test inputs.
 
-Source: [`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv). Tiers:
-16 `core` (the interoperability gate) + 1 `nfc` (deferrable — see below).
+Source: [`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) — **35 rows
+across five tiers.** Your ACS-002 challenge runtime is graded on the **16 `core`** rows (the
+interoperability gate) below; the `nfc` row is deferrable (§3c); and the **18 semantic** rows
+(`envelope`/`instance`/`language`, added by CCP-006) are **above the ACS-002 byte layer** and
+are deferrable by a core codec — see §3d. **The certification verdict counts only `core`, so
+building ACS-001 + ACS-002 is enough to reach `CERTIFIED`.**
 
 | # | case | tier | reject_reason |
 |---|------|------|---------------|
@@ -170,18 +174,31 @@ The certification verdict counts **only the `core` tier**, so a declared-deferri
 runtime still certifies. If your runtime must be safe against hostile non-NFC input,
 be **fully** conformant.
 
-### 3d. What is on the surface but NOT vector-backed (read §5 before relying on the stamp)
+### 3d. The 18 semantic reject vectors (ACS-003/004/005) — now shipped, deferrable for a core codec
 
-ACS-003 §6.3 (envelope validation), ACS-004 §6.5/§7/§8 (instance validation + the
-`origin`/`invocation` state machine), and ACS-005 §9.3 (the checker) all state
-**normative MUST-reject** rules — but the shipped negative corpus is entirely
-ACS-002-tier, so **none of these rejection rules is exercised by the automated gate.**
-You should still implement them (the specs are unambiguous and complete), because two
-"certified" runtimes that skip them will disagree on real traffic. See
-[§5 Known rough edges](#5-known-rough-edges). Worked reference validators for these rules now
-exist as living examples — `verification/independent/python/acs003_envelope.py`,
-`acs004_instance.py`, `acs005_checker.py` (run `acs_validators_selftest.py`) — copy their
-structure; each proves its reject rules from the spec text.
+**Updated by CCP-006 (Kit 0.3.0).** ACS-003 §6.3 (envelope validation), ACS-004 §6.5/§7/§8
+(instance validation + the `origin`/`invocation` state machine), and ACS-005 §8/§9.2/§11
+(term-set) all state **normative MUST-reject** rules. These **now have negative vectors** —
+18 of them (7 `envelope` + 7 `instance` + 4 `language`) in
+[`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv), each with a stable
+reason code registered in [`CONFORMANCE.md`](standard/conformance/CONFORMANCE.md) (per ACS-001
+§4.1). Every one **decodes cleanly as canonical dCBOR** — so they are *not* ACS-002 rejects;
+the defect is purely semantic, one layer up.
+
+What this means for you:
+- **A pure ACS-002 challenge runtime MAY DEFER these 18 rows** (exactly like the `nfc` tier) —
+  declare the deferral, do not silently accept. The `core` gate (16/16) is unchanged, so you
+  still reach `CERTIFIED` with ACS-001 + ACS-002 alone.
+- **A full cognitive runtime (one that parses envelopes / typed instances / glossaries) MUST
+  reject them** with the matching code. Worked reference validators exist as living examples —
+  `verification/independent/python/acs003_envelope.py`, `acs004_instance.py`,
+  `acs005_checker.py` — and are exercised over the frozen vectors by
+  `conformance_semantic.py` (`envelope 7/7 instance 7/7 language 4/4`). Copy their structure;
+  each proves its reject rules from the spec text alone.
+
+Even the frozen **Rust reference** defers these tiers today (it implements ACS-001/002 only;
+native validators are tracked as RCR-004) — so deferring them is a legitimate, declared choice,
+not a failure. See [§5 Known rough edges](#5-known-rough-edges).
 
 ---
 
