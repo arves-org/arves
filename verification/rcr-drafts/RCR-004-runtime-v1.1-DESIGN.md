@@ -101,6 +101,13 @@ place it matters most.
 
 ## RCR-006 (#18) — PropertyCheck/Suite: invariant → executable-proof catalog
 
+> **✅ RCR-006 APPLIED (2026-07-04)** — `runtime/rcr/RCR-006.md`. Shipped `property_check` in
+> `arves-conformance`: LAYER-001/OWN-001 executed in-process over the real Cargo graph,
+> ORCH-003/004/SHARD-001 cited to their biting Kernel tests, ORCH-001/002 honestly `Pending`
+> (Control Plane contract-only). Shared-checker refactor unified the architecture gate + catalog;
+> a suite test pins coverage at **5 proven / 2 pending / 7** so it cannot silently drift. Workspace
+> **78→80/0**.
+
 **Motivation.** LAYER-001/OWN-001 are executably gated and ORCH-003/004 have biting Kernel tests,
 but there is no **catalog** binding each invariant id to its executable proof (the registry lists
 invariants; nothing maps `ORCH-003` → the test that proves it). The proof obligation ("no invariant

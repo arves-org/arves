@@ -65,6 +65,13 @@ pub mod acs;
 /// deferral where the Rust reference previously had no ACS-003/004/005 validators.
 pub mod semantic;
 
+/// PropertyCheck / Suite (RCR-006): the invariant-id → executable-proof catalog. Binds each
+/// registered invariant to its proof (LAYER-001/OWN-001 executed in-process over the real
+/// Cargo graph; ORCH-003/004/SHARD-001 cited to their biting Kernel tests; ORCH-001/002
+/// honestly Pending until the Control Plane is implemented). Also the home of the shared
+/// architecture-gate checkers used by `tests/architecture_gate.rs`.
+pub mod property_check;
+
 // =============================================================================
 // Part 5 - Conformance Axes (12)
 // =============================================================================

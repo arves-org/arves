@@ -320,3 +320,21 @@ field on `ProposedWrite` + a Kernel→`arves-acs` dependency, which **NON-NEGOTI
 (never couple runtime components unnecessarily) forbids taking lightly. Address integrity remains
 enforced at the bridge (its layered-correct owner); moving it into the Kernel is a recorded
 maintainer decision. Independence unchanged: **G1**.
+
+---
+
+## 12. Remediation log (2026-07-04) — RCR-006 applied (PropertyCheck/Suite, #18)
+
+`runtime/rcr/RCR-006.md`. Closes gap #18: the invariants were proven ad-hoc with no single
+checkable coverage artifact. Shipped `arves-conformance::property_check` — the invariant →
+executable-proof catalog: **LAYER-001 / OWN-001** executed in-process over the real Cargo graph,
+**ORCH-003 / ORCH-004 / SHARD-001** cited to their biting Kernel tests, **ORCH-001 / ORCH-002**
+honestly `Pending` (Control Plane contract-only, I2+). A suite test pins coverage at **5 proven /
+2 pending / 7** so it cannot silently drift; the architecture-gate checkers were unified into the
+lib (shared by the gate + the catalog). Additive; `cargo test --workspace` **78 → 80/0**; freeze
+**154 → 156, 0 drift**. Independence unchanged: **G1**.
+
+**Madde-10 (runtime v1.1) net:** RCR-004 (native Rust ACS-003/004/005 validators), RCR-005 (Kernel
+content-integrity, #3 Kernel-owned half), RCR-006 (PropertyCheck catalog, #18) all applied; the
+full ACS-001-recompute half of #3 is a recorded RULE #9 decision; RCR-004b (harness exposure of the
+Rust semantic arm) is the remaining tracked follow-up.

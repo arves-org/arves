@@ -82,7 +82,10 @@ While building products, if the runtime is found lacking:
 > RCR-004b), **RCR-005** (Kernel commit-gateway **content-integrity** — reject a re-proposal that
 > binds the same `ContentHash` to a *different* payload, `CommitError::ContentIntegrity`; closes the
 > Kernel-owned half of gap #3 with no ACS coupling per RULE #9; additive, `cargo test --workspace`
-> 77→**78/0**).
+> 77→**78/0**), **RCR-006** (PropertyCheck/Suite — the invariant→executable-proof catalog
+> `arves-conformance::property_check`: LAYER-001/OWN-001 executed in-process, ORCH-003/004/SHARD-001
+> cited to their biting tests, ORCH-001/002 honestly Pending; shared-checker refactor of the
+> architecture gate; additive, `cargo test --workspace` 78→**80/0**; closes gap #18).
 
 ## Organization (three teams, three mandates)
 
