@@ -287,4 +287,20 @@ Freeze re-baselined 150 → **151 files, 0 drift**; evidence_probe `--check` **9
   honest options recorded; a deliberate maintainer choice, not a batch edit.
 
 **Still open (unchanged):** #3 (Kernel content-integrity, RCR), #18 (PropertyCheck harness, RCR),
-#20, #21, and RCR-004 (native Rust ACS-003/004/005 validators). Independence still **G1**.
+#20, #21. Independence still **G1**.
+
+---
+
+## 10. Remediation log (2026-07-04) — RCR-004 applied (runtime v1.1)
+
+`runtime/rcr/RCR-004.md`. The frozen Rust v1.0 reference gained **native ACS-003/004/005 semantic
+validators** (`arves-conformance::semantic`), retiring the CCP-006 deferral at the source of truth:
+the reference runtime now rejects all **19/19** frozen envelope/instance/language vectors with the
+exact registered reason codes (proven by the in-crate `semantic_rejects_frozen_vectors` test that
+reads the shipped Kit vectors). Additive change — no existing behavior/ABI touched; `cargo test
+--workspace` **75 → 77/0**; freeze re-baselined **151 → 153 files, 0 drift**; evidence_probe
+`--check` **9/9**. **Residual (RCR-004b, tracked):** the certification harness
+(`certify_runtime.py`/`verify_runtime_sound.py`) + the `conformance` runner do not yet DRIVE the
+Rust semantic validators (no `acs_validate` line-protocol bin / runner display), so a certification
+run still reports the Rust semantic arm as deferred; the capability exists and is proven in-crate.
+Independence unchanged: **G1**.

@@ -60,6 +60,11 @@
 /// implementation, in any language, must pass).
 pub mod acs;
 
+/// ACS-003/004/005 **semantic** validators (RCR-004): the reference runtime's native
+/// reject surface for the CCP-006 envelope/instance/language negative tiers. Retires the
+/// deferral where the Rust reference previously had no ACS-003/004/005 validators.
+pub mod semantic;
+
 // =============================================================================
 // Part 5 - Conformance Axes (12)
 // =============================================================================

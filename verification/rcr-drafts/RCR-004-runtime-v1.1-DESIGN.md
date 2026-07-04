@@ -1,10 +1,16 @@
 # RCR-004 (DRAFT DESIGN) — runtime v1.1: native semantic validators + Kernel content-integrity + PropertyCheck
 
-**Status:** **DRAFT ENGINEERING DESIGN — no runtime code changed.** Freeze-clean: this document
-lives under `verification/rcr-drafts/` (living). Per CLAUDE.md ("ENGINEERING DESIGN — no code at
-this stage" → "CRITICAL SELF-REVIEW" → "IMPLEMENTATION"), this is the mandated design phase. The
-actual `runtime/` edits land later as ratified **RCR-004 / RCR-005 / RCR-006** records under
-`runtime/rcr/`, each with its own destroy→repair→prove cycle and a `freeze_check.py update`.
+**Status:** ENGINEERING DESIGN. Per CLAUDE.md ("ENGINEERING DESIGN — no code at this stage" →
+"CRITICAL SELF-REVIEW" → "IMPLEMENTATION"), this is the mandated design phase. The actual
+`runtime/` edits land as ratified **RCR-004 / RCR-005 / RCR-006** records under `runtime/rcr/`,
+each with its own destroy→repair→prove cycle and a `freeze_check.py update`.
+
+> **✅ RCR-004 APPLIED (2026-07-04)** — `runtime/rcr/RCR-004.md`. The native Rust ACS-003/004/005
+> semantic validators shipped in `arves-conformance::semantic` and reject all **19/19** frozen
+> vectors (envelope 7/7 + instance 8/8 + language 4/4) with the exact registered codes; workspace
+> **75→77/0**, freeze re-baselined to 153/0. *Harness exposure* (an `acs_validate` bin +
+> certify/runner display) is the tracked **RCR-004b** follow-up. RCR-005 (#3) and RCR-006 (#18)
+> remain designed-not-applied below.
 
 **Scope:** three tracked Bucket-B / v1.1 items that touch the FROZEN runtime:
 - **RCR-004** — native Rust ACS-003/004/005 semantic validators (retire the CCP-006 deferral).

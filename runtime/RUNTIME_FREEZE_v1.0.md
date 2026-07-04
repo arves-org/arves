@@ -75,7 +75,11 @@ While building products, if the runtime is found lacking:
 > RCR-002 (truth-store tamper-evidence, #8 partial), **RCR-003** (contract-crate citation /
 > traceability corrections from `verification/evidence/CONTRACT_CRATE_AUDIT.md` — doc-only across
 > 6 crates + one `arves-invariants` `Layer`-helper logic fix with tests; `cargo test --workspace`
-> 71→**75/0**; freeze baseline re-advanced via `freeze_check.py update`).
+> 71→**75/0**; freeze baseline re-advanced via `freeze_check.py update`), **RCR-004** (native Rust
+> ACS-003/004/005 semantic validators in `arves-conformance::semantic` — retires the CCP-006
+> semantic-tier deferral; rejects all 19 frozen envelope/instance/language vectors with the exact
+> registered codes; additive, `cargo test --workspace` 75→**77/0**; harness exposure deferred to
+> RCR-004b).
 
 ## Organization (three teams, three mandates)
 
