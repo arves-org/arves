@@ -119,6 +119,21 @@ def main(argv):
     cmd = argv[1] if len(argv) > 1 else "check"
 
     if cmd == "update":
+        # Integration foot-gun guard (first bitten 2026-07-05, RCR-014..018): `update`
+        # hashes git-TRACKED files only, so a still-untracked new frozen file silently
+        # misses the manifest and then FAILS the CI freeze gate as ADDED once committed.
+        # git add new frozen files FIRST, then run `update`.
+        try:
+            out = subprocess.run(["git", "status", "--porcelain", "--"] + FROZEN_ROOTS,
+                                 cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            untracked = [l[3:] for l in out.stdout.decode("utf-8").splitlines() if l.startswith("?? ")]
+            if untracked:
+                print("WARNING: %d UNTRACKED file(s) under frozen roots will NOT enter the manifest" % len(untracked))
+                print("         (git add them first, then re-run `update`, or CI flags them ADDED):")
+                for u in untracked[:10]:
+                    print("         ?? " + u)
+        except OSError:
+            pass
         d = compute()
         write_manifest(d)
         print("freeze manifest written: %d frozen files hashed (%s)"
