@@ -123,7 +123,50 @@ While building products, if the runtime is found lacking:
 > the identical single-commit gateway under one lock; identical duplicates resolve idempotently
 > (`fresh:false`), never fork; honest boundary — a mid-apply host I/O failure surfaces loudly as
 > `PartialApply` (WAL-transactional apply is I2/Raft work); frozen `Kernel` trait untouched; closes
-> v1.1 backlog item 3; additive, `cargo test --workspace` 97→**98/0**).
+> v1.1 backlog item 3; additive, `cargo test --workspace` 97→**98/0**), **RCR-018** (doc-only,
+> like RCR-003 — de-drift of the frozen `runtime/docs/ARVES_Master_Roadmap.md`: stale
+> `arves-standard-kit 0.2.0` → **0.3.1** via `standard/VERSION` (closes OPEN_DEBT §F "MR-drift"),
+> and every era/gating claim invalidated by maintainer **Ruling 002** (2026-07-05,
+> `docs/MAINTAINER_RULINGS.md`) marked superseded in place — "gated behind Era 3" / "post-G2" /
+> "not I2" / "forbidden until certified" — never silently deleted; `runtime/README.md` audited
+> CLEAN, untouched; no logic, no code, `cargo test --workspace` stays **98/0**), **RCR-014**
+> (bridge **per-request shard selection** — optional `shard=<tenant>/<workspace>` token after the
+> optional `id=` token (each part non-empty, whitespace-free, ≤64 bytes) scopes that commit/invoke
+> to that shard; absent → default `t1/w1`, byte-identical; same body in two shards = two distinct
+> truths with distinct indexes/idempotency scopes (SHARD-001 observable through ONE process — ends
+> forced process-per-tenant); malformed → `ERR bad-shard` without reflecting the untrusted spec;
+> documented choice: invoke in a never-bound shard is honestly `ERR unbound`, no implicit
+> auto-bind (use RCR-016 `bind`); SDK client gains `{tenant, workspace}` opts; additive,
+> `cargo test --workspace` 98→**102/0**, product regression 50→**52/52** incl. a real-exe
+> raw-protocol isolation bite), **RCR-016** (bridge **dynamic capability bind verb** — new
+> `bind <capability>` (composable with `id=`/`shard=`) registers+binds the name in the target
+> shard to the ONE reference engine identity `engine:derive.fact@1.0.0` → `bound <capability>`;
+> rebinding the same name in the same shard is idempotent `bound`; malformed → `ERR bad-request`;
+> HONEST SCOPE: binds NAMES to the one hosted reference engine, does NOT load arbitrary engine
+> code; default binding and verb share one helper so dynamic names behave like the built-in by
+> construction; SDK client gains `bind(capability)`; additive, `cargo test --workspace`
+> 102→**106/0**, product regression 52→**53/53** incl. a real-exe bind→invoke bite; capstone
+> PASS on the new exe), **RCR-015** (bridge **durable truth via `--wal-dir <path>`** — the bin
+> constructs `FileKernel::try_recover(FileWalStore::open_root(path))` instead of `MemKernel`:
+> fsync-durable commits + deterministic recovery replay on startup (ORCH-003, lossless-or-loud —
+> an unrecoverable dir refuses startup, never partial truth); no flag → MemKernel byte-identical;
+> unknown args refused loudly (no silent volatile fallback); session loop factored generic
+> (`serve<K: Kernel>`) so both arms run identical protocol logic; SDK client gains `{walDir}`
+> opts; HONEST SCOPE: single-host durability, CRC32 + RCR-002 hash-chain tamper-EVIDENCE, NO
+> authN (v2.0 debt #8), no replication (Raft is I2+); additive, `cargo test --workspace`
+> 106→**108/0**, product regression 53→**55/55** incl. a real-exe hard-kill/restart round-trip
+> answering `already-committed` with the SAME ContentId+index), **RCR-017** (**opaque ShardKey**,
+> closes audit finding SHARD-001-F2 — `arves-kernel::ShardKey` fields made private
+> (immutable-BY-TYPE, SHARD-001) with sole constructor `ShardKey::new(tenant, workspace)` rejecting
+> empty and >256-byte parts (`ShardKeyError`) + `tenant()`/`workspace()` accessors;
+> `arves-capability-fabric::ShardKey` aligned with IDENTICAL rules so kernel→fabric conversion at
+> the bridge seam is total; every in-workspace call site updated (kernel tests, runtime bin,
+> conformance live probes/Connector, bridge lib+bin incl. the RCR-014 `shard=` parser whose ≤64B
+> grammar is strictly tighter); workspace-internal breaking refactor, WIRE-COMPATIBLE — no external
+> Rust consumers (IDR-006), line protocol byte-identical; biting tests
+> `behaviour_10_degenerate_shard_key_unrepresentable` + fabric `rcr017_*` prove an empty tenant is
+> unrepresentable; honest scope: type-surface fix, not distributed placement immutability (I2+);
+> `cargo test --workspace` 108→**110/0**, product regression stays **55/55** on the rebuilt exe).
 
 ## Organization (three teams, three mandates)
 

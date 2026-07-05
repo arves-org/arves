@@ -13,8 +13,12 @@
 > rank 12 (semantic differential 62/62), rank 14 (E1/E2), rank 15 (certify-YOUR-runtime path),
 > rank 19-A (3-way TS fuzz 13807/0), rank 20 (capstone). Remaining: **r16 PUBLISH** (maintainer:
 > org/name + push — the only unchecked pre-publish item), r17 CI-host, r18 external funnel,
-> r19-B (Connector/Query promote RCR — maintainer-gated). Ch4 (I2..I6) is in **prep mode** by
-> maintainer ruling (2026-07-05): design packages only (`docs/design/`), build gate (G2) closed.
+> r19-B (Connector/Query promote RCR — maintainer-gated). *(Update: r16 PUBLISH and r17 CI-host
+> have since LANDED — Ruling 001 authorized the publish; see `OPEN_DEBT_REGISTER.md` §G/§F #17.)*
+> ~~Ch4 (I2..I6) is in **prep mode** by maintainer ruling (2026-07-05): design packages only
+> (`docs/design/`), build gate (G2) closed.~~ *(Superseded by Ruling 002, later the same day,
+> `docs/MAINTAINER_RULINGS.md`: I2..I6 is UN-GATED; construction proceeds from the reviewed
+> design packages via RCR under the full 15-step discipline; independence stays G1.)*
 > Live tracker: `verification/OPEN_DEBT_REGISTER.md`.
 
 ---
@@ -58,7 +62,9 @@ honestly-graded Evidence Level of the ground a stranger stands on, so a G2 event
   until validators emit native codes; (c) "2 vs 3 runtimes" states the honest distinction; (d)
   publish (rank 16) is HARD-gated behind the full-surface gate so a first G2 pass can't be a B1
   over-claim.
-- **Scope:** distributed I2–I6 stays **CONTRACT-ONLY** — the mandate is "prove wrong," not "build."
+- **Scope:** ~~distributed I2–I6 stays **CONTRACT-ONLY** — the mandate is "prove wrong," not
+  "build."~~ *(Superseded by Ruling 002, 2026-07-05: I2–I6 build is un-gated and proceeds via RCR;
+  the falsification machinery keeps running in parallel. Freeze/honesty guardrails above unchanged.)*
 
 ---
 

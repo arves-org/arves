@@ -111,7 +111,11 @@ where
     E: Engine<Input = Vec<u8>>,
 {
     // 1. Capability layer: resolve the authoritative binding (unbound → refuse).
-    let cap_shard = CapShardKey { tenant: shard.tenant.clone(), workspace: shard.workspace.clone() };
+    // RCR-017: both ShardKeys are opaque with IDENTICAL construction rules (non-empty,
+    // ≤256 bytes/part), so converting a validated kernel key is total — the expect is
+    // an invariant statement, not a reachable failure.
+    let cap_shard = CapShardKey::new(shard.tenant(), shard.workspace())
+        .expect("a valid kernel ShardKey always converts to a capability ShardKey");
     let binding = registry
         .resolve(&cap_shard, &CapabilityId(capability.to_string()))
         .map_err(|_| InvokeError::Unbound(capability.to_string()))?;
@@ -168,7 +172,7 @@ mod tests {
     use arves_persistence::MemWalStore;
 
     fn shard() -> ShardKey {
-        ShardKey { tenant: "t1".into(), workspace: "w1".into() }
+        ShardKey::new("t1", "w1").expect("valid test shard")
     }
 
     // The Kernel commits truth under the ACS-001 address (the golden V1 fact ContentId).
@@ -205,7 +209,7 @@ mod tests {
 
         let k = MemKernel::new(MemWalStore::new());
         let mut reg = MemRegistry::new();
-        let cshard = CapShard { tenant: "t1".into(), workspace: "w1".into() };
+        let cshard = CapShard::new("t1", "w1").expect("valid test shard");
         let cap = CapabilityId("derive.fact".into());
         reg.register(&cshard, cap.clone()).unwrap();
         reg.bind(CapabilityBinding {

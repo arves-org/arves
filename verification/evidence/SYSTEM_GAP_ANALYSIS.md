@@ -359,7 +359,9 @@ mirror fidelity is 1:1 and the substantive Volumes use only registered invariant
 - **X1** (ledger caveat asymmetry) → P4/P5 rows now carry the in-memory/process-scoped caveat.
 - **F4** (G2_READINESS filed an envelope presence-check under SHARD-001) → wording corrected.
 
-**Tracked (not fixed):** SHARD-001-F2 (runtime `ShardKey` fields `pub`; opaque key unused — RCR),
+**Tracked (not fixed):** SHARD-001-F2 (runtime `ShardKey` fields `pub`; opaque key unused — RCR;
+*since CLOSED by RCR-017, 2026-07-05: kernel + capability-fabric ShardKeys made opaque with
+validating constructors — see `runtime/rcr/RCR-017.md` and OPEN_DEBT_REGISTER §C*),
 F3 (products single-tenant — doc/RCR), E2 (spend prefix matcher — living_fix), M1 (marketplace
 signature not bound to catalog identity — living_fix), Fz1 (fuzzer "0 divergences" silent on 16
 interop-safe reason-differ — noted).

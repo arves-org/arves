@@ -39,7 +39,8 @@ can be implemented **correctly, independently, deterministically, and at product
 > **Two-arm pivot (2026-07):** *Stop proving that ARVES can exist; start proving why
 > ARVES matters.* The **Standard Program** (G2 external validation + certification)
 > and the **Product Program** (P1 SDK → … → P8 Industry) run in parallel. **IDR-006:**
-> products consume `arves-standard-kit 0.2.0` + the reference runtime as a FROZEN
+> products consume `arves-standard-kit` at the current Kit version (`standard/VERSION`,
+> **0.3.1** as of CCP-006/007) + the reference runtime as a FROZEN
 > external dependency — no product modifies `runtime/` or `standard/`; a needed platform
 > change is a Platform Change Proposal. The four-condition product gate (Independent
 > Runtime + External Team + Certification + Formal, all PASS) is retained for **GA /

@@ -91,12 +91,91 @@ pub struct BindingVersion(pub u64);
 /// resolved in one shard is never visible from another; there is no cross-shard binding
 /// namespace (mirroring "no cross-shard atomic commit", IDR-004). The key is immutable once
 /// assigned to the state it addresses.
+///
+/// **Opaque since RCR-017 (SHARD-001-F2), aligned with `arves-kernel::ShardKey`:** the
+/// fields are private so the key is immutable *by type*; construction goes through
+/// [`ShardKey::new`] (each part non-empty, at most [`ShardKey::MAX_PART_BYTES`] bytes —
+/// the SAME rules as the kernel key, so a validated kernel key always converts). The
+/// validation is intentionally duplicated rather than imported: this crate depends on
+/// no sibling crate (std-only contract skeleton, LAYER-001).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ShardKey {
     /// Tenant identifier component of the partition key (immutable, SHARD-001).
-    pub tenant: String,
+    tenant: String,
     /// Workspace identifier component of the partition key (immutable, SHARD-001).
-    pub workspace: String,
+    workspace: String,
+}
+
+/// Why a [`ShardKey`] could not be constructed (RCR-017): the degenerate keys the
+/// opaque type makes unrepresentable. Mirrors `arves-kernel::ShardKeyError` (this
+/// crate is std-only and defines its own copy).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ShardKeyError {
+    /// The tenant part was empty.
+    EmptyTenant,
+    /// The workspace part was empty.
+    EmptyWorkspace,
+    /// The tenant part exceeded [`ShardKey::MAX_PART_BYTES`] bytes (carries the length).
+    TenantTooLong(usize),
+    /// The workspace part exceeded [`ShardKey::MAX_PART_BYTES`] bytes (carries the length).
+    WorkspaceTooLong(usize),
+}
+
+impl core::fmt::Display for ShardKeyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ShardKeyError::EmptyTenant => write!(f, "shard tenant must be non-empty"),
+            ShardKeyError::EmptyWorkspace => write!(f, "shard workspace must be non-empty"),
+            ShardKeyError::TenantTooLong(n) => {
+                write!(f, "shard tenant is {n} bytes (max {})", ShardKey::MAX_PART_BYTES)
+            }
+            ShardKeyError::WorkspaceTooLong(n) => {
+                write!(f, "shard workspace is {n} bytes (max {})", ShardKey::MAX_PART_BYTES)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ShardKeyError {}
+
+impl ShardKey {
+    /// Upper bound on each part's byte length — identical to
+    /// `arves-kernel::ShardKey::MAX_PART_BYTES`, so kernel↔fabric key conversion at the
+    /// bridge seam is total.
+    pub const MAX_PART_BYTES: usize = 256;
+
+    /// The ONLY public constructor (RCR-017): rejects an empty part or a part longer
+    /// than [`ShardKey::MAX_PART_BYTES`] bytes, making degenerate binding partitions
+    /// unrepresentable (SHARD-001).
+    pub fn new(
+        tenant: impl Into<String>,
+        workspace: impl Into<String>,
+    ) -> Result<Self, ShardKeyError> {
+        let (tenant, workspace) = (tenant.into(), workspace.into());
+        if tenant.is_empty() {
+            return Err(ShardKeyError::EmptyTenant);
+        }
+        if workspace.is_empty() {
+            return Err(ShardKeyError::EmptyWorkspace);
+        }
+        if tenant.len() > Self::MAX_PART_BYTES {
+            return Err(ShardKeyError::TenantTooLong(tenant.len()));
+        }
+        if workspace.len() > Self::MAX_PART_BYTES {
+            return Err(ShardKeyError::WorkspaceTooLong(workspace.len()));
+        }
+        Ok(ShardKey { tenant, workspace })
+    }
+
+    /// Tenant identifier component — read-only accessor.
+    pub fn tenant(&self) -> &str {
+        &self.tenant
+    }
+
+    /// Workspace identifier component — read-only accessor.
+    pub fn workspace(&self) -> &str {
+        &self.workspace
+    }
 }
 
 /// Identity of a concrete provider that can service a capability.
@@ -322,7 +401,21 @@ mod mem_registry_tests {
     use super::*;
 
     fn shard() -> ShardKey {
-        ShardKey { tenant: "t1".into(), workspace: "w1".into() }
+        ShardKey::new("t1", "w1").expect("valid test shard")
+    }
+
+    // RCR-017 (SHARD-001-F2): a degenerate binding partition is UNREPRESENTABLE — the
+    // constructor refuses an empty part and an over-long part; the boundary is accepted.
+    #[test]
+    fn rcr017_degenerate_shard_key_unrepresentable() {
+        assert_eq!(ShardKey::new("", "w1"), Err(ShardKeyError::EmptyTenant));
+        assert_eq!(ShardKey::new("t1", ""), Err(ShardKeyError::EmptyWorkspace));
+        let long = "x".repeat(ShardKey::MAX_PART_BYTES + 1);
+        assert_eq!(ShardKey::new(long.clone(), "w1"), Err(ShardKeyError::TenantTooLong(long.len())));
+        assert_eq!(ShardKey::new("t1", long.clone()), Err(ShardKeyError::WorkspaceTooLong(long.len())));
+        let max = "y".repeat(ShardKey::MAX_PART_BYTES);
+        let k = ShardKey::new(max.clone(), max.clone()).expect("boundary accepted");
+        assert_eq!((k.tenant(), k.workspace()), (max.as_str(), max.as_str()));
     }
 
     fn binding(v: u64) -> CapabilityBinding {

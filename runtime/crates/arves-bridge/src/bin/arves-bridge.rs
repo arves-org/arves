@@ -4,8 +4,9 @@
 //!   `<domain_hex> <body_hex>`               → commit a body directly as ACS truth
 //!   `invoke <capability> <domain_hex> <body_hex>` → run the FULL cognitive chain:
 //!       Capability (resolve binding) → Engine (pure invoke) → Kernel (commit effect)
+//!   `bind <capability>`                     → register+bind a capability (RCR-016)
 //! Response: `<content_id_hex> <status> <index>`  (status = committed | already-committed)
-//!           or `ERR <reason>` (e.g. `ERR unbound`).
+//!           or `bound <capability>` (for `bind`) or `ERR <reason>` (e.g. `ERR unbound`).
 //!
 //! **Request-id correlation (RCR-011, additive):** a request line MAY carry an explicit
 //! id as its first token — `id=<token>` (1..=64 non-whitespace bytes). The token is
@@ -17,7 +18,47 @@
 //! `ERR too-large` is emitted for an over-long line *before* any parsing, so it never
 //! carries an id — clients keep a FIFO fallback for id-less response lines.
 //!
-//! One in-memory Kernel + Capability registry + reference engine persist across the
+//! **Per-request shard selection (RCR-014, additive):** after the optional `id=` token,
+//! a request line MAY carry `shard=<tenant>/<workspace>` (each part non-empty,
+//! whitespace-free, ≤ 64 bytes) — the commit/invoke runs in THAT shard instead of the
+//! default `t1/w1`. Same body in two shards is two distinct truths with distinct
+//! indexes and idempotency scopes (SHARD-001) — one process can now serve many tenants.
+//! Token order is fixed: `id=` first (if present), then `shard=` (shard-only is lawful).
+//! A malformed shard spec is answered `ERR bad-shard` WITHOUT reflecting the untrusted
+//! spec back (a *valid* id prefix is still echoed, for correlation — mirroring the
+//! RCR-011 bad-id discipline). Lines without the token behave byte-identically to
+//! before. Documented choice: `invoke` in a non-default shard where the capability was
+//! never bound is honestly refused `ERR unbound` — there is NO implicit auto-bind;
+//! use the `bind` verb (RCR-016) to bind it first.
+//!
+//! **Dynamic capability bind (RCR-016, additive):** `bind <capability>` (composable with
+//! the `id=` / `shard=` prefixes) registers and binds `<capability>` in the target shard.
+//! Response: `bound <capability>`; rebinding a name already bound in that shard is
+//! IDEMPOTENT — it answers `bound` again and changes nothing. A missing / extra-token /
+//! over-long (> 64 bytes) capability name is refused `ERR bad-request`. HONEST SCOPE:
+//! this bin hosts exactly ONE engine — the reference `engine:derive.fact@1.0.0` — and
+//! `bind` binds capability NAMES to that one engine identity; it does NOT load or
+//! execute arbitrary engine code. Dynamic engine loading is not a bridge feature.
+//! Confusability note: capability names are fully OPAQUE tokens (same treatment as on
+//! `invoke`), so a name may visually mimic a protocol token — `bind shard=x/y` lawfully
+//! binds the capability literally named `shard=x/y` and answers `bound shard=x/y`.
+//! There is no ambiguity: the `id=` / `shard=` prefixes are recognized POSITIONALLY
+//! (leading tokens of a request line only), never by the content of a name position.
+//!
+//! **Durable truth via `--wal-dir <path>` (RCR-015, additive):** by default the bin
+//! hosts an in-memory Kernel — truth dies with the process. With `--wal-dir <path>` it
+//! hosts the file-backed `FileKernel` (I1.5) over that directory: every commit is
+//! fsync-durable, and on startup the Kernel RECOVERS the directory's committed truth by
+//! deterministic replay (ORCH-003, lossless-or-loud), so re-proposing an already-committed
+//! body after a process kill+restart answers `already-committed` with the SAME ContentId
+//! and index. No flag → MemKernel, byte-identical to before. HONEST SCOPE: this is
+//! **single-host durability** — per-frame CRC32 error-detection plus the RCR-002
+//! SHA-256 hash-chain integrity digest (tamper-evident, not tamper-proof); there is NO
+//! authentication/authorization on commit (v2.0 debt #8 in `RUNTIME_FREEZE_v1.0.md`) and
+//! no replication (per-shard Raft is I2+). An unknown flag or an unrecoverable WAL is
+//! refused loudly at startup — the bin never silently falls back to volatile memory.
+//!
+//! One Kernel + Capability registry + reference engine persist across the
 //! session, so idempotency (ORCH-004) is observable. ContentIds are ACS-001 addresses —
 //! identical to what the SDK computes locally (one world).
 
@@ -62,11 +103,42 @@ use arves_capability_fabric::{
     InvocationContract, MemRegistry, ProviderId, ShardKey as CapShardKey,
 };
 use arves_engine_fabric::{Engine, PureEngine};
-use arves_kernel::{CommitError, Kernel, MemKernel, ShardKey};
-use arves_persistence::MemWalStore;
+use arves_kernel::{CommitError, FileKernel, Kernel, MemKernel, ShardKey};
+use arves_persistence::{FileWalStore, MemWalStore};
 
 /// Max accepted request-id token length (RCR-011). A longer id is refused as `ERR bad-id`.
 const MAX_ID: usize = 64;
+
+/// The ONE engine identity this bin hosts (RCR-016 binds capability names to it).
+const REF_ENGINE: &str = "engine:derive.fact@1.0.0";
+
+/// Max accepted capability-name token length for `bind` (RCR-016). Longer names are
+/// refused as `ERR bad-request` (hygiene, mirroring `MAX_ID`).
+const MAX_CAP: usize = 64;
+
+/// RCR-016: register + bind `cap` in `shard` to the reference engine identity, under the
+/// reference invocation contract. Used by `main` (default `derive.fact` in `t1/w1`) and
+/// by the `bind` verb, so a dynamically bound name behaves exactly like the built-in one.
+fn bind_reference_capability<R: CapabilityRegistry>(registry: &mut R, shard: &ShardKey, cap: &str) -> Result<(), ()> {
+    // RCR-017: identical construction rules on both opaque keys make this conversion total.
+    let cap_shard = CapShardKey::new(shard.tenant(), shard.workspace())
+        .expect("a valid kernel ShardKey always converts to a capability ShardKey");
+    registry.register(&cap_shard, CapabilityId(cap.into())).map_err(|_| ())?;
+    registry
+        .bind(CapabilityBinding {
+            capability: CapabilityId(cap.into()),
+            shard: cap_shard,
+            version: BindingVersion(1),
+            provider: ProviderId(REF_ENGINE.into()),
+            contract: InvocationContract {
+                input_schema: "acs:uci.fact".into(),
+                output_schema: "acs:uci.fact".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        })
+        .map(|_| ())
+        .map_err(|_| ())
+}
 
 /// RCR-011: split an optional leading `id=<token>` off a (trimmed) request line.
 /// `Ok((Some(id), rest))` when a well-formed id prefix is present; `Ok((None, line))`
@@ -89,16 +161,79 @@ fn split_request_id(line: &str) -> Result<(Option<&str>, &str), ()> {
     }
 }
 
-/// Handle one id-stripped request against the session runtime; returns the response
-/// payload (no id echo — `respond` adds it). Extracted from `main` so the protocol
-/// logic is unit-testable (RCR-011).
-fn handle_request<K, R, E>(line: &str, kernel: &K, registry: &R, shard: &ShardKey, engine: &E) -> String
+/// Max accepted length of each shard part — tenant, workspace — (RCR-014).
+const MAX_SHARD_PART: usize = 64;
+
+/// The default shard every un-prefixed request runs in (byte-identical to pre-RCR-014).
+fn default_shard() -> ShardKey {
+    ShardKey::new("t1", "w1").expect("valid default shard")
+}
+
+/// RCR-014: split an optional leading `shard=<tenant>/<workspace>` off an (already
+/// id-stripped) request line. Grammar: exactly one `/`, both parts non-empty and
+/// ≤ `MAX_SHARD_PART` bytes (whitespace-freeness is guaranteed by tokenization).
+/// `Err(())` for a malformed spec — answered `ERR bad-shard` WITHOUT reflecting the
+/// untrusted spec back (RCR-011 discipline).
+fn split_shard(line: &str) -> Result<(Option<ShardKey>, &str), ()> {
+    match line.strip_prefix("shard=") {
+        None => Ok((None, line)),
+        Some(rest) => {
+            let (spec, tail) = match rest.find(char::is_whitespace) {
+                Some(i) => (&rest[..i], rest[i..].trim_start()),
+                None => (rest, ""),
+            };
+            let mut parts = spec.split('/');
+            match (parts.next(), parts.next(), parts.next()) {
+                (Some(t), Some(w), None)
+                    if !t.is_empty()
+                        && !w.is_empty()
+                        && t.len() <= MAX_SHARD_PART
+                        && w.len() <= MAX_SHARD_PART =>
+                {
+                    // RCR-017: the opaque constructor re-checks (non-empty, ≤256B);
+                    // this grammar (≤64B) is strictly tighter, so it cannot refuse —
+                    // a construction failure is still mapped to `ERR bad-shard`.
+                    ShardKey::new(t, w).map(|k| (Some(k), tail)).map_err(|_| ())
+                }
+                _ => Err(()),
+            }
+        }
+    }
+}
+
+/// Handle one id/shard-stripped request against the session runtime; returns the
+/// response payload (no id echo — `respond` adds it). Extracted from `main` so the
+/// protocol logic is unit-testable (RCR-011). `registry` is `&mut` for the `bind`
+/// verb (RCR-016); commit/invoke never mutate it.
+fn handle_request<K, R, E>(line: &str, kernel: &K, registry: &mut R, shard: &ShardKey, engine: &E) -> String
 where
     K: Kernel,
     R: CapabilityRegistry,
     E: Engine<Input = Vec<u8>>,
 {
     let tok: Vec<&str> = line.split_whitespace().collect();
+    if tok.first() == Some(&"bind") {
+        // bind <capability>  (RCR-016): register+bind the name to the ONE reference
+        // engine identity in the target shard. Idempotent: an already-bound name
+        // answers `bound` again (every binding in this bin points at REF_ENGINE, so
+        // there is nothing to supersede).
+        return match (tok.get(1), tok.len()) {
+            (Some(cap), 2) if cap.len() <= MAX_CAP => {
+                // RCR-017: identical construction rules on both opaque keys — total conversion.
+                let cap_shard = CapShardKey::new(shard.tenant(), shard.workspace())
+                    .expect("a valid kernel ShardKey always converts to a capability ShardKey");
+                if registry.resolve(&cap_shard, &CapabilityId((*cap).into())).is_ok() {
+                    format!("bound {cap}")
+                } else {
+                    match bind_reference_capability(registry, shard, cap) {
+                        Ok(()) => format!("bound {cap}"),
+                        Err(()) => "ERR bind-failed".to_string(),
+                    }
+                }
+            }
+            _ => "ERR bad-request".to_string(),
+        };
+    }
     if tok.first() == Some(&"invoke") {
         // invoke <capability> <domain_hex> <body_hex>
         match (tok.get(1), tok.get(2).and_then(|s| u8::from_str_radix(s, 16).ok()), tok.get(3).and_then(|s| from_hex(s))) {
@@ -132,9 +267,9 @@ where
     }
 }
 
-/// Full per-line behaviour: id split → handle → id echo. Used by `main` and by the
-/// protocol tests, so what is tested is exactly what the server does.
-fn respond<K, R, E>(line: &str, kernel: &K, registry: &R, shard: &ShardKey, engine: &E) -> String
+/// Full per-line behaviour: id split → shard split (RCR-014) → handle → id echo. Used
+/// by `main` and by the protocol tests, so what is tested is exactly what the server does.
+fn respond<K, R, E>(line: &str, kernel: &K, registry: &mut R, engine: &E) -> String
 where
     K: Kernel,
     R: CapabilityRegistry,
@@ -142,11 +277,17 @@ where
 {
     match split_request_id(line) {
         Err(()) => "ERR bad-id".to_string(),
-        Ok((rid, req)) => {
-            let payload = if req.is_empty() {
-                "ERR bad-request".to_string()
-            } else {
-                handle_request(req, kernel, registry, shard, engine)
+        Ok((rid, rest)) => {
+            let payload = match split_shard(rest) {
+                Err(()) => "ERR bad-shard".to_string(),
+                Ok((shard, req)) => {
+                    let shard = shard.unwrap_or_else(default_shard);
+                    if req.is_empty() {
+                        "ERR bad-request".to_string()
+                    } else {
+                        handle_request(req, kernel, registry, &shard, engine)
+                    }
+                }
             };
             match rid {
                 Some(id) => format!("{id} {payload}"),
@@ -178,27 +319,14 @@ fn from_hex(s: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-fn main() {
-    let kernel = MemKernel::new(MemWalStore::new());
-    let shard = ShardKey { tenant: "t1".into(), workspace: "w1".into() };
-
-    // Capability registry with one reference capability bound to a reference engine.
+/// The session loop over ONE Kernel (in-memory or file-backed, RCR-015): registry +
+/// reference engine + line protocol until EOF. Generic so the durable and volatile
+/// arms run the IDENTICAL protocol logic — `--wal-dir` changes durability, never behaviour.
+fn serve<K: Kernel>(kernel: &K) {
+    // Capability registry with one reference capability bound to the reference engine
+    // in the default shard (further names/shards bind via the `bind` verb, RCR-016).
     let mut registry = MemRegistry::new();
-    let cap_shard = CapShardKey { tenant: "t1".into(), workspace: "w1".into() };
-    registry.register(&cap_shard, CapabilityId("derive.fact".into())).ok();
-    registry
-        .bind(CapabilityBinding {
-            capability: CapabilityId("derive.fact".into()),
-            shard: cap_shard,
-            version: BindingVersion(1),
-            provider: ProviderId("engine:derive.fact@1.0.0".into()),
-            contract: InvocationContract {
-                input_schema: "acs:uci.fact".into(),
-                output_schema: "acs:uci.fact".into(),
-                effect: EffectClass::ProposesWrite,
-            },
-        })
-        .ok();
+    bind_reference_capability(&mut registry, &default_shard(), "derive.fact").expect("default binding");
     // A pure reference engine: admits its input as a proposed fact (the Kernel commits it).
     let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
 
@@ -216,9 +344,49 @@ fn main() {
         if line.is_empty() {
             continue;
         }
-        let resp = respond(line, &kernel, &registry, &shard, &engine);
+        let resp = respond(line, kernel, &mut registry, &engine);
         let _ = writeln!(out, "{resp}");
         let _ = out.flush();
+    }
+}
+
+fn main() {
+    // RCR-015: `--wal-dir <path>` selects the durable file-backed Kernel. Anything else
+    // on the command line is refused LOUDLY (a mistyped `--waldir` silently falling back
+    // to volatile memory would be a durability trap). No args → MemKernel, byte-identical.
+    let mut wal_dir: Option<String> = None;
+    let mut args = std::env::args().skip(1);
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--wal-dir" => match args.next() {
+                Some(dir) => wal_dir = Some(dir),
+                None => {
+                    eprintln!("arves-bridge: --wal-dir requires a path; usage: arves-bridge [--wal-dir <path>]");
+                    std::process::exit(64);
+                }
+            },
+            other => {
+                eprintln!("arves-bridge: unknown argument '{other}'; usage: arves-bridge [--wal-dir <path>]");
+                std::process::exit(64);
+            }
+        }
+    }
+    match wal_dir {
+        Some(dir) => {
+            // Durable arm: fsync-durable on-disk WAL + deterministic recovery replay
+            // (ORCH-003, lossless-or-loud — an unrecoverable directory refuses startup
+            // rather than serving partial truth).
+            let store = FileWalStore::open_root(&dir).unwrap_or_else(|e| {
+                eprintln!("arves-bridge: cannot open --wal-dir '{dir}': {e:?}");
+                std::process::exit(65);
+            });
+            let kernel = FileKernel::try_recover(store).unwrap_or_else(|e| {
+                eprintln!("arves-bridge: unrecoverable durable state in '{dir}': {e}");
+                std::process::exit(66);
+            });
+            serve(&kernel);
+        }
+        None => serve(&MemKernel::new(MemWalStore::new())),
     }
 }
 
@@ -231,41 +399,25 @@ mod tests {
     struct Session {
         kernel: MemKernel,
         registry: MemRegistry,
-        shard: ShardKey,
         engine: PureEngine<fn(&[u8]) -> Vec<u8>>,
     }
 
     impl Session {
         fn new() -> Self {
             let mut registry = MemRegistry::new();
-            let cap_shard = CapShardKey { tenant: "t1".into(), workspace: "w1".into() };
-            registry.register(&cap_shard, CapabilityId("derive.fact".into())).ok();
-            registry
-                .bind(CapabilityBinding {
-                    capability: CapabilityId("derive.fact".into()),
-                    shard: cap_shard,
-                    version: BindingVersion(1),
-                    provider: ProviderId("engine:derive.fact@1.0.0".into()),
-                    contract: InvocationContract {
-                        input_schema: "acs:uci.fact".into(),
-                        output_schema: "acs:uci.fact".into(),
-                        effect: EffectClass::ProposesWrite,
-                    },
-                })
-                .ok();
+            bind_reference_capability(&mut registry, &default_shard(), "derive.fact").expect("default binding");
             fn echo(b: &[u8]) -> Vec<u8> {
                 b.to_vec()
             }
             Session {
                 kernel: MemKernel::new(MemWalStore::new()),
                 registry,
-                shard: ShardKey { tenant: "t1".into(), workspace: "w1".into() },
                 engine: PureEngine::new("derive.fact", "uci.fact", echo as fn(&[u8]) -> Vec<u8>),
             }
         }
 
-        fn req(&self, line: &str) -> String {
-            respond(line, &self.kernel, &self.registry, &self.shard, &self.engine)
+        fn req(&mut self, line: &str) -> String {
+            respond(line, &self.kernel, &mut self.registry, &self.engine)
         }
     }
 
@@ -275,7 +427,7 @@ mod tests {
     // Un-prefixed lines behave exactly as before RCR-011 (backward compatibility).
     #[test]
     fn rcr011_plain_lines_unchanged() {
-        let s = Session::new();
+        let mut s = Session::new();
         assert_eq!(s.req("01 68656c6c6f2d7472757468"), format!("{HELLO_CID} committed 0"));
         assert_eq!(s.req("01 68656c6c6f2d7472757468"), format!("{HELLO_CID} already-committed 0"));
         assert_eq!(s.req("zz"), "ERR bad-request");
@@ -285,7 +437,7 @@ mod tests {
     // so a client can match responses by id instead of position.
     #[test]
     fn rcr011_id_is_echoed_on_success_and_error() {
-        let s = Session::new();
+        let mut s = Session::new();
         assert_eq!(s.req("id=r7 01 68656c6c6f2d7472757468"), format!("r7 {HELLO_CID} committed 0"));
         assert_eq!(s.req("id=r8 01 68656c6c6f2d7472757468"), format!("r8 {HELLO_CID} already-committed 0"));
         assert_eq!(s.req("id=r9 zz"), "r9 ERR bad-request");
@@ -295,7 +447,7 @@ mod tests {
     // The full cognitive chain works under an id prefix too.
     #[test]
     fn rcr011_invoke_with_id() {
-        let s = Session::new();
+        let mut s = Session::new();
         assert_eq!(
             s.req("id=a1 invoke derive.fact 01 68656c6c6f2d7472757468"),
             format!("a1 {HELLO_CID} committed 0")
@@ -307,12 +459,202 @@ mod tests {
     // an untrusted token is never reflected back into the response stream.
     #[test]
     fn rcr011_malformed_id_refused_without_echo() {
-        let s = Session::new();
+        let mut s = Session::new();
         assert_eq!(s.req("id= 01 6161"), "ERR bad-id");
         let long = format!("id={} 01 6161", "x".repeat(MAX_ID + 1));
         assert_eq!(s.req(&long), "ERR bad-id");
         // Boundary: exactly MAX_ID is accepted.
         let max = format!("id={} 01 68656c6c6f2d7472757468", "y".repeat(MAX_ID));
         assert!(s.req(&max).starts_with(&format!("{} ", "y".repeat(MAX_ID))));
+    }
+
+    // RCR-014: without a shard token every request runs in the default t1/w1 shard,
+    // byte-identical to before; SAME body under `shard=` is a DISTINCT truth with its
+    // own index sequence and idempotency scope (SHARD-001 isolation, observable).
+    #[test]
+    fn rcr014_two_shards_two_distinct_truths() {
+        let mut s = Session::new();
+        // Default shard: commit + idempotent recommit (unchanged behaviour).
+        assert_eq!(s.req("01 68656c6c6f2d7472757468"), format!("{HELLO_CID} committed 0"));
+        assert_eq!(s.req("01 68656c6c6f2d7472757468"), format!("{HELLO_CID} already-committed 0"));
+        // Same body in a second shard: FRESH truth (not already-committed) — distinct
+        // idempotency scope. If the shard token were ignored, this would bite.
+        assert_eq!(s.req("shard=t2/w2 01 68656c6c6f2d7472757468"), format!("{HELLO_CID} committed 0"));
+        assert_eq!(s.req("shard=t2/w2 01 68656c6c6f2d7472757468"), format!("{HELLO_CID} already-committed 0"));
+        // Distinct index sequences: a second body lands at index 1 in t1/w1 but the
+        // second shard's log is independent.
+        assert!(s.req("01 6161").ends_with(" committed 1"));
+        assert!(s.req("shard=t2/w2 01 6262").ends_with(" committed 1"));
+        assert!(s.req("shard=t3/w3 01 6161").ends_with(" committed 0"));
+    }
+
+    // RCR-014: token order is id first, then shard; shard-only is lawful; a shard
+    // token in the wrong position is not silently honoured.
+    #[test]
+    fn rcr014_token_ordering() {
+        let mut s = Session::new();
+        assert_eq!(
+            s.req("id=q1 shard=t2/w2 01 68656c6c6f2d7472757468"),
+            format!("q1 {HELLO_CID} committed 0")
+        );
+        // Shard-only (no id) is lawful.
+        assert_eq!(s.req("shard=t2/w2 01 68656c6c6f2d7472757468"), format!("{HELLO_CID} already-committed 0"));
+        // Wrong order (shard before id) — the id= token is NOT parsed as an id and the
+        // request body is malformed: refused, never mis-routed.
+        assert_eq!(s.req("shard=t2/w2 id=q2 01 6161"), "ERR bad-request");
+    }
+
+    // RCR-014: a malformed shard spec is refused as `ERR bad-shard` and the untrusted
+    // spec is never reflected back; a VALID id prefix is still echoed for correlation.
+    #[test]
+    fn rcr014_malformed_shard_refused() {
+        let mut s = Session::new();
+        assert_eq!(s.req("shard= 01 6161"), "ERR bad-shard"); // empty spec
+        assert_eq!(s.req("shard=t2 01 6161"), "ERR bad-shard"); // no '/'
+        assert_eq!(s.req("shard=/w2 01 6161"), "ERR bad-shard"); // empty tenant
+        assert_eq!(s.req("shard=t2/ 01 6161"), "ERR bad-shard"); // empty workspace
+        assert_eq!(s.req("shard=t2/w2/x 01 6161"), "ERR bad-shard"); // extra '/'
+        let long = format!("shard=t2/{} 01 6161", "z".repeat(MAX_SHARD_PART + 1));
+        assert_eq!(s.req(&long), "ERR bad-shard"); // over-long part
+        // Boundary: exactly MAX_SHARD_PART is accepted.
+        let max = format!("shard={}/w 01 6161", "y".repeat(MAX_SHARD_PART));
+        assert!(max.len() < MAX_LINE && s.req(&max).ends_with(" committed 0"));
+        // A valid id still correlates the refusal.
+        assert_eq!(s.req("id=e1 shard=broken 01 6161"), "e1 ERR bad-shard");
+    }
+
+    // RCR-014 documented choice: invoke in a non-default shard where the capability
+    // was never bound is honestly refused ERR unbound — no implicit auto-bind.
+    #[test]
+    fn rcr014_invoke_in_unbound_shard_refused() {
+        let mut s = Session::new();
+        assert_eq!(s.req("shard=t2/w2 invoke derive.fact 01 6161"), "ERR unbound");
+        // The same invoke in the default shard (bound at startup) runs the full chain.
+        assert_eq!(
+            s.req("invoke derive.fact 01 68656c6c6f2d7472757468"),
+            format!("{HELLO_CID} committed 0")
+        );
+    }
+
+    // RCR-016: bind → invoke in a fresh shard turns ERR unbound into a committed truth;
+    // a name that was never bound in that shard remains honestly ERR unbound.
+    #[test]
+    fn rcr016_bind_then_invoke_in_fresh_shard() {
+        let mut s = Session::new();
+        assert_eq!(s.req("shard=t9/w9 invoke summarize.doc 01 6161"), "ERR unbound");
+        assert_eq!(s.req("shard=t9/w9 bind summarize.doc"), "bound summarize.doc");
+        assert_eq!(
+            s.req("shard=t9/w9 invoke summarize.doc 01 68656c6c6f2d7472757468"),
+            format!("{HELLO_CID} committed 0")
+        );
+        // A different, never-bound name in the same shard is still refused.
+        assert_eq!(s.req("shard=t9/w9 invoke other.cap 01 6161"), "ERR unbound");
+        // ...and the bind is shard-scoped: the same name in ANOTHER shard stays unbound.
+        assert_eq!(s.req("shard=t8/w8 invoke summarize.doc 01 6161"), "ERR unbound");
+    }
+
+    // RCR-016: rebinding the same name in the same shard is IDEMPOTENT (`bound` again,
+    // no error, nothing superseded) — including the built-in default binding.
+    #[test]
+    fn rcr016_rebind_is_idempotent() {
+        let mut s = Session::new();
+        assert_eq!(s.req("shard=t9/w9 bind summarize.doc"), "bound summarize.doc");
+        assert_eq!(s.req("shard=t9/w9 bind summarize.doc"), "bound summarize.doc");
+        assert_eq!(s.req("bind derive.fact"), "bound derive.fact"); // pre-bound default
+        // The binding still works after the idempotent rebinds.
+        assert_eq!(
+            s.req("shard=t9/w9 invoke summarize.doc 01 68656c6c6f2d7472757468"),
+            format!("{HELLO_CID} committed 0")
+        );
+    }
+
+    // RCR-016: `bind` composes with the id= and shard= prefixes (id echoed, shard honoured).
+    #[test]
+    fn rcr016_bind_composes_with_id_and_shard() {
+        let mut s = Session::new();
+        assert_eq!(s.req("id=b1 shard=t9/w9 bind summarize.doc"), "b1 bound summarize.doc");
+        assert_eq!(
+            s.req("id=b2 shard=t9/w9 invoke summarize.doc 01 68656c6c6f2d7472757468"),
+            format!("b2 {HELLO_CID} committed 0")
+        );
+    }
+
+    // RCR-015: truth committed through a FILE-backed Kernel survives the Kernel's death.
+    // Session 1 commits over a --wal-dir directory and is dropped; session 2 RECOVERS the
+    // same directory (deterministic replay, ORCH-003) and the SAME body answers
+    // `already-committed` with the SAME ContentId and index. This is the in-process half
+    // of the durability proof; the real kill-the-process/restart half runs over the real
+    // exe in `products/robustness.test.mjs`.
+    #[test]
+    fn rcr015_durable_wal_survives_kernel_death() {
+        let dir = std::env::temp_dir().join(format!("arves-rcr015-bin-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        {
+            // Session 1: durable commit, then the Kernel dies (dropped).
+            let store = FileWalStore::open_root(&dir).expect("open wal dir");
+            let kernel = FileKernel::new(store);
+            let mut registry = MemRegistry::new();
+            bind_reference_capability(&mut registry, &default_shard(), "derive.fact").expect("bind");
+            let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+            assert_eq!(
+                respond("01 68656c6c6f2d7472757468", &kernel, &mut registry, &engine),
+                format!("{HELLO_CID} committed 0")
+            );
+        }
+        {
+            // Session 2: a FRESH Kernel recovers the directory — same body, same identity.
+            let store = FileWalStore::open_root(&dir).expect("reopen wal dir");
+            let kernel = FileKernel::try_recover(store).expect("recover durable truth");
+            let mut registry = MemRegistry::new();
+            bind_reference_capability(&mut registry, &default_shard(), "derive.fact").expect("bind");
+            let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+            assert_eq!(
+                respond("01 68656c6c6f2d7472757468", &kernel, &mut registry, &engine),
+                format!("{HELLO_CID} already-committed 0"),
+                "recovered truth must answer already-committed with the SAME ContentId + index"
+            );
+            // A NEW body in the recovered session lands at the next index — the recovered
+            // log position is exact, not merely non-empty.
+            assert!(respond("01 6161", &kernel, &mut registry, &engine).ends_with(" committed 1"));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // RCR-015: without --wal-dir the bin constructs MemKernel — the volatile arm's
+    // protocol behaviour is what every pre-existing test in this module exercises
+    // (byte-identical); here we pin that a FILE-backed session behaves identically on
+    // the protocol surface for a fresh directory (first commit fresh at index 0).
+    #[test]
+    fn rcr015_file_kernel_protocol_parity_on_fresh_dir() {
+        let dir = std::env::temp_dir().join(format!("arves-rcr015-parity-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = FileWalStore::open_root(&dir).expect("open wal dir");
+        let kernel = FileKernel::new(store);
+        let mut registry = MemRegistry::new();
+        bind_reference_capability(&mut registry, &default_shard(), "derive.fact").expect("bind");
+        let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+        assert_eq!(
+            respond("id=d1 invoke derive.fact 01 68656c6c6f2d7472757468", &kernel, &mut registry, &engine),
+            format!("d1 {HELLO_CID} committed 0"),
+            "the full cognitive chain runs identically over the durable Kernel"
+        );
+        assert_eq!(
+            respond("01 68656c6c6f2d7472757468", &kernel, &mut registry, &engine),
+            format!("{HELLO_CID} already-committed 0")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // RCR-016: a malformed bind (no name, extra tokens, over-long name) is ERR bad-request.
+    #[test]
+    fn rcr016_malformed_bind_refused() {
+        let mut s = Session::new();
+        assert_eq!(s.req("bind"), "ERR bad-request");
+        assert_eq!(s.req("bind a b"), "ERR bad-request");
+        let long = format!("bind {}", "c".repeat(MAX_CAP + 1));
+        assert_eq!(s.req(&long), "ERR bad-request");
+        // Boundary: exactly MAX_CAP is accepted.
+        let max_name = "d".repeat(MAX_CAP);
+        assert_eq!(s.req(&format!("bind {max_name}")), format!("bound {max_name}"));
     }
 }

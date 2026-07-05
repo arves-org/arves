@@ -18,10 +18,40 @@ const DEFAULT_EXE = path.resolve(
 );
 
 export class KernelBridge {
-  #proc; #waiters = []; #byId = new Map(); #buf = ''; #dead = null; #timeoutMs; #nextId = 1;
+  #proc; #waiters = []; #byId = new Map(); #buf = ''; #dead = null; #timeoutMs; #nextId = 1; #shard = '';
 
-  constructor(exe = DEFAULT_EXE, { timeoutMs = 10000, args = [] } = {}) {
+  // RCR-014: `{ tenant, workspace }` (both together) scope EVERY request from this
+  // client to that shard via the additive `shard=<tenant>/<workspace>` protocol token —
+  // one bridge process can serve many tenants, each with its own truth (SHARD-001).
+  // Absent (the default), no token is sent and the bridge uses its default shard,
+  // byte-identical to before.
+  // RCR-015: `{ walDir }` appends `--wal-dir <walDir>` to the bridge args, so the
+  // spawned bridge hosts the DURABLE file-backed Kernel over that directory: truth
+  // survives the process, and a new client over the same walDir sees the same
+  // ContentIds as already-committed. HONEST SCOPE: single-host durability (CRC32 +
+  // RCR-002 hash-chain integrity; no authN — v2.0 debt #8). Absent → in-memory
+  // Kernel, exactly as before.
+  constructor(exe = DEFAULT_EXE, { timeoutMs = 10000, args = [], tenant, workspace, walDir } = {}) {
     this.#timeoutMs = timeoutMs;
+    if (walDir !== undefined) {
+      if (typeof walDir !== 'string' || walDir.length === 0) {
+        throw new Error(`ARVES: invalid walDir ${JSON.stringify(walDir)} (must be a non-empty path string)`);
+      }
+      args = [...args, '--wal-dir', walDir];
+    }
+    if ((tenant === undefined) !== (workspace === undefined)) {
+      throw new Error('ARVES: tenant and workspace must be provided together');
+    }
+    if (tenant !== undefined) {
+      for (const [name, v] of [['tenant', tenant], ['workspace', workspace]]) {
+        // Each part is interpolated into a protocol token: it must be a non-empty,
+        // whitespace- and '/'-free string of at most 64 bytes (the bridge's grammar).
+        if (typeof v !== 'string' || v.length === 0 || /[\s/]/.test(v) || Buffer.byteLength(v) > 64) {
+          throw new Error(`ARVES: invalid ${name} ${JSON.stringify(v)} (non-empty, no whitespace or '/', <= 64 bytes)`);
+        }
+      }
+      this.#shard = `shard=${tenant}/${workspace} `;
+    }
     this.#proc = spawn(exe, args, { stdio: ['pipe', 'pipe', 'inherit'] });
     this.#proc.stdout.setEncoding('utf8');
     this.#proc.stdout.on('data', (d) => this.#onData(d));
@@ -89,7 +119,7 @@ export class KernelBridge {
       const waiter = { resolve, reject, timer, id };
       this.#waiters.push(waiter);
       this.#byId.set(id, waiter);
-      this.#proc.stdin.write(`id=${id} ${reqLine}\n`);
+      this.#proc.stdin.write(`id=${id} ${this.#shard}${reqLine}\n`);
     });
   }
 
@@ -127,6 +157,24 @@ export class KernelBridge {
     }
     const domHex = tag.toString(16).padStart(2, '0');
     return this.#parse(await this.#send(`invoke ${capability} ${domHex} ${hex(encode(value))}`), 'invoke', `capability '${capability}'`);
+  }
+
+  /** Bind a capability name in this client's shard (RCR-016), so `invoke` can run it.
+   *  Idempotent: rebinding an already-bound name resolves normally. HONEST SCOPE: the
+   *  bridge hosts exactly ONE engine (the reference `engine:derive.fact@1.0.0`); bind
+   *  attaches NAMES to that engine identity — it does not load arbitrary engine code. */
+  async bind(capability) {
+    // Same interpolation rule as invoke(): one bare whitespace-free token.
+    if (typeof capability !== 'string' || capability.length === 0 || /\s/.test(capability)) {
+      throw new Error(`ARVES: invalid capability '${capability}' (must be a whitespace-free token)`);
+    }
+    const line = await this.#send(`bind ${capability}`);
+    if (line.startsWith('ERR')) throw new Error(`bridge bind refused: ${line} (capability '${capability}')`);
+    const [verb, name] = line.split(/\s+/);
+    if (verb !== 'bound' || name !== capability) {
+      throw new Error(`arves-bridge malformed bind response: ${JSON.stringify(line)}`);
+    }
+    return { bound: capability };
   }
 
   close() { try { this.#proc.stdin.end(); } catch { /* already gone */ } }

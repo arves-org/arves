@@ -65,12 +65,90 @@ use core::fmt;
 /// leader of the shard identified by this key. The key is treated as opaque and
 /// immutable - once assigned to a piece of state it never changes, which is what
 /// lets shard placement be stable and lets replay be deterministic.
+///
+/// **Opaque since RCR-017 (SHARD-001-F2):** the fields are private, so a key is
+/// immutable *by type* — no caller outside this crate can mutate a part in place
+/// or construct a degenerate key. Construction goes through [`ShardKey::new`]
+/// (each part non-empty and at most [`ShardKey::MAX_PART_BYTES`] bytes); reads go
+/// through [`ShardKey::tenant`] / [`ShardKey::workspace`].
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ShardKey {
     /// Tenant identifier (outermost tenancy boundary).
-    pub tenant: String,
+    tenant: String,
     /// Workspace identifier within the tenant.
-    pub workspace: String,
+    workspace: String,
+}
+
+/// Why a [`ShardKey`] could not be constructed (RCR-017): the degenerate keys the
+/// opaque type makes unrepresentable.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ShardKeyError {
+    /// The tenant part was empty.
+    EmptyTenant,
+    /// The workspace part was empty.
+    EmptyWorkspace,
+    /// The tenant part exceeded [`ShardKey::MAX_PART_BYTES`] bytes (carries the length).
+    TenantTooLong(usize),
+    /// The workspace part exceeded [`ShardKey::MAX_PART_BYTES`] bytes (carries the length).
+    WorkspaceTooLong(usize),
+}
+
+impl fmt::Display for ShardKeyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ShardKeyError::EmptyTenant => write!(f, "shard tenant must be non-empty"),
+            ShardKeyError::EmptyWorkspace => write!(f, "shard workspace must be non-empty"),
+            ShardKeyError::TenantTooLong(n) => {
+                write!(f, "shard tenant is {n} bytes (max {})", ShardKey::MAX_PART_BYTES)
+            }
+            ShardKeyError::WorkspaceTooLong(n) => {
+                write!(f, "shard workspace is {n} bytes (max {})", ShardKey::MAX_PART_BYTES)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ShardKeyError {}
+
+impl ShardKey {
+    /// Upper bound on each part's byte length (tenant, workspace). Generous for any
+    /// real tenancy scheme while keeping keys bounded for logs, file names and wire
+    /// tokens (the bridge's own per-token cap of 64 bytes is stricter and unaffected).
+    pub const MAX_PART_BYTES: usize = 256;
+
+    /// The ONLY public constructor (RCR-017): rejects the degenerate keys —
+    /// an empty part, or a part longer than [`ShardKey::MAX_PART_BYTES`] bytes —
+    /// so they are unrepresentable rather than merely discouraged (SHARD-001:
+    /// the key is immutable and well-formed by construction).
+    pub fn new(
+        tenant: impl Into<String>,
+        workspace: impl Into<String>,
+    ) -> Result<Self, ShardKeyError> {
+        let (tenant, workspace) = (tenant.into(), workspace.into());
+        if tenant.is_empty() {
+            return Err(ShardKeyError::EmptyTenant);
+        }
+        if workspace.is_empty() {
+            return Err(ShardKeyError::EmptyWorkspace);
+        }
+        if tenant.len() > Self::MAX_PART_BYTES {
+            return Err(ShardKeyError::TenantTooLong(tenant.len()));
+        }
+        if workspace.len() > Self::MAX_PART_BYTES {
+            return Err(ShardKeyError::WorkspaceTooLong(workspace.len()));
+        }
+        Ok(ShardKey { tenant, workspace })
+    }
+
+    /// Tenant identifier (outermost tenancy boundary) — read-only accessor.
+    pub fn tenant(&self) -> &str {
+        &self.tenant
+    }
+
+    /// Workspace identifier within the tenant — read-only accessor.
+    pub fn workspace(&self) -> &str {
+        &self.workspace
+    }
 }
 
 /// Content address of a payload: the identity used to make commits
@@ -291,6 +369,10 @@ fn to_pshard(s: &ShardKey) -> PShardKey {
         workspace: s.workspace.clone(),
     }
 }
+/// Crate-internal reverse mapping (recovery/replay path). Constructs directly —
+/// lawful only inside this crate (RCR-017 keeps the fields private): a persistence
+/// key replayed from the WAL was originally written under a constructor-validated
+/// [`ShardKey`], so re-validating here would only re-check our own invariant.
 fn from_pshard(s: &PShardKey) -> ShardKey {
     ShardKey {
         tenant: s.tenant.clone(),

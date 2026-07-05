@@ -12,9 +12,9 @@ cross-era planning.
 |-----|----------|--------|
 | **1. Specification** | *What is ARVES?* | ✅ COMPLETE (frozen corpus + AEOS) |
 | **2. Implementation** | *Can we build a reference + executable standard + Kit?* | ✅ COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
-| **3. Standard Validation** | *Is ARVES scientifically sound, and can a THIRD PARTY implement it — with no help — and pass?* | 🟢 **CURRENT ERA** |
-| **4. Industrialization** | *Can ARVES run on millions of nodes?* | ⬜ gated behind Era 3 (I2–I6, Kernel Integration, enterprise, scale) |
-| **5. Product** | *Can real products be built on the certified platform?* | ⬜ separate org; forbidden until the platform is certified |
+| **3. Standard Validation** | *Is ARVES scientifically sound, and can a THIRD PARTY implement it — with no help — and pass?* | 🟢 **CURRENT — continues in parallel** (Ruling 002 runs Era 4 alongside it; G2 remains the honest external exit event) |
+| **4. Industrialization** | *Can ARVES run on millions of nodes?* | 🟢 **UN-GATED — build proceeding** (superseded by maintainer Ruling 002, 2026-07-05, `docs/MAINTAINER_RULINGS.md`: I2–I6 build from the reviewed `docs/design/` packages via RCR; the prior "gated behind Era 3" rule no longer applies) |
+| **5. Product** | *Can real products be built on the certified platform?* | 🟢 development OPEN (two-arm pivot + IDR-006 — products consume the frozen platform); GA still behind the four-condition gate. ~~separate org; forbidden until the platform is certified~~ *(prior wording, superseded by the two-arm pivot / IDR-006 — see `products/README.md`; marked in place per RCR-018)* |
 
 **The pivot (Era 2 → 3):** we stop *building* ARVES and start trying to *prove it
 wrong*. The KPI is no longer "Tests Passed" — it is **Evidence Increased**. Every
@@ -52,7 +52,8 @@ work begins now — as a **consumer of the frozen, versioned platform** (see IDR
    Program 2 EXTERNAL VALID ... 🟢 current P2 Visual Cognitive Studio
      G2 (external team PASS)               P3 Agent Runtime
      Certification                         P4 Personal AI
-   Program 3 INDUSTRIALIZATION  ⬜ post-G2  P5 Enterprise AI
+   Program 3 INDUSTRIALIZATION  🟢 un-gated P5 Enterprise AI
+     (Ruling 002 — was "post-G2")
      I2..I6 · Kernel Integration           P6 Marketplace · P7 Cloud
                                            P8 Industry Solutions
 ```
@@ -67,14 +68,17 @@ work begins now — as a **consumer of the frozen, versioned platform** (see IDR
 > `runtime/RUNTIME_FREEZE_v1.0.md`.
 
 **STANDARD PROGRAM** = everything that keeps ARVES *correct and independently
-implementable*: Program 1 (done), Program 2 (G2 Readiness — current), Program 3
-(Industrialization, post-G2). The exit criterion still stands: *can a completely
-unknown team build a conformant runtime from the Kit alone, asking nothing?*
+implementable*: Program 1 (done), Program 2 (G2 Readiness — continues in parallel), Program 3
+(Industrialization — **un-gated by Ruling 002 (2026-07-05)**; formerly "post-G2"). The G2 exit
+criterion still stands and is still graded honestly: *can a completely
+unknown team build a conformant runtime from the Kit alone, asking nothing?* — it is simply no
+longer the thing the build waits on.
 
 **PRODUCT PROGRAM** = everything that proves *why ARVES matters*, built ON TOP of the
 platform, never inside it. Product ladder P1→P8 (Developer Platform → Visual Cognitive
 Studio → Agent Runtime → Personal AI → Enterprise AI → Marketplace → Cloud → Industry).
-Governance: **IDR-006** — products consume `arves-standard-kit 0.2.0` + the reference
+Governance: **IDR-006** — products consume `arves-standard-kit` (current Kit version: see
+`standard/VERSION`, `0.3.1` as of CCP-006/007) + the reference
 runtime as a **frozen external dependency**; no product modifies `runtime/` or
 `standard/`; a needed platform change is a **Platform Change Proposal**. The original
 four-condition gate (Independent Runtime + External Team + Certification + Formal all
@@ -96,6 +100,9 @@ still ratified through CCP-GATE (draft + ≥1 conformance scenario), lives in
 | ACS-005 | Normative Language | RFC 2119 convention + Terms & Definitions glossary |
 
 ## Program 2 — the G2 Readiness Program (current)
+
+> **Superseded in part by Ruling 002 (2026-07-05):** "not I2" no longer holds — I2..I6 build
+> now proceeds in parallel. The G2 program itself continues unchanged, as one of the two arms.
 
 The next milestone is **G2 — Independent Standard Validation**, not I2. It is a
 scientific-validation program, not a feature program: the largest remaining gap is

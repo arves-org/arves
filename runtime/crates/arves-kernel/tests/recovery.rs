@@ -22,10 +22,7 @@ fn tmp(sub: &str) -> PathBuf {
 }
 
 fn shard() -> ShardKey {
-    ShardKey {
-        tenant: "t1".into(),
-        workspace: "w1".into(),
-    }
+    ShardKey::new("t1", "w1").expect("valid test shard")
 }
 
 fn proposal(content: &[u8], payload: &[u8]) -> ProposedWrite {

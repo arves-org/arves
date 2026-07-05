@@ -3,6 +3,7 @@
 // Run: node products/robustness.test.mjs   (exit 0 = all pass)
 
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { encode, float } from './arves-sdk-ts/src/codec.mjs';
 import { KernelBridge } from './arves-sdk-ts/src/bridge.mjs';
@@ -92,6 +93,99 @@ console.log('Kernel bridge client:');
   ]);
   b.close();
   ok('RCR-011: reordered responses are re-matched by id (no swapped callers)', r1.index === 1 && r2.index === 2);
+}
+{
+  // RCR-014 (raw protocol, REAL exe): the same body in two shards is TWO distinct
+  // truths — the second shard's first commit is FRESH ('committed', not
+  // 'already-committed'), and each shard has its own idempotency scope (SHARD-001).
+  // If the bridge ignored the shard= token, line 2 would answer 'already-committed'.
+  const exe = fileURLToPath(new URL(
+    '../runtime/target/debug/arves-bridge' + (process.platform === 'win32' ? '.exe' : ''), import.meta.url));
+  const p = spawn(exe, [], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const lines = []; let buf = '';
+  p.stdout.setEncoding('utf8');
+  p.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { lines.push(buf.slice(0, i).trim()); buf = buf.slice(i + 1); } });
+  p.stdin.write('01 6161\nshard=acme/hq 01 6161\nshard=acme/hq 01 6161\n01 6161\n');
+  await new Promise((res, rej) => {
+    const t = setInterval(() => { if (lines.length >= 4) { clearInterval(t); res(); } }, 20);
+    setTimeout(() => { clearInterval(t); rej(new Error('arves-bridge raw-protocol timeout')); }, 10000);
+  });
+  p.kill();
+  const status = lines.map((l) => l.split(/\s+/)[1]);
+  ok('RCR-014: same body in a second shard is FRESH truth; idempotency is per-shard (SHARD-001, real exe)',
+    status[0] === 'committed' && status[1] === 'committed' && status[2] === 'already-committed' && status[3] === 'already-committed');
+}
+{
+  // RCR-014 (client): a KernelBridge scoped to a non-default shard really runs there —
+  // commit round-trips with the shard token, and invoking the reference capability is
+  // honestly refused 'unbound' (it is bound only in the default shard). If the client
+  // did not send — or the server ignored — the token, the invoke would succeed.
+  const b = new KernelBridge(undefined, { tenant: 'acme', workspace: 'hq' });
+  const r = await b.commit({ type: 'uci.fact', k: 14n });
+  let unbound = false;
+  try { await b.invoke({ type: 'uci.fact', k: 14n }, 'derive.fact'); } catch (e) { unbound = String(e.message).includes('unbound'); }
+  b.close();
+  ok('RCR-014: client shard scoping is honored end-to-end (commit ok; invoke unbound in a fresh shard)',
+    r.status === 'committed' && unbound);
+}
+{
+  // RCR-016 (client, REAL exe): in a fresh shard the reference capability starts
+  // unbound; bind() turns the refusal into a committed truth, and rebinding is
+  // idempotent. (bind attaches NAMES to the bridge's one reference engine — it does
+  // not load engine code.)
+  const b = new KernelBridge(undefined, { tenant: 'globex', workspace: 'ops' });
+  let unboundFirst = false;
+  try { await b.invoke({ type: 'uci.fact', k: 16n }, 'derive.fact'); } catch (e) { unboundFirst = String(e.message).includes('unbound'); }
+  await b.bind('derive.fact');
+  const r = await b.invoke({ type: 'uci.fact', k: 16n }, 'derive.fact');
+  const again = await b.bind('derive.fact'); // idempotent rebind
+  b.close();
+  ok('RCR-016: bind() -> invoke commits in a fresh shard; rebind is idempotent (real exe)',
+    unboundFirst && r.status === 'committed' && again.bound === 'derive.fact');
+}
+
+{
+  // RCR-015 (raw protocol + client, REAL exe, cross-process durability): commit a body
+  // through a --wal-dir bridge, KILL the process, restart over the SAME directory —
+  // the same body answers 'already-committed' with the SAME ContentId and index
+  // (deterministic recovery replay, ORCH-003). Honest scope: single-host durability
+  // (CRC32 + RCR-002 hash-chain integrity; no authN — v2.0 debt).
+  const os = await import('node:os');
+  const fs = await import('node:fs');
+  const pathMod = await import('node:path');
+  const dir = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'arves-rcr015-'));
+  const exe = fileURLToPath(new URL(
+    '../runtime/target/debug/arves-bridge' + (process.platform === 'win32' ? '.exe' : ''), import.meta.url));
+  const oneShot = (input) => new Promise((res, rej) => {
+    const p = spawn(exe, ['--wal-dir', dir], { stdio: ['pipe', 'pipe', 'inherit'] });
+    const lines = []; let buf = '';
+    p.stdout.setEncoding('utf8');
+    p.stdout.on('data', (d) => {
+      buf += d; let i;
+      while ((i = buf.indexOf('\n')) >= 0) { lines.push(buf.slice(0, i).trim()); buf = buf.slice(i + 1); }
+      if (lines.length >= 1) p.kill(); // hard kill — the durable claim must not need a clean shutdown
+    });
+    p.on('exit', () => (lines.length >= 1 ? res(lines[0]) : rej(new Error('bridge died without answering'))));
+    p.on('error', rej);
+    setTimeout(() => { p.kill(); rej(new Error('rcr015 durable bridge timeout')); }, 10000);
+    p.stdin.write(input);
+  });
+  const first = await oneShot('01 68656c6c6f2d7472757468\n');   // process 1: commit, then killed
+  const second = await oneShot('01 68656c6c6f2d7472757468\n');  // process 2: recover, re-propose
+  const [cid1, st1, idx1] = first.split(/\s+/);
+  const [cid2, st2, idx2] = second.split(/\s+/);
+  ok('RCR-015: truth survives a process KILL — restart answers already-committed with the SAME ContentId+index (real exe)',
+    st1 === 'committed' && st2 === 'already-committed' && cid1 === cid2 && idx1 === '0' && idx2 === '0');
+  // Client wiring: a KernelBridge({ walDir }) over the same directory sees the same
+  // durable truth (proves the opts actually reach the exe as --wal-dir).
+  const b = new KernelBridge(undefined, { walDir: dir });
+  const r = await b.commit({ type: 'uci.fact', k: 15n });
+  const r2 = await b.commit({ type: 'uci.fact', k: 15n });
+  b.close();
+  ok('RCR-015: client {walDir} opts spawn a durable bridge (fresh body commits; re-commit idempotent)',
+    r.status === 'committed' && r2.status === 'already-committed' && r.contentId === r2.contentId);
+  await new Promise((res) => setTimeout(res, 300)); // let the closed bridge exit before cleanup (win file locks)
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort temp cleanup */ }
 }
 
 console.log('Personal Cognitive OS (P4):');

@@ -19,10 +19,7 @@ use arves_persistence::{FileWalStore, MemWalStore};
 use std::process;
 
 fn demo_shard() -> ShardKey {
-    ShardKey {
-        tenant: "acme".into(),
-        workspace: "research".into(),
-    }
+    ShardKey::new("acme", "research").expect("valid demo shard")
 }
 
 /// A fixed, deterministic commit sequence so `write` and `recover` (and repeated

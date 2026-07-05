@@ -25,7 +25,7 @@ adversarial completeness critic reviewed the 5-chapter map as **sound**, so five
 | **1** | **Specification** — author & freeze the Standard | ✅ **DONE** | maintainer | The corpus is COMPLETE / FROZEN and permanently immutable; later change only via CCP / Amendment / IDR / next major. |
 | **2** | **Implementation** — build the reference implementation that proves the spec (Build Program, **SEALED**) | ✅ **DONE** | internal | Reference impl exists and the Build Program is SEALED (16-pillar adversarial audit → CLOSE), Runtime v1.0 FROZEN. All graded **G1**. |
 | **3** | **Standard Validation** — *prove ARVES wrong*; the G2 third-party runtime is the exit gate | 🟡 **CURRENT** | **external** | A genuinely unrelated party builds a runtime from `standard/` alone (no help, no reference access) and earns full-surface `SOUND-CERTIFIED` — the first real **G2**. |
-| **4** | **Industrialization** — run ARVES at scale (I2..I6) | 🔒 **GATED** | mixed | I2..I6 built and each passes its full Success Criteria; distributed runtime at scale; I6 → GA under the four-condition gate. **May not begin until Ch3's G2 fires.** |
+| **4** | **Industrialization** — run ARVES at scale (I2..I6) | 🟢 **UN-GATED — in build** *(superseded by Ruling 002, 2026-07-05, `docs/MAINTAINER_RULINGS.md`)* | mixed | I2..I6 built and each passes its full Success Criteria; distributed runtime at scale; I6 → GA under the four-condition gate. ~~May not begin until Ch3's G2 fires~~ *(superseded by Ruling 002: build proceeds now from the `docs/design/` packages via RCR; Ch3 continues in parallel)*. |
 | **5** | **Growth / Foundation** — prove *why* ARVES matters; survive its makers | 🟡 **in-progress** | **external** | All ten Long-Term Objectives hold **and** the North Star is real: a stranger downloads → builds → publishes → gets paid with no maker contact. |
 
 ## Where we are — the honest split
@@ -33,8 +33,10 @@ adversarial completeness critic reviewed the 5-chapter map as **sound**, so five
 - **2 of 5 chapters are fully DONE** (Ch1, Ch2) — both were internally closable, and they closed.
 - **3 remain, and only ONE of them is internal engineering:**
   - **Ch4** (Industrialization: I2..I6, distributed runtime at scale, v1.1/v2.0 RCR debt, L4
-    fault-injection/replay/performance evidence) is fully **internal-buildable** — *but it is
-    hard-gated* and must not begin until Ch3's external event fires.
+    fault-injection/replay/performance evidence) is fully **internal-buildable** — ~~*but it is
+    hard-gated* and must not begin until Ch3's external event fires~~ *(superseded by Ruling 002,
+    2026-07-05: I2..I6 is un-gated and in build; Ch3's external event remains the only thing that
+    lifts independence past G1)*.
   - **Ch3** and **Ch5** close **only on external events that cannot be manufactured internally**:
     Ch3 on a stranger's **G2** certification, Ch5 on real external **adoption** (the North Star).
 - Therefore **no freeze-clean or maintainer-gated (CCP/RCR) work advances independence past G1.**
@@ -68,8 +70,8 @@ scheme; each objective is a *closes-when* test inside the Era that owns it:
 | 3 | Independent Runtime A passes certification | Ch3 | 🟡 met at **G1** (Rust) |
 | 4 | Independent Runtime B passes certification | Ch3 | 🟡 met at **G1** (Python; TypeScript codec too) |
 | 5 | Third-party certification exists | Ch3 | ❌ **the G2 exit gate — open** |
-| 1 | Production-grade distributed runtime exists | Ch4 | 🔒 gated (I2..I6) |
-| 6 | Enterprise runtime exists | Ch4 | 🔒 gated |
+| 1 | Production-grade distributed runtime exists | Ch4 | 🟢 un-gated, in build (I2..I6; superseded by Ruling 002) |
+| 6 | Enterprise runtime exists | Ch4 | 🟢 un-gated (superseded by Ruling 002) |
 | 8 | Marketplace exists | Ch5 | 🟡 mechanism built (G1); at-scale = Ch5 |
 | 9 | Cloud platform exists | Ch5 | ❌ not started |
 | 10 | Real products built entirely on ARVES without modifying the standard | Ch5 | 🟡 in-program demos exist (G1); real external orgs = open |
@@ -98,6 +100,6 @@ scheme; each objective is a *closes-when* test inside the Era that owns it:
 `FOUNDATION.md` + `SUCCESS.md` + `FAILURE.md` + `products/README.md` (survivability, North Star, ladder).
 
 *Bottom line: ARVES is fully complete in **5 chapters**. Two are done. Of the three that remain,
-one (Ch4) is gated internal engineering and two (Ch3, Ch5) close only when someone outside the
-project shows up — a G2 runtime, then real adoption. The program is no longer "build"; it is
-"publish, and make the stranger's arrival possible."*
+one (Ch4) is internal engineering — now un-gated and in build *(superseded by Ruling 002)* — and
+two (Ch3, Ch5) close only when someone outside the
+project shows up — a G2 runtime, then real adoption.*

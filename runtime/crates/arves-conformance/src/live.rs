@@ -22,7 +22,7 @@ use arves_kernel::{CommitError, ContentHash, Kernel, MemKernel, ProposedWrite, S
 use arves_persistence::{MemWalStore, ReplayCursor, Wal, WalStore};
 
 fn shard(tenant: &str, workspace: &str) -> ShardKey {
-    ShardKey { tenant: tenant.into(), workspace: workspace.into() }
+    ShardKey::new(tenant, workspace).expect("valid probe shard")
 }
 fn proposal(sh: ShardKey, content: &[u8], payload: &[u8]) -> ProposedWrite {
     ProposedWrite { shard: sh, content: ContentHash(content.to_vec()), payload: payload.to_vec() }
@@ -214,7 +214,10 @@ impl Connector {
         let bytes = encode(&body);
         let cid = content_id(domain::COMMIT_CONTENT, &bytes);
         ProposedWrite {
-            shard: ShardKey { tenant: src.tenant.clone(), workspace: src.workspace.clone() },
+            // RCR-017: the opaque constructor refuses a degenerate tenant/workspace; the
+            // reference Connector requires well-formed Source scoping by contract.
+            shard: ShardKey::new(src.tenant.clone(), src.workspace.clone())
+                .expect("Source tenant/workspace must be non-empty and \u{2264}256 bytes"),
             content: ContentHash(cid),
             payload: bytes,
         }
@@ -255,7 +258,7 @@ impl NodeProbe for InformationPlatformProbe {
             && contains(&p1.payload, b"confidence");
 
         // SHARD-001 TenantScope: the write is scoped to (tenant, workspace).
-        let scoped = p1.shard.tenant == "acme" && p1.shard.workspace == "research";
+        let scoped = p1.shard.tenant() == "acme" && p1.shard.workspace() == "research";
         let shard001 = held_if(scoped);
 
         NodeEvidence {

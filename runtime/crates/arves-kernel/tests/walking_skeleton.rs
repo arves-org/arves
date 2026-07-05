@@ -4,14 +4,13 @@
 //! commit -> WAL -> durable truth -> TruthRef -> replay -> identical truth.
 //! No Raft, networking, replication, or scheduling is exercised.
 
-use arves_kernel::{CommitError, ContentHash, Kernel, MemKernel, ProposedWrite, ShardKey};
+use arves_kernel::{
+    CommitError, ContentHash, Kernel, MemKernel, ProposedWrite, ShardKey, ShardKeyError,
+};
 use arves_persistence::MemWalStore;
 
 fn shard() -> ShardKey {
-    ShardKey {
-        tenant: "t1".into(),
-        workspace: "w1".into(),
-    }
+    ShardKey::new("t1", "w1").expect("valid test shard")
 }
 
 /// True iff `needle` occurs as a contiguous subsequence of `haystack` (used to assert one
@@ -140,8 +139,8 @@ fn behaviour_7_content_integrity_same_address_different_payload() {
 #[test]
 fn behaviour_8_two_tenant_isolation() {
     let k = MemKernel::new(MemWalStore::new());
-    let acme = ShardKey { tenant: "acme".into(), workspace: "research".into() };
-    let globex = ShardKey { tenant: "globex".into(), workspace: "research".into() };
+    let acme = ShardKey::new("acme", "research").expect("valid shard");
+    let globex = ShardKey::new("globex", "research").expect("valid shard");
 
     // Same content address, two tenants, distinct payloads -> two truths (shard-scoped).
     let tr1 = k
@@ -226,7 +225,7 @@ fn behaviour_9_batch_commit_atomic_validation() {
 
     // (f) Cross-shard batches are refused (IDR-004: saga, never a single commit).
     let other_shard = ProposedWrite {
-        shard: ShardKey { tenant: "t2".into(), workspace: "w1".into() },
+        shard: ShardKey::new("t2", "w1").expect("valid shard"),
         content: ContentHash(b"c1".to_vec()),
         payload: b"p1".to_vec(),
     };
@@ -237,4 +236,33 @@ fn behaviour_9_batch_commit_atomic_validation() {
 
     // (g) The empty batch is a lawful no-op.
     assert_eq!(k.commit_batch(Vec::new()).expect("empty batch"), Vec::new());
+}
+
+/// Behaviour 10 (RCR-017 / SHARD-001-F2): a degenerate ShardKey is UNREPRESENTABLE from
+/// outside the Kernel crate. The fields are private (immutable-by-type — this test file
+/// could not mutate a part even if it tried; that would not compile), and the ONLY
+/// constructor refuses an empty part and a part over `ShardKey::MAX_PART_BYTES` bytes.
+#[test]
+fn behaviour_10_degenerate_shard_key_unrepresentable() {
+    // Empty parts are refused — an "empty tenant" shard cannot exist.
+    assert_eq!(ShardKey::new("", "w1"), Err(ShardKeyError::EmptyTenant));
+    assert_eq!(ShardKey::new("t1", ""), Err(ShardKeyError::EmptyWorkspace));
+    // Over-long parts are refused; the exact boundary is accepted.
+    let long = "x".repeat(ShardKey::MAX_PART_BYTES + 1);
+    assert_eq!(ShardKey::new(long.clone(), "w1"), Err(ShardKeyError::TenantTooLong(long.len())));
+    assert_eq!(ShardKey::new("t1", long.clone()), Err(ShardKeyError::WorkspaceTooLong(long.len())));
+    let max = "y".repeat(ShardKey::MAX_PART_BYTES);
+    let k = ShardKey::new(max.clone(), "w1").expect("boundary accepted");
+    // Accessors round-trip the constructed parts (read-only surface).
+    assert_eq!((k.tenant(), k.workspace()), (max.as_str(), "w1"));
+    // A valid key still commits truth exactly as before (the gateway is unchanged).
+    let kernel = MemKernel::new(MemWalStore::new());
+    let tr = kernel
+        .commit(ProposedWrite {
+            shard: k.clone(),
+            content: ContentHash(b"c-opaque".to_vec()),
+            payload: b"p".to_vec(),
+        })
+        .expect("commit under an opaque key");
+    assert_eq!(tr.shard, k);
 }
