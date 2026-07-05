@@ -105,14 +105,28 @@ console.log('Enterprise Cognitive OS (P5):');
   const bridge = new KernelBridge();
   const org = new EnterpriseCognitiveOS(bridge);
   await org.setPolicy({ domain: 'spend', rule: 'spend>100k requires legal approval', thresholdUsd: 100000n });
-  const blocked = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n, approvals: [] });
-  ok('policy blocks a violating decision', blocked.committed === false);
-  const allowed = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n, approvals: ['legal'] });
-  ok('compliant decision (legal approval) is committed', allowed.committed === true);
+  // E1 (DEEP_AUDIT): a proposer SELF-DECLARING approvals:['legal'] on its own decision no longer
+  // clears the gate — approval must be a SEPARATE committed truth from another actor. This is the
+  // biting regression: the exact self-attestation the old finance agent used is now refused.
+  const selfAttested = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n, approvals: ['legal'] });
+  ok('E1: proposer self-attested approvals do NOT clear the gate', selfAttested.committed === false);
+  // A SEPARATE legal approval truth authorizes it.
+  const approvalId = await org.approve({ role: 'legal', subject: 'spend:x', by: 'legal' });
+  ok('E1: approve() commits a separate addressable approval truth', typeof approvalId === 'string' && approvalId.length > 0);
+  const allowed = await org.proposeDecision({ agent: 'finance', subject: 'spend:x', action: 'approve', amountUsd: 150000n });
+  ok('compliant decision (separate legal approval truth) is committed', allowed.committed === true);
   const conflict = await org.proposeDecision({ agent: 'ops', subject: 'spend:x', action: 'cancel' });
   ok('cross-department conflict is blocked', conflict.committed === false && conflict.reason === 'cross-department-conflict');
   const small = await org.proposeDecision({ agent: 'finance', subject: 'spend:coffee', action: 'approve', amountUsd: 500n });
   ok('compliant small spend is NOT falsely blocked', small.committed === true);
+  // E2 (DEEP_AUDIT): a bare integer Number amount used to crash deep in the ACS dCBOR encoder;
+  // it is now coerced and committed cleanly.
+  const numAmt = await org.proposeDecision({ agent: 'finance', subject: 'spend:tea', action: 'approve', amountUsd: 90000 });
+  ok('E2: bare integer Number amount is coerced (no deep ACS crash)', numAmt.committed === true);
+  // E2: a non-integer amount is a CLEAN typed product error naming the field, not an opaque crash.
+  let e2 = null;
+  try { await org.proposeDecision({ agent: 'finance', subject: 'spend:milk', action: 'approve', amountUsd: 1.5 }); } catch (x) { e2 = x; }
+  ok('E2: non-integer amount → clean typed error naming the field', !!e2 && String(e2.message).includes('amountUsd'));
   bridge.close();
 }
 

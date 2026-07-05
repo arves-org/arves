@@ -19,13 +19,17 @@ console.log('ARVES Enterprise Cognitive OS — governed multi-agent cognition\n'
 // Governance: large spend requires legal approval (committed as an addressable policy truth).
 await org.setPolicy({ domain: 'spend', rule: 'spend>100k requires legal approval', thresholdUsd: 100000n });
 
-// Finance agent proposes a $150k spend with no legal approval → BLOCKED by policy.
-const d1 = await org.proposeDecision({ agent: 'finance', subject: 'spend:vendor-x', action: 'approve', amountUsd: 150000n, approvals: [] });
-console.log('[finance] approve $150k spend:vendor-x  →', d1.committed ? 'committed' : `BLOCKED (${d1.reason})`);
+// Finance agent proposes a $150k spend. Finance SELF-DECLARING approvals:['legal'] does NOT clear
+// the gate (E1) — approval must be a SEPARATE committed truth from another actor → BLOCKED by policy.
+const d1 = await org.proposeDecision({ agent: 'finance', subject: 'spend:vendor-x', action: 'approve', amountUsd: 150000n, approvals: ['legal'] });
+console.log('[finance] approve $150k (self-attested)  →', d1.committed ? 'committed' : `BLOCKED (${d1.reason})`);
 
-// Legal approves; finance re-proposes WITH legal approval → allowed, committed as truth.
-const d2 = await org.proposeDecision({ agent: 'finance', subject: 'spend:vendor-x', action: 'approve', amountUsd: 150000n, approvals: ['legal'] });
-console.log('[finance] re-propose with legal approval →', d2.committed ? `committed ${d2.id.slice(0, 16)}…` : `BLOCKED (${d2.reason})`);
+// Legal — a SEPARATE role actor — commits an approval truth for this subject. Now finance
+// re-proposes (no self-declared approvals); the gate clears because a separate legal truth exists.
+const approvalId = await org.approve({ role: 'legal', subject: 'spend:vendor-x', by: 'legal-counsel' });
+console.log('[legal]   approve spend:vendor-x         →', `${approvalId.slice(0, 16)}… (separate truth)`);
+const d2 = await org.proposeDecision({ agent: 'finance', subject: 'spend:vendor-x', action: 'approve', amountUsd: 150000n });
+console.log('[finance] re-propose (separate approval) →', d2.committed ? `committed ${d2.id.slice(0, 16)}…` : `BLOCKED (${d2.reason})`);
 
 // Ops agent later tries to cancel the approved spend → cross-department CONFLICT, blocked.
 const d3 = await org.proposeDecision({ agent: 'ops', subject: 'spend:vendor-x', action: 'cancel' });
@@ -45,8 +49,8 @@ const policyBlocks = d1.committed === false && d1.reason.includes('legal');
 const allowedAfterApproval = d2.committed === true;
 const conflictCaught = d3.committed === false && d3.reason === 'cross-department-conflict';
 const noFalseBlock = small.committed === true;
-console.log('  policy enforced as truth (violation blocked + audited):', policyBlocks);
-console.log('  allowed once compliant (legal approval)               :', allowedAfterApproval);
+console.log('  self-attested approval does NOT clear the gate (E1)   :', policyBlocks);
+console.log('  allowed once a SEPARATE legal approval truth exists   :', allowedAfterApproval);
 console.log('  cross-department conflict detected (shared truth)      :', conflictCaught);
 console.log('  compliant decision not falsely blocked                 :', noFalseBlock);
 
