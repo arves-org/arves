@@ -50,7 +50,7 @@
 | Fz1 | Differential fuzz "0 hard divergences" is silent on 16 interop-safe reason-code disagreements | FC | OPEN (low — interop-safe by design; a ledger-metric qualifier would surface it) |
 | 3-way fuzz | Add the conformant TypeScript codec as a 3rd differential-fuzz arm (currently Rust↔Python) | FC | OPEN (rank 19) |
 | Formal | TLA+ kernel spec not mechanically model-checked (L0, no captured TLC run) | FC | OPEN (rank 5 — cheapest Evidence-Level raise) |
-| Live conformance | The 12 Scenario axes are typed but zero-instantiated (L0); no live-runtime `ConformanceArtifact` | RCR (not FC — the contract types are `#[non_exhaustive]`, so the live impl must live in `arves-conformance`) | 🟡 **Kernel node L0→L1** (RCR-008: `KernelProbe` + `LiveVerdictEngine` emit the first live artifact, `Verdict::Pass`, 4/4 invariants from behaviour). Connector (axis 1) + read-only Query projection + the full end-to-end scenario are ranks 7/8/13. |
+| Live conformance | The 12 Scenario axes are typed but zero-instantiated (L0); no live-runtime `ConformanceArtifact` | RCR (not FC — the contract types are `#[non_exhaustive]`, so the live impl must live in `arves-conformance`) | 🟡 **Kernel + Information nodes L0→L1** (RCR-008 `KernelProbe`; RCR-009 `Connector` + `InformationPlatformProbe` → the first two-node Information→Kernel `ConformanceArtifact`, `Verdict::Pass`, outcomes from behaviour). The read-only **Query** projection (WAL-replay) + the full end-to-end Information→Kernel→Query scenario are ranks 8/13. |
 
 ## E. Product (freeze-clean `products/`)
 

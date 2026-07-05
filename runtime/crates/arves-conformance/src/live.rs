@@ -16,6 +16,8 @@ use crate::{
     Axis, CheckOutcome, ConformanceArtifact, Invariant, NodeEvidence, NodeProbe, PipelineNode,
     Property, RuntimeFingerprint, Scenario, Verdict, VerdictEngine,
 };
+use arves_acs::cbor::{encode, Value};
+use arves_acs::{content_id, domain, hex};
 use arves_kernel::{CommitError, ContentHash, Kernel, MemKernel, ProposedWrite, ShardKey};
 use arves_persistence::MemWalStore;
 
@@ -174,6 +176,143 @@ impl VerdictEngine for LiveVerdictEngine {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Information Platform node (rank 7): a reference Connector canonicalizes a Source into a
+// deterministic, content-addressed ProposedWrite carrying the five ontology aspects, and the
+// InformationPlatformProbe verifies provenance/trust presence, tenant scope, and address idempotence.
+// ---------------------------------------------------------------------------
+
+/// An external observation entering the Information Platform (before canonicalization).
+pub struct Source {
+    pub tenant: String,
+    pub workspace: String,
+    pub claim: String,
+    pub source_name: String, // provenance
+    pub confidence: f64,     // trust
+    pub observed_at: i128,   // temporal
+}
+
+/// Canonicalizes a [`Source`] into a content-addressed [`ProposedWrite`] via the ACS-002/001
+/// codec (a customer of the frozen codec — no runtime file touched). Deterministic + idempotent:
+/// the same Source always yields the same canonical body and the same ACS-001 ContentId.
+pub struct Connector;
+
+impl Connector {
+    pub fn canonicalize(&self, src: &Source) -> ProposedWrite {
+        // A canonical uci.fact body carrying the five aspects: Identity (claim), Provenance
+        // (origin/source), Trust (confidence), Temporal (observed_at), TenantScope (tenant/workspace).
+        let body = Value::Map(vec![
+            (Value::Text("type".into()), Value::Text("uci.fact".into())),
+            (Value::Text("tenant".into()), Value::Text(src.tenant.clone())),
+            (Value::Text("workspace".into()), Value::Text(src.workspace.clone())),
+            (Value::Text("claim".into()), Value::Text(src.claim.clone())),
+            (Value::Text("origin".into()), Value::Text("observed".into())),
+            (Value::Text("source".into()), Value::Text(src.source_name.clone())),
+            (Value::Text("confidence".into()), Value::Float(src.confidence)),
+            (Value::Text("observed_at".into()), Value::Int(src.observed_at)),
+        ]);
+        let bytes = encode(&body);
+        let cid = content_id(domain::COMMIT_CONTENT, &bytes);
+        ProposedWrite {
+            shard: ShardKey { tenant: src.tenant.clone(), workspace: src.workspace.clone() },
+            content: ContentHash(cid),
+            payload: bytes,
+        }
+    }
+}
+
+/// Observes the **Information Platform** node: canonicalize a Source and derive every check from
+/// the produced ProposedWrite (provenance+trust present, tenant-scoped, a well-formed ACS-001
+/// address, idempotent across two runs).
+pub struct InformationPlatformProbe;
+
+impl NodeProbe for InformationPlatformProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::InformationPlatform
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let src = Source {
+            tenant: "acme".into(),
+            workspace: "research".into(),
+            claim: "sky-is-blue".into(),
+            source_name: "sensor-array-7".into(),
+            confidence: 0.98,
+            observed_at: 1_730_000_000_000_000_000,
+        };
+        let p1 = Connector.canonicalize(&src);
+        let p2 = Connector.canonicalize(&src);
+
+        // ORCH-004 content-addressable + idempotent: same Source -> same address + payload, and a
+        // well-formed 34-byte ACS-001 SHA-256 multihash (0x12 0x20 ‖ 32).
+        let idempotent = p1.content == p2.content && p1.payload == p2.payload;
+        let addressed = p1.content.0.len() == 34 && p1.content.0[0] == 0x12 && p1.content.0[1] == 0x20;
+        let orch004 = held_if(idempotent && addressed);
+
+        // Provenance + Trust present in the canonicalized body.
+        let prov_trust = contains(&p1.payload, b"origin")
+            && contains(&p1.payload, b"source")
+            && contains(&p1.payload, b"confidence");
+
+        // SHARD-001 TenantScope: the write is scoped to (tenant, workspace).
+        let scoped = p1.shard.tenant == "acme" && p1.shard.workspace == "research";
+        let shard001 = held_if(scoped);
+
+        NodeEvidence {
+            node: PipelineNode::InformationPlatform,
+            summary: format!(
+                "Connector canonicalized a Source -> {}-byte content-addressed ProposedWrite (cid {}…), \
+                 idempotent, provenance+trust present, tenant-scoped",
+                p1.payload.len(),
+                &hex(&p1.content.0)[..12]
+            ),
+            correlation_id: Some(hex(&p1.content.0)),
+            invariant_checks: vec![
+                (Invariant::Orch004IdempotentAddressable, orch004),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![(Property::ProvenanceTrustPresent, held_if(prov_trust))],
+        }
+    }
+}
+
+/// The **L1 Information→Kernel** scenario (rank 7): a Source is canonicalized (Information node)
+/// and its truth-bearing invariants hold at the Kernel node.
+pub fn information_kernel_scenario() -> Scenario {
+    Scenario {
+        id: "l1-information-kernel",
+        name: "L1 — Information canonicalization → Kernel truth",
+        axes: vec![Axis::InformationIntensive, Axis::RecoveryAndReplay],
+        expected_path: vec![PipelineNode::InformationPlatform, PipelineNode::Kernel],
+        required_invariants: vec![
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::ProvenanceTrustPresent,
+            Property::ReplayReproducesTrace,
+            Property::TenantWorkspaceIsolation,
+        ],
+    }
+}
+
+/// Run the L1 Information→Kernel scenario over the real codec + Kernel and return the live artifact.
+pub fn run_information_kernel_scenario() -> ConformanceArtifact {
+    let scenario = information_kernel_scenario();
+    let evidence = vec![
+        InformationPlatformProbe.observe(&scenario),
+        KernelProbe.observe(&scenario),
+    ];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L1 Information→Kernel".into(),
+        runtime_id: "arves-acs codec + arves-kernel RefKernel<MemWalStore> (reference)".into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// Run the Core-Runtime scenario end-to-end over the real Kernel and return the live artifact.
 pub fn run_core_runtime_scenario() -> ConformanceArtifact {
     let scenario = core_runtime_scenario();
@@ -188,8 +327,8 @@ pub fn run_core_runtime_scenario() -> ConformanceArtifact {
 
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
-    let mut s = String::from("ARVES Live Conformance Artifact — L1 Core-Runtime\n");
-    s.push_str("=================================================\n");
+    let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
+    s.push_str("==================================================\n");
     s.push_str(&format!("  scenario: {}\n", artifact.scenario_id));
     s.push_str(&format!("  runtime : {}\n", artifact.runtime_fingerprint.runtime_id));
     s.push_str(&format!("  spec    : {}\n", artifact.runtime_fingerprint.spec_version));
@@ -221,6 +360,37 @@ mod tests {
         );
         assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
         assert_eq!(art.verdict, Verdict::Pass, "the Core-Runtime scenario must PASS");
+    }
+
+    #[test]
+    fn live_l1_information_kernel_scenario_passes() {
+        let art = run_information_kernel_scenario();
+        assert_eq!(art.scenario_id, "l1-information-kernel");
+        assert_eq!(art.node_evidence.len(), 2, "the L1 scenario observes Information + Kernel");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::InformationPlatform);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::Kernel);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} had an unmet invariant: {:?}", ev.node, ev.invariant_checks
+            );
+            assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        }
+        assert_eq!(art.verdict, Verdict::Pass);
+    }
+
+    #[test]
+    fn connector_is_deterministic_and_addressed() {
+        let src = Source {
+            tenant: "t".into(), workspace: "w".into(), claim: "c".into(),
+            source_name: "s".into(), confidence: 0.5, observed_at: 1,
+        };
+        let a = Connector.canonicalize(&src);
+        let b = Connector.canonicalize(&src);
+        assert_eq!(a.content, b.content, "same Source -> same ACS-001 address");
+        assert_eq!(a.payload, b.payload, "same Source -> same canonical body");
+        assert_eq!(a.content.0.len(), 34, "ACS-001 multihash is 34 bytes");
+        assert_eq!(&a.content.0[..2], &[0x12, 0x20], "SHA-256 multihash prefix");
     }
 
     #[test]

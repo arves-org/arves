@@ -96,7 +96,10 @@ While building products, if the runtime is found lacking:
 > executable `ConformanceArtifact` by driving the real `MemKernel`, deriving ORCH-003/004 + OWN-001
 > + SHARD-001 from behaviour → `Verdict::Pass`; adds downward kernel/persistence deps; bin
 > `conformance_live`; behaviour L0→L1 for the Kernel node at G0/G1; additive, `cargo test
-> --workspace` 81→**83/0**).
+> --workspace` 81→**83/0**), **RCR-009** (live L1 **Information Platform** node — a reference
+> `Connector` canonicalizes a Source into a deterministic content-addressed `ProposedWrite` with the
+> five ontology aspects; `InformationPlatformProbe` + the first two-node Information→Kernel
+> `ConformanceArtifact`, `Verdict::Pass`; additive, `cargo test --workspace` 83→**85/0**).
 
 ## Organization (three teams, three mandates)
 

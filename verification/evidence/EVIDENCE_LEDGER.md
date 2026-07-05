@@ -42,8 +42,8 @@ destroy-offices workflow.
 | Independent Python reproduces rejection | Independent | L3 | G1 | PASS | 16/16 REJECTED | `python verification/independent/python/conformance_negative.py` <!-- probe:py-negative -->
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | G1 | PASS | 13807 inputs, 0 hard divergences | `python verification/differential/acs002_differential_fuzz.py` <!-- probe:differential -->
 | Independent **TypeScript** runtime (cold, Kit-only) | Independent | L3 | G1 | PASS | positive 12/12 + 16 core+nfc | `node verification/independent/typescript/src/conformance.mjs` <!-- probe:ts-golden -->
-| Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | PASS | 83 tests passed | `cargo test --manifest-path runtime/Cargo.toml --workspace` | <!-- probe:rust-workspace -->
-| **Live L1 conformance artifact** (Kernel node, real RefKernel) — RCR-008 | Behaviour | L1 | G1 | PASS | VERDICT Pass; 4/4 invariants Held (ORCH-003/004, OWN-001, SHARD-001) | `cargo run -p arves-conformance --bin conformance_live` <!-- probe:live-conformance -->
+| Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | PASS | 85 tests passed | `cargo test --manifest-path runtime/Cargo.toml --workspace` | <!-- probe:rust-workspace -->
+| **Live L1 conformance artifact** (Information→Kernel, real runtime) — RCR-008/009 | Behaviour | L1 | G1 | PASS | VERDICT Pass; 2 nodes (Information->Kernel), 6 invariant-checks Held | `cargo run -p arves-conformance --bin conformance_live` <!-- probe:live-conformance -->
 | **Sound runtime verification** (non-gameable; grader owns the truth, gap B3) | Certification, Integrity | L2 | G1 | PASS | published 12/12, fresh 3/3, core 16/16, accept 3/3, semantic env 7/7 inst 8/8 lang 4/4 -> SOUND-CERTIFIED (full surface) | `python verification/certification/verify_runtime_sound.py` | <!-- probe:sound-certified -->
 
 **Reason for A.1 note (`--check` drift gate).** A prior header claimed *all 17 Section A

@@ -167,12 +167,13 @@ def probe():
     #     from actual commit/replay/isolation, not hardcoded.
     rc, out = run(["cargo", "run", "-q", "--manifest-path", MANIFEST,
                    "-p", "arves-conformance", "--bin", "conformance_live"])
-    r = Row("live-conformance", "Live L1 conformance artifact (Kernel node, real RefKernel)",
+    r = Row("live-conformance", "Live L1 conformance artifact (Information->Kernel, real runtime)",
             "Behaviour", "L1", "G1",
             "cargo run -p arves-conformance --bin conformance_live")
-    r.ok = rc == 0 and "live L1 core-runtime conformance: PASS" in out
+    r.ok = rc == 0 and "LIVE-L1: PASS" in out
     held = len(re.findall(r"invariant \S+\s+Held", out))
-    r.metric = ("VERDICT Pass; %d/4 invariants Held (ORCH-003/004, OWN-001, SHARD-001)" % held) if r.ok else "NOT PASS"
+    nodes = len(re.findall(r"(?m)^\s*node \w", out))
+    r.metric = ("VERDICT Pass; %d nodes (Information->Kernel), %d invariant-checks Held" % (nodes, held)) if r.ok else "NOT PASS"
     rows.append(r)
 
     # 7. Anti-gaming SOUND runtime verifier — grader owns the truth (gap B3 backstop).
