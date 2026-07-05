@@ -39,6 +39,7 @@ destroy-offices workflow.
 | ACS-001..005 golden vectors (encode + address) | Behaviour, Implementation | L2 | G1 | PASS | positive 12/12 | `cargo run -p arves-conformance --bin conformance` <!-- probe:rust-golden -->
 | ACS-002 rejection / negative vectors (decode) | Differential, Implementation | L2 | G1 | PASS | core 16/16 REJECTED | `cargo run -p arves-conformance --bin conformance` <!-- probe:rust-negative -->
 | ACS-003/004/005 semantic rejection (envelope/instance/language) — CCP-006/007 | Differential, Independent | L2 | G1 | PASS | envelope 7/7 + instance 8/8 + language 4/4 REJECTED | `python verification/independent/python/conformance_semantic.py` <!-- probe:acs-semantic-reject -->
+| **ACS-003/004/005 semantic differential** (Rust native vs Python) — rank 12 | Differential, Independent | L3 | G1 | PASS | 62/62 cases agree, 0 hard divergences | `python verification/differential/acs_semantic_differential.py` <!-- probe:acs-semantic-differential -->
 | Independent Python reproduces golden vectors | Independent | L3 | G1 | PASS | CONFORMANT | `python verification/independent/python/conformance.py` <!-- probe:py-golden -->
 | Independent Python reproduces rejection | Independent | L3 | G1 | PASS | 16/16 REJECTED | `python verification/independent/python/conformance_negative.py` <!-- probe:py-negative -->
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | G1 | PASS | 13807 inputs, 0 hard divergences | `python verification/differential/acs002_differential_fuzz.py` <!-- probe:differential -->

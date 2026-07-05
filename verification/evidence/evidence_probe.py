@@ -49,6 +49,7 @@ MANIFEST = os.path.join(ROOT, "runtime", "Cargo.toml")
 PYDIR = os.path.join(ROOT, "verification", "independent", "python")
 TSDIR = os.path.join(ROOT, "verification", "independent", "typescript")
 FUZZ = os.path.join(ROOT, "verification", "differential", "acs002_differential_fuzz.py")
+SEM_FUZZ = os.path.join(ROOT, "verification", "differential", "acs_semantic_differential.py")
 SOUND = os.path.join(ROOT, "verification", "certification", "verify_runtime_sound.py")
 LEDGER_TSV = os.path.join(HERE, "evidence_ledger.tsv")
 LEDGER_MD = os.path.join(HERE, "EVIDENCE_LEDGER.md")
@@ -128,6 +129,21 @@ def probe():
     r.ok = rc == 0 and "CONFORMANT" in out and bool(ms) and \
         ms.group(1) == ms.group(2) and ms.group(3) == ms.group(4) and ms.group(5) == ms.group(6)
     r.metric = ("envelope %s/%s + instance %s/%s + language %s/%s REJECTED" % ms.groups()) if ms else "no-parse"
+    rows.append(r)
+
+    # 3c. ACS-003/004/005 SEMANTIC differential (rank 12) — the Rust native validators (via the
+    #     acs_validate bin) and the Python reference AGREE on accept/reject over a deterministic
+    #     single-mutation corpus. Converts the semantic reject surface from self-conformance to
+    #     DIFFERENTIAL conformance (the falsifiable-conformance thesis, above the byte layer).
+    rc, out = run([sys.executable, SEM_FUZZ])
+    sd = re.search(r"accept/reject\s*:\s*(\d+)/(\d+)\s*AGREE", out)
+    sdd = re.search(r"hard divergences\s*:\s*(\d+)", out)
+    r = Row("acs-semantic-differential", "ACS-003/004/005 semantic differential (Rust native vs Python)",
+            "Differential+Independent", "L3", "G1",
+            "python verification/differential/acs_semantic_differential.py")
+    r.ok = rc == 0 and "CONFORMANT" in out and bool(sd) and sd.group(1) == sd.group(2) \
+        and bool(sdd) and sdd.group(1) == "0"
+    r.metric = ("%s/%s cases agree, 0 hard divergences" % (sd.group(1), sd.group(2))) if (r.ok and sd) else "no-parse"
     rows.append(r)
 
     # 4. Rust <-> Python differential fuzzer — accept/reject agreement.
