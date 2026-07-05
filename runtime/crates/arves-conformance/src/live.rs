@@ -19,7 +19,7 @@ use crate::{
 use arves_acs::cbor::{encode, Value};
 use arves_acs::{content_id, domain, hex};
 use arves_kernel::{CommitError, ContentHash, Kernel, MemKernel, ProposedWrite, ShardKey};
-use arves_persistence::MemWalStore;
+use arves_persistence::{MemWalStore, ReplayCursor, Wal, WalStore};
 
 fn shard(tenant: &str, workspace: &str) -> ShardKey {
     ShardKey { tenant: tenant.into(), workspace: workspace.into() }
@@ -313,6 +313,135 @@ pub fn run_information_kernel_scenario() -> ConformanceArtifact {
     LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
 }
 
+// ---------------------------------------------------------------------------
+// Query node (rank 8): a read-only projection over committed truth built by REPLAYING the
+// persistence WAL — NOT by adding a Kernel read (the Kernel deliberately omits reads;
+// ORCH-001/OWN-001, "a gateway, not a database"). Reads are tenant-scoped (SHARD-001).
+// ---------------------------------------------------------------------------
+
+/// A read-only Query projection: `(tenant, workspace, payload)` for every committed truth,
+/// reconstructed by replaying the persistence WAL. Holds NO commit path — it is a pure read model.
+pub struct QueryProjection {
+    truths: Vec<(String, String, Vec<u8>)>,
+}
+
+impl QueryProjection {
+    /// Build the projection by replaying every shard's WAL from its earliest retained offset.
+    /// A customer of the frozen persistence WAL API; it never touches the Kernel.
+    pub fn from_store<S: WalStore>(store: &S) -> Self {
+        let mut truths = Vec::new();
+        for sh in store.shards() {
+            let wal = match store.open(&sh) {
+                Ok(w) => w,
+                Err(_) => continue,
+            };
+            let mut cur = match wal.replay_from(wal.earliest()) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            while let Ok(Some(rec)) = cur.next() {
+                truths.push((rec.shard.tenant.clone(), rec.shard.workspace.clone(), rec.payload.clone()));
+            }
+        }
+        Self { truths }
+    }
+
+    /// Tenant-scoped read: only truths in the given `(tenant, workspace)` — SHARD-001 read isolation.
+    pub fn query(&self, tenant: &str, workspace: &str) -> Vec<&(String, String, Vec<u8>)> {
+        self.truths.iter().filter(|(t, w, _)| t == tenant && w == workspace).collect()
+    }
+    pub fn count(&self) -> usize {
+        self.truths.len()
+    }
+}
+
+/// Observes the **Query** node: commit two tenants' truths via the Kernel, then build a read-only
+/// WAL-replay projection and prove it is (a) complete (sees both truths) and (b) tenant-isolated
+/// (a query for one tenant never returns the other's payload).
+pub struct QueryProbe;
+
+impl NodeProbe for QueryProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Query
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let store = MemWalStore::new();
+        let k = MemKernel::new(store.clone());
+        let acme = shard("acme", "research");
+        let globex = shard("globex", "research");
+        k.commit(proposal(acme, b"q-acme", b"acme-truth")).expect("acme commit");
+        k.commit(proposal(globex, b"q-globex", b"globex-truth")).expect("globex commit");
+
+        // Read-only projection by WAL-replay — no Kernel read hook (ORCH-001/OWN-001).
+        let proj = QueryProjection::from_store(&store);
+        let acme_reads = proj.query("acme", "research");
+        let globex_reads = proj.query("globex", "research");
+        let sees_all = proj.count() == 2; // replay reconstructed both truths from the trace
+        let isolated = acme_reads.len() == 1
+            && contains(&acme_reads[0].2, b"acme-truth")
+            && !acme_reads.iter().any(|(_, _, p)| contains(p, b"globex-truth"))
+            && globex_reads.len() == 1
+            && contains(&globex_reads[0].2, b"globex-truth");
+        let shard001 = held_if(sees_all && isolated);
+
+        NodeEvidence {
+            node: PipelineNode::Query,
+            summary: format!(
+                "read-only WAL-replay projection: {} truths reconstructed; tenant-scoped reads \
+                 isolated (acme query returns 1, never globex's)",
+                proj.count()
+            ),
+            correlation_id: None,
+            invariant_checks: vec![(Invariant::Shard001TenantWorkspacePartition, shard001)],
+            property_checks: vec![(Property::TenantWorkspaceIsolation, shard001)],
+        }
+    }
+}
+
+/// The full **L1 Information→Kernel→Query** scenario (rank 8/13): a Source is canonicalized, its
+/// truth is committed, and it is read back by a read-only WAL-replay projection — the first
+/// end-to-end live pipeline artifact.
+pub fn l1_full_scenario() -> Scenario {
+    Scenario {
+        id: "l1-information-kernel-query",
+        name: "L1 — Information → Kernel → Query (canonicalize → commit → read-back)",
+        axes: vec![Axis::InformationIntensive, Axis::RecoveryAndReplay, Axis::HighVolumeStreaming],
+        expected_path: vec![
+            PipelineNode::InformationPlatform,
+            PipelineNode::Kernel,
+            PipelineNode::Query,
+        ],
+        required_invariants: vec![
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::ProvenanceTrustPresent,
+            Property::ReplayReproducesTrace,
+            Property::TenantWorkspaceIsolation,
+        ],
+    }
+}
+
+/// Run the full L1 Information→Kernel→Query scenario and return the three-node live artifact.
+pub fn run_l1_full_scenario() -> ConformanceArtifact {
+    let scenario = l1_full_scenario();
+    let evidence = vec![
+        InformationPlatformProbe.observe(&scenario),
+        KernelProbe.observe(&scenario),
+        QueryProbe.observe(&scenario),
+    ];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L1 Information→Kernel→Query".into(),
+        runtime_id: "arves-acs codec + arves-kernel + arves-persistence WAL-replay (reference)".into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// Run the Core-Runtime scenario end-to-end over the real Kernel and return the live artifact.
 pub fn run_core_runtime_scenario() -> ConformanceArtifact {
     let scenario = core_runtime_scenario();
@@ -377,6 +506,39 @@ mod tests {
             assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
         }
         assert_eq!(art.verdict, Verdict::Pass);
+    }
+
+    #[test]
+    fn live_l1_full_scenario_passes() {
+        let art = run_l1_full_scenario();
+        assert_eq!(art.scenario_id, "l1-information-kernel-query");
+        assert_eq!(art.node_evidence.len(), 3, "the full L1 scenario observes Information + Kernel + Query");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::InformationPlatform);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::Kernel);
+        assert_eq!(art.node_evidence[2].node, PipelineNode::Query);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet invariant: {:?}", ev.node, ev.invariant_checks
+            );
+            assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        }
+        assert_eq!(art.verdict, Verdict::Pass);
+    }
+
+    #[test]
+    fn query_projection_is_read_only_and_tenant_isolated() {
+        // Commit two tenants; the WAL-replay projection sees both but a per-tenant query is isolated.
+        let store = MemWalStore::new();
+        let k = MemKernel::new(store.clone());
+        k.commit(proposal(shard("a", "w"), b"ca", b"truth-a")).unwrap();
+        k.commit(proposal(shard("b", "w"), b"cb", b"truth-b")).unwrap();
+        let proj = QueryProjection::from_store(&store);
+        assert_eq!(proj.count(), 2, "replay reconstructs both truths from the WAL");
+        let a = proj.query("a", "w");
+        assert_eq!(a.len(), 1);
+        assert!(contains(&a[0].2, b"truth-a"));
+        assert!(!a.iter().any(|(_, _, p)| contains(p, b"truth-b")), "SHARD-001: no cross-tenant read");
     }
 
     #[test]

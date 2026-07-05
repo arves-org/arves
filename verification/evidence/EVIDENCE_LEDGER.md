@@ -10,7 +10,8 @@ See `CERTIFICATION_PROGRAM.md` for the tier/grade definitions.
     actually runs each suite and **owns** the Status + Metric cells. These cells cannot
     drift: the probe rewrites them, and `evidence_probe.py --check` fails the batch if the
     committed cell disagrees with a fresh run. Last probe: **10/10 PASS** (incl. the first
-    live L1 conformance artifact from the real Kernel, RCR-008).
+    end-to-end live L1 conformance pipeline — Information→Kernel→Query — from the real
+    codec + Kernel + WAL, RCR-008/009/010).
   - **A.2 — asserted (NOT probe-run).** Product / P8 demonstration rows. Their reproduction
     command is real and was observed by hand, but **no probe re-runs them**, so their
     metrics **can drift** and are *not* covered by the drift gate. They are asserted, not
@@ -42,8 +43,8 @@ destroy-offices workflow.
 | Independent Python reproduces rejection | Independent | L3 | G1 | PASS | 16/16 REJECTED | `python verification/independent/python/conformance_negative.py` <!-- probe:py-negative -->
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | G1 | PASS | 13807 inputs, 0 hard divergences | `python verification/differential/acs002_differential_fuzz.py` <!-- probe:differential -->
 | Independent **TypeScript** runtime (cold, Kit-only) | Independent | L3 | G1 | PASS | positive 12/12 + 16 core+nfc | `node verification/independent/typescript/src/conformance.mjs` <!-- probe:ts-golden -->
-| Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | PASS | 85 tests passed | `cargo test --manifest-path runtime/Cargo.toml --workspace` | <!-- probe:rust-workspace -->
-| **Live L1 conformance artifact** (Information→Kernel, real runtime) — RCR-008/009 | Behaviour | L1 | G1 | PASS | VERDICT Pass; 2 nodes (Information->Kernel), 6 invariant-checks Held | `cargo run -p arves-conformance --bin conformance_live` <!-- probe:live-conformance -->
+| Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | PASS | 87 tests passed | `cargo test --manifest-path runtime/Cargo.toml --workspace` | <!-- probe:rust-workspace -->
+| **Live L1 conformance** (Information→Kernel→Query, end-to-end, real runtime) — RCR-008/009/010 | Behaviour | L1 | G1 | PASS | VERDICT Pass; 3-node end-to-end pipeline (Information->Kernel->Query), 7 invariant-checks Held | `cargo run -p arves-conformance --bin conformance_live` <!-- probe:live-conformance -->
 | **Sound runtime verification** (non-gameable; grader owns the truth, gap B3) | Certification, Integrity | L2 | G1 | PASS | published 12/12, fresh 3/3, core 16/16, accept 3/3, semantic env 7/7 inst 8/8 lang 4/4 -> SOUND-CERTIFIED (full surface) | `python verification/certification/verify_runtime_sound.py` | <!-- probe:sound-certified -->
 
 **Reason for A.1 note (`--check` drift gate).** A prior header claimed *all 17 Section A

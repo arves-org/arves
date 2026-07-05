@@ -7,11 +7,11 @@
 
 use std::process::exit;
 
-use arves_conformance::live::{render, run_information_kernel_scenario};
+use arves_conformance::live::{render, run_l1_full_scenario};
 use arves_conformance::Verdict;
 
 fn main() {
-    let artifact = run_information_kernel_scenario();
+    let artifact = run_l1_full_scenario();
     print!("{}", render(&artifact));
     let pass = artifact.verdict == Verdict::Pass;
     println!("  LIVE-L1: {}", if pass { "PASS" } else { "FAIL" });

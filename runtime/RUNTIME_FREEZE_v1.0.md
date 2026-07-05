@@ -99,7 +99,11 @@ While building products, if the runtime is found lacking:
 > --workspace` 81→**83/0**), **RCR-009** (live L1 **Information Platform** node — a reference
 > `Connector` canonicalizes a Source into a deterministic content-addressed `ProposedWrite` with the
 > five ontology aspects; `InformationPlatformProbe` + the first two-node Information→Kernel
-> `ConformanceArtifact`, `Verdict::Pass`; additive, `cargo test --workspace` 83→**85/0**).
+> `ConformanceArtifact`, `Verdict::Pass`; additive, `cargo test --workspace` 83→**85/0**), **RCR-010**
+> (live L1 **Query** node — a read-only `QueryProjection` reconstructs committed truth by replaying
+> the persistence WAL (no Kernel read, ORCH-001/OWN-001) with tenant-scoped isolation; completes the
+> first **end-to-end** Information→Kernel→Query `ConformanceArtifact`, `Verdict::Pass`; additive,
+> `cargo test --workspace` 85→**87/0**).
 
 ## Organization (three teams, three mandates)
 
