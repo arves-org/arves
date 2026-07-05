@@ -22,7 +22,7 @@
 
 | ID | Item | Instrument | Status |
 |----|------|-----------|--------|
-| **B2** | Root-event `causation_id`: present-with-Null vs absent are two lawful encodings → two ContentIds on the most common envelope (ORCH-004 dedup trap a G2 team would hit) | CCP | **OPEN — highest-leverage standard item.** Fix is byte-clean (present-Null is already golden). Rank 9 = CCP-008 DRAFT. |
+| **B2** | Root-event `causation_id`: present-with-Null vs absent are two lawful encodings → two ContentIds on the most common envelope (ORCH-004 dedup trap a G2 team would hit) | CCP | 🟡 **DRAFT STAGED (CCP-008).** Gap demonstrated (`gen_ccp008_vector.py`: current validator ACCEPTS the absent form; the two encodings' ContentIds `fc0e…` vs `b1b7…` DIVERGE); byte-clean fix (§5 MUST present-Null) + candidate vector `envelope-root-omits-causation_id → missing-required-field`. Ratification is maintainer-gated CCP-GATE. |
 | #20 | ACS-004 §5.1 urn↔type binding is normative but §6.5 doesn't enforce it; *"modulo namespace"* is underspecified for `uci.fact` (schema) vs `urn:arves:uci.core:fact@1.0` (instance) | CCP | OPEN (design decision — the exact binding rule must be fixed first; then a §6.5 clause + `instance-urn-type-mismatch` vector) |
 | #21 | ACS-005 §9.1 requires a `GL-nnn` entry for "Data Plane"; glossary closes at GL-014 (defined inline only). Real fix `GL-015` changes the §9.2 golden term-set vector | CCP (profile bump) | OPEN (byte-affecting → ACS-005/2, or amend §9.1 to resolve via the §7 inline def — a normative choice) |
 | #1/#2/#23 | ACS-003/004/005 negative-vector corpus | CCP | ✅ **CLOSED** (CCP-006/007: 19 semantic vectors + 11 codes; Kit 0.3.1) |
