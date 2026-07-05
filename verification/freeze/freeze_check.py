@@ -20,6 +20,7 @@ Any OTHER change to a frozen file is silent drift and `check` fails.
 
 import hashlib
 import os
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +36,28 @@ MANIFEST = os.path.join(HERE, "freeze_manifest.tsv")
 
 
 def iter_frozen_files():
+    # The freeze protects the REPOSITORY's frozen content, so the authoritative file
+    # list is `git ls-files` over the frozen roots — the exact set every clean clone
+    # materializes. A filesystem walk (the previous behaviour) also swept LOCAL-ONLY
+    # derivative artifacts into the manifest (e.g. the 50 never-committed
+    # runtime/review-input/*.txt corpus conversions), which made the very first public
+    # CI run report 50 phantom "REMOVED" drifts on a clean clone (first-publish
+    # finding, 2026-07-05). Tracked-but-deleted files still bite: git lists them, the
+    # hash read fails against the manifest as MISSING/REMOVED.
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "--"] + FROZEN_ROOTS,
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+        if out.returncode == 0 and out.stdout:
+            for rel in sorted(r for r in out.stdout.decode("utf-8").split("\0") if r):
+                p = os.path.join(ROOT, rel)
+                if os.path.exists(p):
+                    yield rel.replace(os.sep, "/"), p
+            return
+    except OSError:
+        pass
+    # Fallback (no git available — e.g. a tarball checkout): the filesystem walk.
     for root in FROZEN_ROOTS:
         base = os.path.join(ROOT, root)
         if not os.path.isdir(base):

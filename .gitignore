@@ -19,3 +19,8 @@ __pycache__/
 # verification/formal/TLC_RUN.md for the pinned URL + sha256); states/ is TLC scratch
 verification/formal/tla2tools.jar
 verification/formal/states/
+
+# runtime/review-input/ — LOCAL derivative .txt conversions of the frozen corpus used by
+# review tooling; never committed (the corpus .docx + spec-markdown mirrors are the frozen
+# sources of record). Ignored so they can never re-enter the freeze manifest by accident.
+runtime/review-input/
