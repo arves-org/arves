@@ -72,7 +72,7 @@
 | V3 | Milestone identifiers diverge: `ARVES_Reference_Lifecycle_v1` uses M10/M11/M12 vs I1..I6 elsewhere; no reconciliation table | CCP / regenerate | OPEN |
 | MR-drift | `runtime/docs/ARVES_Master_Roadmap.md` still says `arves-standard-kit 0.2.0` (current 0.3.1); it is under `runtime/` (frozen) | RCR / regenerate | OPEN (the living onboarding docs were de-drifted in rank 3; this frozen mirror lagged) |
 | #36/#37 | Documentation-Index "current" marker · a dedicated "certify YOUR runtime" quickstart snippet | DOC / FC | OPEN (rank 15) |
-| #16/#10 | freeze-diff gate covers `runtime/`+`standard/` but NOT the frozen spec mirror (`spec-markdown/`) — a silent edit to the Registry mirror passes CI | FC | OPEN (rank 10) |
+| #16/#10 | freeze-diff gate covers `runtime/`+`standard/` but NOT the frozen spec mirror (`spec-markdown/`) — a silent edit to the Registry mirror passes CI | FC | ✅ **CLOSED** (rank 10: `FROZEN_ROOTS` now includes `spec-markdown/` + `corpus/`; gate covers **261** files, selftest bites a `.docx` tamper). The V1-V3 *content* fixes are still CCP/regen — but a silent edit to them is now caught. |
 | #17 CI | `.github/workflows/ci.yml` is a gate DEFINITION only — no CI host provisioned; freeze/drift gates rest on author discipline | FC + EXT | OPEN (rank 17) |
 
 ## G. External funnel (Bucket C — makes the G2 event possible without us)

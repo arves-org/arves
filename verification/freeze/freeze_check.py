@@ -2,8 +2,9 @@
 """
 Freeze-diff gate: mechanically detect a SILENT content edit to a frozen file.
 
-The ARVES freeze (runtime/ + standard/) was enforced only by author discipline + a git tag
-(runtime-v1.0); nothing mechanically caught a silent edit (verification/evidence/SYSTEM_GAP_ANALYSIS.md).
+The ARVES freeze (runtime/ + standard/ + the frozen spec mirror spec-markdown/ and source-of-record
+corpus/) was enforced only by author discipline + a git tag (runtime-v1.0); nothing mechanically
+caught a silent edit (verification/evidence/SYSTEM_GAP_ANALYSIS.md #10/#16).
 This tool hashes every frozen SOURCE file and compares to a committed manifest, so drift becomes
 a checkable gate instead of a promise. It is a LIVING tool: it READS frozen files, never edits them.
 
@@ -23,7 +24,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
-FROZEN_ROOTS = ["runtime", "standard"]
+# The frozen surfaces (CLAUDE.md rule #1 calls the specification the STRONGEST freeze):
+#   runtime/ + standard/  — the reference runtime + the Standard Kit (changes via RCR/CCP), and
+#   spec-markdown/ + corpus/ — the frozen specification MIRROR (.md) and SOURCE-OF-RECORD (.docx),
+#     which change only via CCP / regeneration. Without these last two a silent edit to the
+#     spec mirror (e.g. the Invariant Registry) passes CI (SYSTEM_GAP #10/#16, DEEP_AUDIT V1-V3).
+FROZEN_ROOTS = ["runtime", "standard", "spec-markdown", "corpus"]
 EXCLUDE_DIRS = {"target", "__pycache__", ".git", "node_modules", ".pytest_cache"}
 MANIFEST = os.path.join(HERE, "freeze_manifest.tsv")
 
