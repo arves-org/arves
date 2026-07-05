@@ -157,6 +157,17 @@ export function verifyArtifact(pkg) {
   return testInputsHash(pkg.testInputs) === pkg.artifact.testInputsHash;
 }
 
+/** M1 (DEEP_AUDIT): the LIVE capability's manifest MUST deep-equal the manifest SIGNED into the
+ *  artifact. `verifyArtifact` binds the artifact bytes and `codeHash` binds the execute source,
+ *  but neither binds the *advertised identity* (name/version/produces) a catalog/host keys off —
+ *  so a validly-signed artifact for capability B (matching codeHash) could be served under a
+ *  DIFFERENT name (A): squatting of certified code. This closes that by binding the served
+ *  identity to the signature. */
+export function manifestBinds(cap, pkg) {
+  const signed = pkg && pkg.artifact && pkg.artifact.manifest;
+  return !!signed && stableSerialize(cap.manifest) === stableSerialize(signed);
+}
+
 // ---- Host (install + invoke against the frozen runtime) --------------------
 
 /** A capability host: installs CERTIFIED capabilities and invokes them, committing their
@@ -180,6 +191,9 @@ export class CapabilityHost {
     // Real code integrity: the capability's actual code MUST match the signed artifact —
     // a swapped implementation under a valid artifact is refused.
     if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('install refused: capability code does not match the signed artifact');
+    // M1: the served identity MUST be the signed identity — a valid artifact for B cannot be
+    // installed under A's manifest (name/version/produces).
+    if (!manifestBinds(cap, pkg)) throw new Error('install refused: live manifest does not match the signed artifact manifest (identity not bound to the signature)');
     // Reasoning-logic integrity: a reasoning capability's execute wrapper is identical across all
     // reasoners, so codeHash cannot bind the closed-over logic. The signed manifest carries a
     // reasonerHash; re-verify the live reasoner source against the SIGNED value.

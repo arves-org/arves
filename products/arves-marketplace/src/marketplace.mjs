@@ -6,7 +6,7 @@
 //
 // This is what turns "we built products" into "others ship products others install."
 
-import { verifyArtifact, certifyCapability, codeHash } from '../../arves-ecosystem-sdk/src/kit.mjs';
+import { verifyArtifact, certifyCapability, codeHash, manifestBinds } from '../../arves-ecosystem-sdk/src/kit.mjs';
 
 export class Marketplace {
   #catalog = new Map(); // "name@version" → { pkg, cap, publisher }
@@ -19,6 +19,9 @@ export class Marketplace {
   publish({ pkg, cap, publisher }) {
     if (!verifyArtifact(pkg)) throw new Error('marketplace: refuse tampered/unsigned artifact');
     if (codeHash(cap) !== pkg.artifact.codeHash) throw new Error('marketplace: capability code does not match the signed artifact');
+    // M1: the catalog key comes from cap.manifest, so the served identity MUST be the SIGNED
+    // identity — refuse a valid artifact for B re-published under A's name/version/produces.
+    if (!manifestBinds(cap, pkg)) throw new Error('marketplace: live manifest does not match the signed artifact manifest (identity not bound to the signature)');
     const cert = certifyCapability(cap, pkg.testInputs);
     if (!cert.certified) throw new Error('marketplace: refuse uncertified capability (' + cert.checks.filter((c) => !c.ok).map((c) => c.name).join(', ') + ')');
     const key = `${cap.manifest.name}@${cap.manifest.version}`;

@@ -10,7 +10,7 @@ import { allSources } from './arves-cognitive-memory/src/connectors.mjs';
 import { PersonalCognitiveOS } from './arves-personal-os/src/personal-os.mjs';
 import { personalReality } from './arves-personal-os/src/connectors.mjs';
 import { EnterpriseCognitiveOS } from './arves-enterprise-os/src/enterprise-os.mjs';
-import { defineCapability, certifyCapability, packageCapability, verifyArtifact, CapabilityHost } from './arves-ecosystem-sdk/src/kit.mjs';
+import { defineCapability, certifyCapability, packageCapability, verifyArtifact, codeHash, CapabilityHost } from './arves-ecosystem-sdk/src/kit.mjs';
 import { Marketplace } from './arves-marketplace/src/marketplace.mjs';
 import { defineReasoningCapability } from './arves-ecosystem-sdk/src/reasoning.mjs';
 
@@ -181,6 +181,18 @@ console.log('Marketplace (P7):');
   ok('marketplace re-runs certification and refuses a non-conformant publish', rU);
   ok('marketplace refuses tampered artifact', rT);
   ok('marketplace refuses duplicate version', rD);
+
+  // M1 (DEEP_AUDIT): a validly-signed artifact cannot be served under a DIFFERENT advertised
+  // identity. `realB` and `squatA` share byte-identical execute (so codeHash binds both), differ
+  // only in manifest name — publishing/installing realB's signed artifact under squatA's manifest
+  // is certified-code squatting, and MUST be refused (identity bound to the signature).
+  const execSrc = (t) => [{ target: 'uci.fact', value: { type: 'uci.fact', entity: `ticket:${t.id}` } }];
+  const realB = defineCapability({ name: 'real.b', version: '1.0.0', produces: ['uci.fact'], execute: execSrc });
+  const squatA = defineCapability({ name: 'squat.a', version: '1.0.0', produces: ['uci.fact'], execute: execSrc });
+  const pkgB = packageCapability(realB, [{ id: 'B1' }]);
+  ok('M1 setup: identical execute → codeHash binds both (so only the manifest differs)', codeHash(squatA) === pkgB.artifact.codeHash);
+  threw('M1: marketplace refuses a valid artifact served under a different manifest', () => new Marketplace().publish({ pkg: pkgB, cap: squatA, publisher: 'x' }), 'identity not bound');
+  threw('M1: host refuses install of a valid artifact under a different manifest', () => new CapabilityHost(null).install(pkgB, squatA), 'identity not bound');
 }
 
 console.log('Closure audit fixes (2026-07):');

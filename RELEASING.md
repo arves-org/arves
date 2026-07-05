@@ -15,7 +15,7 @@ Verify green, then publish. Every command below runs offline, no keys:
   `node tools/build_docs_site.mjs` regenerates the site and runs a **build-time link-gate** that
   fails (non-zero exit) on any broken in-site relative link; the checklist is green only when that
   build exits 0 (`link-gate: OK — 0 broken links`).
-- [x] **Green:** `node products/robustness.test.mjs` (43/43) ·
+- [x] **Green:** `node products/robustness.test.mjs` (46/46) ·
   `cargo test --manifest-path runtime/Cargo.toml --workspace` (81/0) ·
   `python verification/certification/certify_runtime.py` (2/2) ·
   `python verification/evidence/evidence_probe.py` (9/9) ·

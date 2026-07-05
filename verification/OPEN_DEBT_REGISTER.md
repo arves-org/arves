@@ -58,7 +58,7 @@
 |----|------|-----------|--------|
 | E1 | enterprise-os "requires legal approval" is proposer-self-attested (approvals is a caller array) | FC | OPEN (claim scoped honestly; full fix = authenticated approval truths, rank 14) |
 | E2 | spend policy applies only on exact `spend:` subject prefix; a bare-`Number` amount crashes the ACS commit | FC | OPEN (rank 14) |
-| M1 | marketplace signature binds artifact bytes but NOT the advertised catalog/install identity (`cap.manifest` ≠ `artifact.manifest`) | FC | OPEN (rank 11 — ~3-line deep-equal guard) |
+| M1 | marketplace signature binds artifact bytes but NOT the advertised catalog/install identity (`cap.manifest` ≠ `artifact.manifest`) | FC | ✅ **CLOSED** (rank 11: `manifestBinds` deep-equal guard in publish + host.install + registry.install; biting regression `robustness.test.mjs` — a valid artifact for B under A's name is refused; 46/46) |
 | #11 | capability determinism gate is a best-effort author-input probe, not enforcement | FC | OPEN (reworded honestly; full enforcement = v1.1 RCR debt) |
 | P1 | personal-os "durable decision history" overstated the in-memory detection index | DOC | ✅ **CLOSED** (wording + ledger caveat) |
 | #4 | products commit to the real Kernel (not just an in-memory Map) | FC/DOC | ✅ **CLOSED** (routed through bridge; claims scoped) |

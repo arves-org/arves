@@ -23,7 +23,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   defineCapability, certifyCapability, packageCapability,
-  verifyArtifact, codeHash,
+  verifyArtifact, codeHash, manifestBinds,
 } from './kit.mjs';
 // The ACS codec primitives (same source kit.mjs consumes) — used only to derive a content-based
 // cache-buster for re-import. No runtime file is touched (IDR-006): this is the product SDK codec.
@@ -201,6 +201,11 @@ export async function install(key, dir = REGISTRY_DIR) {
   const pkg = { id: record.id, artifact: record.artifact, testInputs };
   if (!verifyArtifact(pkg)) {
     throw new Error('install refused: artifact signature / test-inputs do not verify (tampered)');
+  }
+  // (3b) M1: the rebuilt capability's identity MUST be the SIGNED identity — a valid artifact for
+  // B cannot be served/installed under A's manifest (name/version/produces).
+  if (!manifestBinds(cap, pkg)) {
+    throw new Error('install refused: live manifest does not match the signed artifact manifest (identity not bound to the signature)');
   }
   // (4) Re-run certification — never trust a stored flag.
   const cert = certifyCapability(cap, testInputs);
