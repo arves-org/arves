@@ -6,3 +6,7 @@ publish = false
 
 [dependencies]
 arves-persistence = { path = "../arves-persistence" }
+# RCR-021 (I2 Stage 3): the cluster Kernel wires the frozen commit gateway over
+# the per-shard Raft substrate. Downward-only edge (LAYER-001): arves-kernel
+# rank 40 -> arves-consensus rank 30 (arves-conformance::property_check::layer_rank).
+arves-consensus = { path = "../arves-consensus" }

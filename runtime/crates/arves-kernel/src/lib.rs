@@ -9,8 +9,15 @@
 //! `RefKernel`/`MemKernel`/`FileKernel` with idempotent content-addressed commit,
 //! fsync-durable WAL, deterministic replay/recovery, snapshot install and
 //! checkpointing (see `tests/` — walking_skeleton, persistent_wal, recovery,
-//! checkpoint). The frozen specification governs; this crate implements, never
-//! changes it.
+//! checkpoint). Since RCR-021 (I2 Stage 3, per
+//! `docs/design/I2_Cluster_Kernel_Design.md`) the additive [`cluster`] module
+//! wires this SAME gateway over the per-shard Raft substrate of
+//! `arves-consensus` (RCR-019/020): leader-only commit through quorum, follower
+//! apply of committed outcomes producing identical truth, kernel snapshot
+//! install for lagging replicas — all in the deterministic in-process
+//! simulation vehicle (HONEST SCOPE in the module header; no network exists).
+//! No frozen type or trait signature in this file changed. The frozen
+//! specification governs; this crate implements, never changes it.
 //!
 //! # Role in the frozen architecture
 //!
@@ -53,6 +60,8 @@
 //! contract that implementors (arves-consensus, arves-persistence) must honour.
 
 #![forbid(unsafe_code)]
+
+pub mod cluster;
 
 use core::fmt;
 
@@ -423,7 +432,9 @@ fn encode_shard_blob(entries: &[(u64, Vec<u8>, Vec<u8>)]) -> Vec<u8> {
 }
 
 /// Decode a shard state blob. `None` on any structural mismatch.
-fn decode_shard_blob(b: &[u8]) -> Option<Vec<(u64, Vec<u8>, Vec<u8>)>> {
+/// (`pub(crate)` since RCR-021: the cluster snapshot-install path materializes
+/// the SAME Kernel-owned blob into a lagging replica's durable WAL.)
+pub(crate) fn decode_shard_blob(b: &[u8]) -> Option<Vec<(u64, Vec<u8>, Vec<u8>)>> {
     let mut pos = 0usize;
     fn take<'a>(b: &'a [u8], pos: &mut usize, n: usize) -> Option<&'a [u8]> {
         let end = pos.checked_add(n)?;
@@ -761,6 +772,46 @@ impl<S: WalStore> Kernel for RefKernel<S> {
 }
 
 impl<S: WalStore> RefKernel<S> {
+    /// Gateway ADMISSION — the validation head of [`RefKernel::commit_inner`],
+    /// factored (RCR-021) so the single-node commit, the RCR-013 batch, and the
+    /// cluster Kernel's pre-replication check all run ONE implementation (the
+    /// gateway semantics are never forked). Read-only; no mutation.
+    ///
+    /// - ORCH-004: an identical re-proposal resolves to existing truth
+    ///   ([`CommitError::AlreadyCommitted`]), never a fork.
+    /// - RCR-005 content-integrity: the address MUST bind exactly one content. A
+    ///   re-proposal under the same ContentHash but with a DIFFERENT payload is a
+    ///   caller-supplied address that does not match its content — reject the fork
+    ///   instead of silently returning the prior truth (ORCH-004 is only sound when
+    ///   address ⇒ content; OWN-001). Enforced with the Kernel's own state, needing
+    ///   no ACS-001 coupling (see RCR-005).
+    fn admission(state: &KernelState, proposed: &ProposedWrite) -> Result<(), CommitError> {
+        let key = (
+            proposed.shard.tenant.clone(),
+            proposed.shard.workspace.clone(),
+            proposed.content.0.clone(),
+        );
+        if let Some(&pos) = state.index.get(&key) {
+            let (existing_tr, existing_payload) = &state.committed[pos];
+            if *existing_payload != proposed.payload {
+                return Err(CommitError::ContentIntegrity {
+                    shard: proposed.shard.clone(),
+                });
+            }
+            return Err(CommitError::AlreadyCommitted(existing_tr.clone()));
+        }
+        Ok(())
+    }
+
+    /// Crate-internal admission check against current truth under the state lock
+    /// (RCR-021): the cluster Kernel runs the IDENTICAL gateway validation before
+    /// replicating a proposal (dedupe/fork refusal happens BEFORE consensus, per
+    /// design §3.1 "validate + content-address + dedupe ... then propose").
+    pub(crate) fn admission_check(&self, proposed: &ProposedWrite) -> Result<(), CommitError> {
+        let state = self.state.lock().expect("state poisoned");
+        Self::admission(&state, proposed)
+    }
+
     /// The single-proposal commit body, factored so [`Kernel::commit`] and
     /// [`RefKernel::commit_batch`] (RCR-013) run the IDENTICAL gateway logic under
     /// one caller-held state lock — batch is not a second, divergent commit path.
@@ -769,27 +820,13 @@ impl<S: WalStore> RefKernel<S> {
         store: &S,
         proposed: ProposedWrite,
     ) -> Result<TruthRef, CommitError> {
+        // ORCH-004 idempotent resolve + RCR-005 content-integrity (shared head).
+        Self::admission(state, &proposed)?;
         let key = (
             proposed.shard.tenant.clone(),
             proposed.shard.workspace.clone(),
             proposed.content.0.clone(),
         );
-        // ORCH-004: an identical re-proposal resolves to existing truth, never a fork.
-        if let Some(&pos) = state.index.get(&key) {
-            let (existing_tr, existing_payload) = &state.committed[pos];
-            // RCR-005 content-integrity: the address MUST bind exactly one content. A
-            // re-proposal under the same ContentHash but with a DIFFERENT payload is a
-            // caller-supplied address that does not match its content — reject the fork
-            // instead of silently returning the prior truth (ORCH-004 is only sound when
-            // address ⇒ content; OWN-001). This is enforced with the Kernel's own state,
-            // needing no ACS-001 coupling (see RCR-005).
-            if *existing_payload != proposed.payload {
-                return Err(CommitError::ContentIntegrity {
-                    shard: proposed.shard.clone(),
-                });
-            }
-            return Err(CommitError::AlreadyCommitted(existing_tr.clone()));
-        }
         let pshard = to_pshard(&proposed.shard);
         let mut wal = store.open(&pshard).map_err(|e| CommitError::Rejected {
             reason: format!("wal open: {e:?}"),

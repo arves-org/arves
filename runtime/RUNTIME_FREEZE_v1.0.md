@@ -166,7 +166,84 @@ While building products, if the runtime is found lacking:
 > Rust consumers (IDR-006), line protocol byte-identical; biting tests
 > `behaviour_10_degenerate_shard_key_unrepresentable` + fabric `rcr017_*` prove an empty tenant is
 > unrepresentable; honest scope: type-surface fix, not distributed placement immutability (I2+);
-> `cargo test --workspace` 108→**110/0**, product regression stays **55/55** on the rebuilt exe).
+> `cargo test --workspace` 108→**110/0**, product regression stays **55/55** on the rebuilt exe),
+> **RCR-019** (I2 Stage 1 — deterministic per-shard **Raft CORE** inside `arves-consensus`,
+> implemented additively BEHIND the frozen contract per `docs/design/I2_Cluster_Kernel_Design.md`
+> under maintainer Ruling 002: new `raft` module (pure step-function state machine — terms,
+> seeded-randomized election timeouts via injected logical tick, log replication, quorum commit
+> with the §5.4.2 current-term guard, follower catch-up backtracking, stale-leader step-down) +
+> new `sim` module (deterministic in-process MessageBus harness, drops/partitions as bus filters,
+> continuous per-step checking of all four Raft safety properties, and `SimShardConsensus` — the
+> first impl of the frozen `ShardConsensus` trait; follower handles refuse commits `NotLeader`,
+> OWN-001); the four safety properties + failover/partition/catch-up scenarios land as
+> deterministic scripted tests (no sleeps, no wall clocks, no OS randomness — SplitMix64 from
+> recorded seeds only); HONEST SCOPE: in-process simulation only — no network transport, no
+> WAL wiring (IDR-005 unification is the persistence-wiring stage), no joint-consensus
+> membership (I2.8), no real read tiers (I2.9), no snapshots (OQ-1); no frozen signature
+> changed, zero new deps (LAYER-001 gate green); additive, `cargo test --workspace`
+> 110→**126/0**), **RCR-020** (I2 Stage 2 — **multi-shard consensus instance map +
+> JOINT-CONSENSUS membership + leadership transfer** inside `arves-consensus`, additively
+> behind the frozen contract per `docs/design/I2_Cluster_Kernel_Design.md` ladder step
+> I2.8: `VoterConfig` with the IDR-003 C_old,new DUAL-majority rule gating both elections
+> and commits (config effective on append, rollback on truncation — Raft §6), two-phase
+> `change_membership(Stable target)` → joint entry → auto-appended C_new on joint commit →
+> same-term leader step-down when excluded (`voted_for` preserved for Election Safety);
+> `MsgBody::TimeoutNow` leadership transfer (target campaigns at term+1) + thesis-§4.2.3
+> leadership check (removed servers cannot disrupt healthy leaders; transfer bypasses);
+> `SimShardMap` — exactly ONE independent Raft group per immutable `ShardId` (IDR-001,
+> SHARD-001 blast-radius isolation proven; duplicate group refused loudly); deterministic
+> scripted tests prove the no-two-disjoint-majorities window (old-majority side cannot
+> commit, new-majority side cannot elect, mid-transition), add/remove mid-stream, leader
+> self-removal recovery, and loss-free transfer; HONEST SCOPE unchanged: in-process
+> simulation only — no network transport, no WAL wiring, no read tiers (I2.9), no
+> snapshots (OQ-1), no learner promotion; no frozen signature changed (no new error/entry
+> variants), zero new deps (LAYER-001 gate green); additive, `cargo test --workspace`
+> 126→**139/0**), **RCR-021** (I2 Stage 3 — the **CLUSTER KERNEL** inside `arves-kernel`
+> per design §6.2 row 2 (the Kernel commit-path wiring RCR): `ClusterKernel` implements
+> the frozen `Kernel` trait over the RCR-019/020 per-shard Raft substrate — commit
+> authoritative ONLY on the shard leader (`CommitError::NotLeader{shard}` live —
+> OWN-001/IDR-004), the IDENTICAL `RefKernel` gateway admission (ORCH-004 dedupe,
+> RCR-005 content-integrity — `commit_inner`'s head factored into a shared `admission`,
+> never forked) runs BEFORE replication, ack only after quorum, `NotReplicated` live on
+> lost quorum (IDR-001 CP) with the RCR-019 DR-8 identity check; deterministic apply
+> loop commits every replicated outcome through the SAME gateway on every replica —
+> follower truth byte-identical (same ContentHashes/CommitIndexes/per-shard state-blob
+> bytes, ORCH-003 across nodes; membership entries never enter the Kernel); Kernel
+> snapshot install for a crashed/lagging follower (IDR-002 snapshot-then-log-tail: truth
+> state + dense WAL continuation + cursor jump) and crash recovery by local-WAL replay
+> (I1.7); ONE new dependency edge kernel(40)→consensus(30), downward-only, architecture
+> gate re-verified green; scenarios S-I2-1/-3/-4/-8 land as deterministic in-process
+> analogues (leader-minority partition → NotReplicated with zero partial truth → heal →
+> fresh commit through the successor; crash→snapshot→catch-up with aligned offsets);
+> HONEST SCOPE: in-process simulation only — no network transport; IDR-005
+> raft-log/WAL unification still deferred (in-memory raft core log + per-replica durable
+> WAL), no raft-state crash durability, no read tiers (I2.9), no cluster batch; no
+> frozen signature changed; additive, `cargo test --workspace` 139→**147/0**), **RCR-022**
+> (I2 Stage 4 — **DISTRIBUTED PROOFS + the I2 milestone record**, closing the I2 Cluster
+> Kernel series RCR-019..022 per the design's conformance plan: deterministic
+> duplicate/reordered-delivery mangling on the sim bus (counter-scripted, zero
+> randomness, mangling trace folded into the replayable history digest) + adversarial
+> cluster tests — symmetric 2/3 partition (minority `NotReplicated` with zero partial
+> truth, majority commits, heal → ONE truth), old-leader-returns (stale term refused
+> everywhere, deposes nobody, stale entry provably absent from truth), dup/reorder
+> storms with client retries (ORCH-004 at cluster level: truth exactly-once per content
+> address on every replica; consensus-level: every digest commits exactly once), and
+> full-cluster rebuild-from-WAL (ORCH-003: every node rebuilt from its own log →
+> identical `truth_hash`/state bytes); plus the S-I2-6 live conformance artifact
+> (`l1-cluster-kernel-distributed`, `Verdict::Pass` — two tenants on two independent
+> replicated Raft groups, interleaved failover, zero cross-tenant leakage on every
+> replica, per-shard leadership; fingerprint pins the honest claim "L3(scoped): L1
+> node-set under distributed deployment / in-process deterministic simulation, no
+> network transport") and extended ORCH-003/004+SHARD-001 catalog citations (coverage
+> counts unchanged — ORCH-001/002 stay honestly Pending, Control Plane still
+> contract-only); ONE new downward edge conformance(110)→consensus(30), architecture
+> gate green; HONEST I2 SERIES SCOPE: an in-process deterministic cluster — NO network
+> exists, NO network fault-tolerance claimed; S-I2-7 read tiers NOT delivered (OQ-6 →
+> IDR, I3); recorded inheritance to I3+: IDR-005 raft-log/WAL unification, transport +
+> `ShardConsensus` rewiring (RCR-021 DR-14), protocol snapshots/compaction (OQ-1),
+> placement (OQ-8/I4), threat model (OQ-7); no frozen signature changed; additive,
+> `cargo test --workspace` 147→**155/0** — I2 series total 110→155. Record:
+> `runtime/rcr/RCR-022.md`).
 
 ## Organization (three teams, three mandates)
 

@@ -11,3 +11,7 @@ arves-acs = { path = "../arves-acs" }
 # (20) are DOWNWARD edges (legal); the architecture gate confirms this.
 arves-kernel = { path = "../arves-kernel" }
 arves-persistence = { path = "../arves-persistence" }
+# RCR-022: the live DISTRIBUTED scenario (I2 design §5.2 S-I2-6 / §4 SHARD-001 row) drives the
+# ClusterKernel over the per-shard Raft substrate. LAYER-001: conformance (rank 110) ->
+# consensus (30) is a DOWNWARD edge (legal); the architecture gate confirms this.
+arves-consensus = { path = "../arves-consensus" }

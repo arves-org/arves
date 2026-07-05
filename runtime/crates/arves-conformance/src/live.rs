@@ -457,6 +457,211 @@ pub fn run_core_runtime_scenario() -> ConformanceArtifact {
     LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
 }
 
+// ---------------------------------------------------------------------------
+// DISTRIBUTED cluster scenario (RCR-022, I2 Stage 4): the I2 design's
+// conformance plan (§5.1) claims exactly "L1 node-set conformance preserved
+// under distributed deployment"; §5.2 S-I2-6 requires two tenants on two
+// independent replicated shard groups with interleaved failovers and zero
+// cross-tenant leakage (SHARD-001), and §4 requires the SHARD-001 proof to
+// extend RCR-007's single-node two-tenant isolation to REPLICATED shards,
+// plus per-shard leadership (IDR-001/IDR-004). HONEST SCOPE: the cluster is
+// the in-process deterministic simulation of RCR-019..021 (scripted faults,
+// injected logical ticks) — NO network transport exists; this artifact
+// attests distributed SEMANTICS, not network fault-tolerance.
+// ---------------------------------------------------------------------------
+
+use arves_consensus::{ShardId, TenantId, WorkspaceId};
+use arves_kernel::cluster::{ClusterKernel, ClusterSim};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+fn cluster_sid(tenant: &str, workspace: &str) -> ShardId {
+    ShardId::new(TenantId(tenant.into()), WorkspaceId(workspace.into()))
+}
+
+/// The **L1-under-distribution** scenario: the Kernel node's L1 invariants
+/// re-proven on a 3-replica, 2-shard (two-tenant) cluster kernel with a
+/// scripted failover (design §5.1 scoping; §5.2 S-I2-6).
+pub fn cluster_distributed_scenario() -> Scenario {
+    Scenario {
+        id: "l1-cluster-kernel-distributed",
+        name: "L1 under distribution — replicated Kernel truth, per-shard leadership, \
+                tenant isolation across the cluster",
+        axes: vec![Axis::RecoveryAndReplay, Axis::HighVolumeStreaming],
+        expected_path: vec![PipelineNode::Kernel],
+        required_invariants: vec![
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::ReplayReproducesTrace,
+            Property::TenantWorkspaceIsolation,
+        ],
+    }
+}
+
+/// Observes the **Kernel** node under distribution by driving a real
+/// 3-replica `ClusterSim` (two tenants, two independent Raft groups) through
+/// commit, follower refusal, duplicate re-proposal, a per-shard leader fault
+/// with failover, and a full-cluster rebuild-from-WAL; every check outcome is
+/// derived from the cluster's actual behaviour (never hardcoded).
+pub struct ClusterKernelProbe;
+
+impl NodeProbe for ClusterKernelProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Kernel
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let acme = cluster_sid("acme", "research");
+        let globex = cluster_sid("globex", "research");
+        let mut sim = ClusterSim::new(3);
+        sim.add_shard(acme.clone(), 0xC1_05_7E_12);
+        sim.add_shard(globex.clone(), 0xC1_05_7E_34);
+        let acme_leader = sim.elect(&acme);
+        let globex_leader = sim.elect(&globex);
+        let nodes = sim.node_ids();
+        let cluster = Rc::new(RefCell::new(sim));
+
+        // Replicated commits: one truth per tenant, through each shard's leader.
+        let k_acme = ClusterKernel::new(acme_leader.clone(), cluster.clone());
+        let k_globex = ClusterKernel::new(globex_leader.clone(), cluster.clone());
+        let tr = k_acme
+            .commit(proposal(shard("acme", "research"), b"cid-a", b"acme-payload-1"))
+            .expect("acme commit through its shard leader");
+        k_globex
+            .commit(proposal(shard("globex", "research"), b"cid-g", b"globex-secret"))
+            .expect("globex commit through its shard leader");
+        cluster.borrow_mut().settle(6);
+
+        // --- ORCH-004 under replication: duplicate re-proposal resolves to the
+        //     SAME TruthRef; a same-address/different-payload fork is refused. ---
+        let idempotent = matches!(
+            k_acme.commit(proposal(shard("acme", "research"), b"cid-a", b"acme-payload-1")),
+            Err(CommitError::AlreadyCommitted(t)) if t == tr
+        );
+        let integrity = matches!(
+            k_acme.commit(proposal(shard("acme", "research"), b"cid-a", b"DIFFERENT")),
+            Err(CommitError::ContentIntegrity { .. })
+        );
+        let orch004 = held_if(idempotent && integrity);
+
+        // --- OWN-001 under replication: a follower's gateway refuses commits. ---
+        let follower = nodes
+            .iter()
+            .find(|n| **n != acme_leader)
+            .cloned()
+            .expect("a follower exists");
+        let k_follower = ClusterKernel::new(follower, cluster.clone());
+        let own001 = held_if(matches!(
+            k_follower.commit(proposal(shard("acme", "research"), b"cid-x", b"x")),
+            Err(CommitError::NotLeader { .. })
+        ));
+
+        // --- Per-shard leadership + SHARD-001 blast radius (IDR-001/004):
+        //     fault acme's leader; acme re-elects; globex's leader is untouched. ---
+        cluster.borrow_mut().isolate(&acme, &acme_leader);
+        cluster.borrow_mut().settle(60);
+        let acme_successor = cluster.borrow().leader_of(&acme);
+        let globex_after_fault = cluster.borrow().leader_of(&globex);
+        let per_shard_leadership = acme_successor.is_some()
+            && acme_successor != Some(acme_leader.clone())
+            && globex_after_fault == Some(globex_leader.clone());
+        cluster.borrow_mut().heal(&acme);
+        cluster.borrow_mut().settle(80);
+
+        // --- SHARD-001 across the cluster, after the failover: on EVERY
+        //     replica each tenant's replicated state holds its own payload and
+        //     never the other tenant's. ---
+        let mut isolated = true;
+        {
+            let c = cluster.borrow();
+            for id in c.node_ids() {
+                let a = c.shard_state_of(&id, &acme);
+                let g = c.shard_state_of(&id, &globex);
+                isolated &= contains(&a, b"acme-payload-1")
+                    && contains(&g, b"globex-secret")
+                    && !contains(&a, b"globex-secret")
+                    && !contains(&g, b"acme-payload-1");
+            }
+        }
+        let shard001 = held_if(isolated && per_shard_leadership);
+
+        // --- ORCH-003 across the cluster: rebuild EVERY node from its own
+        //     durable WAL (replay, never recompute) — per-shard state bytes
+        //     unchanged and identical across replicas. ---
+        let before: Vec<(Vec<u8>, Vec<u8>)> = {
+            let c = cluster.borrow();
+            c.node_ids()
+                .iter()
+                .map(|id| (c.shard_state_of(id, &acme), c.shard_state_of(id, &globex)))
+                .collect()
+        };
+        {
+            let mut c = cluster.borrow_mut();
+            for id in c.node_ids() {
+                c.crash_recover(&id);
+            }
+        }
+        let replay_equal = {
+            let c = cluster.borrow();
+            let after: Vec<(Vec<u8>, Vec<u8>)> = c
+                .node_ids()
+                .iter()
+                .map(|id| (c.shard_state_of(id, &acme), c.shard_state_of(id, &globex)))
+                .collect();
+            let converged = after.windows(2).all(|w| w[0] == w[1]);
+            before == after && converged
+        };
+        let orch003 = held_if(replay_equal);
+
+        NodeEvidence {
+            node: PipelineNode::Kernel,
+            summary: format!(
+                "ClusterKernel: 3 replicas, 2 tenants on 2 independent Raft groups \
+                 (in-process deterministic simulation, no network); leader-only commit, \
+                 idempotent+content-integrity under replication, per-shard failover with \
+                 blast radius one shard, zero cross-tenant leakage on every replica, \
+                 full-cluster rebuild-from-WAL byte-identical (acme leader {acme_leader:?} \
+                 -> successor {acme_successor:?}; globex leader {globex_leader:?} untouched)"
+            ),
+            correlation_id: Some(format!("cluster-commit-index-{}", tr.index.0)),
+            invariant_checks: vec![
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Orch004IdempotentAddressable, orch004),
+                (Invariant::Own001OneOwnerPerState, own001),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![
+                (Property::ReplayReproducesTrace, orch003),
+                (Property::TenantWorkspaceIsolation, shard001),
+            ],
+        }
+    }
+}
+
+/// Run the L1-under-distribution scenario over the real cluster kernel and
+/// return the live artifact. Honest fingerprint: the runtime is the reference
+/// cluster SIMULATION (deterministic in-process transport) — the claim is
+/// "L1 node-set conformance preserved under distributed deployment" (design
+/// §5.1), never blanket L3.
+pub fn run_cluster_distributed_scenario() -> ConformanceArtifact {
+    let scenario = cluster_distributed_scenario();
+    let evidence = vec![ClusterKernelProbe.observe(&scenario)];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L3(scoped): L1 node-set \
+                        under distributed deployment (I2, RCR-022)"
+            .into(),
+        runtime_id: "arves-kernel ClusterKernel over arves-consensus per-shard Raft \
+                     (reference; in-process deterministic simulation, no network transport)"
+            .into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
     let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
@@ -527,6 +732,28 @@ mod tests {
             assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
         }
         assert_eq!(art.verdict, Verdict::Pass);
+    }
+
+    /// RCR-022: the L1-under-distribution scenario PASSES — every invariant
+    /// and property derived Held from the real cluster kernel's behaviour
+    /// (S-I2-6 two-tenant replicated isolation + per-shard leadership;
+    /// ORCH-003 full-cluster rebuild; ORCH-004/OWN-001 under replication).
+    #[test]
+    fn live_cluster_distributed_scenario_passes() {
+        let art = run_cluster_distributed_scenario();
+        assert_eq!(art.scenario_id, "l1-cluster-kernel-distributed");
+        assert_eq!(art.node_evidence.len(), 1);
+        let ev = &art.node_evidence[0];
+        assert_eq!(ev.node, PipelineNode::Kernel);
+        assert!(
+            ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+            "an invariant was not Held under distribution: {:?}",
+            ev.invariant_checks
+        );
+        assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        assert_eq!(art.verdict, Verdict::Pass, "the distributed scenario must PASS");
+        // The fingerprint must state the honest scope (simulation, not network).
+        assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
     }
 
     #[test]

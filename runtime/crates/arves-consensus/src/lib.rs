@@ -4,17 +4,34 @@
 //! Governing: IDR-001..005; SHARD-001 (partition by tenant/workspace).
 //! Layer: cross-cutting (truth path; serves the Kernel's commit gateway).
 //!
-//! STATUS: CONTRACT-ONLY — distributed consensus is genuinely DEFERRED to I2+.
-//! v1.0 is single-node I1 (per RUNTIME_FREEZE_v1.0.md); per-shard Raft is not
-//! built. This crate is trait/type declarations only, no logic. Frozen
-//! specification governs; this crate implements, never changes it.
+//! STATUS: CONTRACT (frozen v1.0) + Stage-1 deterministic Raft CORE (RCR-019)
+//! + Stage-2 multi-shard map, JOINT-CONSENSUS membership and leadership
+//! transfer (RCR-020), per `docs/design/I2_Cluster_Kernel_Design.md`. The
+//! v1.0 wording "trait/type declarations only, no logic" is superseded by
+//! RCR-019/020: the frozen contract surface in this file is UNCHANGED (no
+//! type or trait signature touched), and the implementation lives additively
+//! BEHIND it — [`raft`] (deterministic, in-process, message-passing Raft
+//! state machine for one shard: seeded election timeouts via injected tick,
+//! log replication, quorum commit, follower catch-up; since RCR-020 also
+//! IDR-003 joint-consensus reconfiguration with the C_old,new dual-majority
+//! rule, leadership transfer, and the thesis-§4.2.3 leadership check) and
+//! [`sim`] (the deterministic MessageBus/step-function harness, the first
+//! [`ShardConsensus`] impl, and since RCR-020 `SimShardMap` — the per-shard
+//! consensus instance map: one independent Raft group per immutable
+//! [`ShardId`], IDR-001). HONEST SCOPE: in-process simulation only — no
+//! network transport, no durability wiring (WAL-as-Raft-log is a later I2
+//! stage), no real read tiers (I2.9), no snapshots (OQ-1), no learner
+//! catch-up/promotion protocol. Frozen specification governs; this crate
+//! implements, never changes it.
 //!
 //! # What this crate is (and is not)
 //!
 //! This crate defines the *contracts* for the ARVES consensus substrate: one
 //! Raft group per shard, where a shard is identified by `(tenant, workspace)`.
-//! It is a **skeleton** - trait and type declarations only, no logic. Bodies,
-//! wire formats, timers, storage engines, and RPC transports are all deferred.
+//! At v1.0 it was a **skeleton** - trait and type declarations only, no logic;
+//! since RCR-019 the [`raft`]/[`sim`] modules provide the Stage-1 deterministic
+//! core behind these contracts. Wire formats, real timers, storage engines,
+//! and RPC transports remain deferred (OQ-1..9 of the I2 design → IDRs).
 //!
 //! ## Ground truth this crate is built on
 //!
@@ -49,6 +66,14 @@
 //! replicas; it does not decide *what* is true. The consensus layer is the
 //! truth-path plumbing under the Kernel, not an owner of state. Truth is CP
 //! (this crate); observability/read models are AP and live elsewhere (`arves-query`).
+
+// ---------------------------------------------------------------------------
+// Stage-1 implementation modules (RCR-019) — additive, behind the frozen
+// contract below. See each module's HONEST SCOPE header.
+// ---------------------------------------------------------------------------
+
+pub mod raft;
+pub mod sim;
 
 // ---------------------------------------------------------------------------
 // Shard identity (SHARD-001)

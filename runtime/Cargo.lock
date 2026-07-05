@@ -26,6 +26,7 @@ name = "arves-conformance"
 version = "0.0.0"
 dependencies = [
  "arves-acs",
+ "arves-consensus",
  "arves-kernel",
  "arves-persistence",
 ]
@@ -61,6 +62,7 @@ version = "0.0.0"
 name = "arves-kernel"
 version = "0.0.0"
 dependencies = [
+ "arves-consensus",
  "arves-persistence",
 ]
 

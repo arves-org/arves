@@ -224,33 +224,48 @@ pub fn catalog() -> Vec<PropertyCheck> {
         own,
         // ORCH-004 — idempotent + content-addressable commit; a re-proposal under the same
         // address resolves to existing truth (behaviour_2) and a same-address/different-payload
-        // fork is rejected (behaviour_7 / RCR-005).
+        // fork is rejected (behaviour_7 / RCR-005). Under distribution (RCR-022): truth stays
+        // exactly-once through duplicate/reordered consensus-message storms and client retries.
         PropertyCheck {
             invariant: Orch004IdempotentAddressable,
             proof: ProofKind::CitedTest {
                 location: "arves-kernel::tests::walking_skeleton \
                            (behaviour_2_commit_twice_already_committed, \
-                           behaviour_7_content_integrity_same_address_different_payload)",
+                           behaviour_7_content_integrity_same_address_different_payload); \
+                           cluster scope (RCR-022): arves-kernel::tests::cluster_adversarial \
+                           (adversarial_duplicate_reordered_delivery_truth_exactly_once); \
+                           arves-consensus::tests::raft_adversarial \
+                           (adversarial_dup_reorder_storm_commits_each_entry_exactly_once)",
             },
         },
-        // ORCH-003 — replay from the recorded trace reproduces identical truth.
+        // ORCH-003 — replay from the recorded trace reproduces identical truth. Under
+        // distribution (RCR-022): every node of the cluster rebuilt from its own WAL
+        // reproduces the identical truth_hash / state bytes.
         PropertyCheck {
             invariant: Orch003ReplayableFromTrace,
             proof: ProofKind::CitedTest {
                 location: "arves-kernel::tests::walking_skeleton \
-                           (behaviour_3_replay_same_truth, behaviour_4_crash_restart_replay_identical)",
+                           (behaviour_3_replay_same_truth, behaviour_4_crash_restart_replay_identical); \
+                           cluster scope (RCR-022): arves-kernel::tests::cluster_adversarial \
+                           (adversarial_full_cluster_replay_from_wal_rebuilds_identical_truth)",
             },
         },
         // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
         // isolation test at the truth gateway (RCR-007) + the persistence wrong-shard
-        // rejection test (no structural-only citation).
+        // rejection test (no structural-only citation). Under distribution (RCR-022, per the
+        // I2 design §4 SHARD-001 row): two tenants on two independent replicated Raft groups,
+        // zero cross-tenant leakage on every replica across a failover, per-shard leadership.
         PropertyCheck {
             invariant: Shard001TenantWorkspacePartition,
             proof: ProofKind::CitedTest {
                 location: "arves-kernel::tests::walking_skeleton \
                            (behaviour_8_two_tenant_isolation); \
                            arves-persistence::tests::file_wal (wrong_shard_append_rejected, \
-                           multi_shard_isolation_survives_disk)",
+                           multi_shard_isolation_survives_disk); \
+                           cluster scope (RCR-022): arves-conformance::live \
+                           (live_cluster_distributed_scenario_passes — replicated two-tenant \
+                           isolation + per-shard leadership); \
+                           arves-consensus::tests::shard_map (RCR-020 blast-radius isolation)",
             },
         },
         // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Owning crate is
