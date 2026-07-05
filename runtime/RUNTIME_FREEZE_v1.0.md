@@ -103,7 +103,13 @@ While building products, if the runtime is found lacking:
 > (live L1 **Query** node — a read-only `QueryProjection` reconstructs committed truth by replaying
 > the persistence WAL (no Kernel read, ORCH-001/OWN-001) with tenant-scoped isolation; completes the
 > first **end-to-end** Information→Kernel→Query `ConformanceArtifact`, `Verdict::Pass`; additive,
-> `cargo test --workspace` 85→**87/0**).
+> `cargo test --workspace` 85→**87/0**), **RCR-011** (bridge **request-id correlation** — the line
+> protocol accepts an optional `id=<token>` first token echoed verbatim on the response, so clients
+> match responses **by id instead of position**; a dropped/injected/reordered line can no longer
+> shift every later response onto the wrong caller; malformed ids refused as `ERR bad-id` without
+> echo; backward compatible — un-prefixed lines byte-identical to before; closes v1.1 backlog
+> item 1; additive, `cargo test --workspace` 87→**91/0**, product regression 49→**50/50** incl. a
+> biting reverse-order fake-bridge test).
 
 ## Organization (three teams, three mandates)
 
@@ -120,6 +126,9 @@ Recorded, important, and explicitly NOT blocking P4 (per the destroy-round repor
 
 1. **Bridge request-id correlation** — replace positional FIFO with explicit request ids
    (today: input-sanitization + response-shape validation close the reachable desync).
+   **ADDRESSED by RCR-011 (v1.1):** the protocol accepts an optional `id=<token>` echoed
+   on the response; the SDK client matches by id (FIFO retained only as the fallback for
+   id-less lines). Backward compatible; see `runtime/rcr/RCR-011.md`.
 2. **Engine-enforced determinism** — the fabric derives/enforces the idempotency key
    rather than trusting an engine's self-declared `Determinism` (today: the reference
    `PureEngine` is pure by construction).

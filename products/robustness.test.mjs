@@ -3,6 +3,7 @@
 // Run: node products/robustness.test.mjs   (exit 0 = all pass)
 
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { encode, float } from './arves-sdk-ts/src/codec.mjs';
 import { KernelBridge } from './arves-sdk-ts/src/bridge.mjs';
 import { CognitiveMemory, replay } from './arves-cognitive-memory/src/memory.mjs';
@@ -77,6 +78,20 @@ console.log('Kernel bridge client:');
   try { await b.invoke({ type: 'x' }, 'evil cap\n01 6161'); } catch { injRejected = true; }
   b.close();
   ok('capability injection (whitespace/newline) refused', injRejected);
+}
+{
+  // RCR-011: responses are matched by REQUEST ID, not by position. A fake bridge that
+  // answers the first two requests in REVERSE order (echoing ids, response index =
+  // arrival order) must still resolve each caller with ITS OWN response. Under the old
+  // positional-FIFO matching, caller 1 silently received caller 2's response.
+  const fake = fileURLToPath(new URL('./arves-sdk-ts/test/fake-reorder-bridge.mjs', import.meta.url));
+  const b = new KernelBridge(process.execPath, { args: [fake], timeoutMs: 5000 });
+  const [r1, r2] = await Promise.all([
+    b.commit({ type: 'uci.fact', k: 1n }),
+    b.commit({ type: 'uci.fact', k: 2n }),
+  ]);
+  b.close();
+  ok('RCR-011: reordered responses are re-matched by id (no swapped callers)', r1.index === 1 && r2.index === 2);
 }
 
 console.log('Personal Cognitive OS (P4):');

@@ -18,11 +18,11 @@ const DEFAULT_EXE = path.resolve(
 );
 
 export class KernelBridge {
-  #proc; #waiters = []; #buf = ''; #dead = null; #timeoutMs;
+  #proc; #waiters = []; #byId = new Map(); #buf = ''; #dead = null; #timeoutMs; #nextId = 1;
 
-  constructor(exe = DEFAULT_EXE, { timeoutMs = 10000 } = {}) {
+  constructor(exe = DEFAULT_EXE, { timeoutMs = 10000, args = [] } = {}) {
     this.#timeoutMs = timeoutMs;
-    this.#proc = spawn(exe, [], { stdio: ['pipe', 'pipe', 'inherit'] });
+    this.#proc = spawn(exe, args, { stdio: ['pipe', 'pipe', 'inherit'] });
     this.#proc.stdout.setEncoding('utf8');
     this.#proc.stdout.on('data', (d) => this.#onData(d));
     // Any way the child can die must settle pending requests, never hang them.
@@ -34,14 +34,32 @@ export class KernelBridge {
     this.#proc.stdin.on('error', (e) => die(`stdin error: ${e.message}`));
   }
 
+  // RCR-011: responses are matched BY REQUEST ID, not by position. Every request is
+  // sent with an `id=r<N>` prefix the bridge echoes back as the response's first token,
+  // so a dropped, injected, or reordered line can no longer shift every later response
+  // onto the wrong caller. Responses WITHOUT a known id (e.g. the bridge's pre-parse
+  // `ERR too-large`, or an older bridge binary that predates the extension) fall back
+  // to the oldest pending waiter — exactly the pre-RCR-011 behaviour.
   #onData(d) {
     this.#buf += d;
     let i;
     while ((i = this.#buf.indexOf('\n')) >= 0) {
       const line = this.#buf.slice(0, i).trim();
       this.#buf = this.#buf.slice(i + 1);
-      const w = this.#waiters.shift();
-      if (w) { clearTimeout(w.timer); w.resolve(line); }
+      const sp = line.indexOf(' ');
+      const first = sp >= 0 ? line.slice(0, sp) : line;
+      let w;
+      let payload = line;
+      if (this.#byId.has(first)) {
+        w = this.#byId.get(first);
+        this.#byId.delete(first);
+        this.#waiters.splice(this.#waiters.indexOf(w), 1);
+        payload = sp >= 0 ? line.slice(sp + 1) : '';
+      } else {
+        w = this.#waiters.shift();
+        if (w) this.#byId.delete(w.id);
+      }
+      if (w) { clearTimeout(w.timer); w.resolve(payload); }
     }
   }
 
@@ -51,23 +69,27 @@ export class KernelBridge {
     if (this.#dead) return;
     this.#dead = err;
     const pending = this.#waiters.splice(0);
+    this.#byId.clear();
     for (const w of pending) { clearTimeout(w.timer); w.reject(err); }
   }
 
   #send(reqLine) {
     if (this.#dead) return Promise.reject(this.#dead);
     // A request line MUST be exactly one protocol line: any newline would desync the
-    // FIFO (one request → many response lines). Reject rather than corrupt.
+    // stream (one request → many response lines). Reject rather than corrupt.
     if (reqLine.includes('\n')) return Promise.reject(new Error('ARVES: request contains a newline (protocol injection)'));
     return new Promise((resolve, reject) => {
+      const id = `r${this.#nextId++}`;
       const timer = setTimeout(() => {
         const idx = this.#waiters.indexOf(waiter);
         if (idx >= 0) this.#waiters.splice(idx, 1);
+        this.#byId.delete(id);
         reject(new Error(`arves-bridge request timed out after ${this.#timeoutMs}ms`));
       }, this.#timeoutMs);
-      const waiter = { resolve, reject, timer };
+      const waiter = { resolve, reject, timer, id };
       this.#waiters.push(waiter);
-      this.#proc.stdin.write(reqLine + '\n');
+      this.#byId.set(id, waiter);
+      this.#proc.stdin.write(`id=${id} ${reqLine}\n`);
     });
   }
 
