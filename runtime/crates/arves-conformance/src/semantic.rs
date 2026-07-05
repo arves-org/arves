@@ -340,6 +340,47 @@ pub fn check_term_set(body: &[u8]) -> Result<(), SemanticReject> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// The frozen ACS-004 `uci.fact@1.0` schema document — the schema `validate_instance` (and
+// the `acs_validate` bin / certification harness, RCR-004b) validates `uci.fact` instances
+// against. Every shipped `instance`-tier negative vector is a `uci.fact@1.0` instance, so a
+// full-surface certification run drives instance inputs against this one golden type.
+// ---------------------------------------------------------------------------
+
+/// Build the encoder-side `uci.fact@1.0` schema Value (byte-identical field set to the
+/// ACS-004 golden schema vector). Callers that need the DECODED form pass it through
+/// `decode_canonical(&encode(&uci_fact_schema()))`, matching how instances arrive.
+pub fn uci_fact_schema() -> Value {
+    fn fd(card: &str, ty: &str) -> Value {
+        Value::Map(vec![
+            (Value::Text("card".into()), Value::Text(card.into())),
+            (Value::Text("type".into()), Value::Text(ty.into())),
+        ])
+    }
+    Value::Map(vec![
+        (Value::Text("urn".into()), Value::Text("uci.fact".into())),
+        (Value::Text("ver".into()), Value::Map(vec![
+            (Value::Text("major".into()), Value::Int(1)),
+            (Value::Text("minor".into()), Value::Int(0)),
+        ])),
+        (Value::Text("root".into()), Value::Text("Fact".into())),
+        (Value::Text("fields".into()), Value::Map(vec![
+            (Value::Text("urn".into()), fd("1", "urn")),
+            (Value::Text("tenant".into()), fd("1", "text")),
+            (Value::Text("workspace".into()), fd("1", "text")),
+            (Value::Text("origin".into()), fd("1", "text")),
+            (Value::Text("source".into()), fd("1", "text")),
+            (Value::Text("invocation".into()), fd("0..1", "urn")),
+            (Value::Text("confidence".into()), fd("1", "conf")),
+            (Value::Text("valid_from".into()), fd("1", "int")),
+            (Value::Text("recorded_at".into()), fd("1", "int")),
+            (Value::Text("claim".into()), fd("1", "text")),
+            (Value::Text("observed_at".into()), fd("1", "int")),
+            (Value::Text("evidence".into()), fd("0..*", "urn")),
+        ])),
+    ])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,36 +393,9 @@ mod tests {
             .collect()
     }
 
-    /// An ACS-004 field descriptor `{card, type}` (mirrors the schema golden vector).
-    fn fdesc(card: &str, ty: &str) -> Value {
-        Map(vec![
-            (Text("card".into()), Text(card.into())),
-            (Text("type".into()), Text(ty.into())),
-        ])
-    }
-
-    /// The frozen ACS-004 `uci.fact@1.0` schema document (its `fields` are what
-    /// `validate_instance` reads) — byte-identical field set to the ACS-004 golden schema.
+    /// The frozen ACS-004 `uci.fact@1.0` schema (shared module builder — RCR-004b).
     fn fact_schema() -> Value {
-        Map(vec![
-            (Text("urn".into()), Text("uci.fact".into())),
-            (Text("ver".into()), Map(vec![(Text("major".into()), Int(1)), (Text("minor".into()), Int(0))])),
-            (Text("root".into()), Text("Fact".into())),
-            (Text("fields".into()), Map(vec![
-                (Text("urn".into()), fdesc("1", "urn")),
-                (Text("tenant".into()), fdesc("1", "text")),
-                (Text("workspace".into()), fdesc("1", "text")),
-                (Text("origin".into()), fdesc("1", "text")),
-                (Text("source".into()), fdesc("1", "text")),
-                (Text("invocation".into()), fdesc("0..1", "urn")),
-                (Text("confidence".into()), fdesc("1", "conf")),
-                (Text("valid_from".into()), fdesc("1", "int")),
-                (Text("recorded_at".into()), fdesc("1", "int")),
-                (Text("claim".into()), fdesc("1", "text")),
-                (Text("observed_at".into()), fdesc("1", "int")),
-                (Text("evidence".into()), fdesc("0..*", "urn")),
-            ])),
-        ])
+        uci_fact_schema()
     }
 
     /// RCR-004 acceptance proof: the native Rust validators REJECT every frozen semantic
