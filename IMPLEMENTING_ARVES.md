@@ -36,7 +36,7 @@ it as an ambiguity in the relevant ACS.
 
 | # | File | Why / what you get |
 |---|------|--------------------|
-| 1 | [`standard/VERSION`](standard/VERSION) | What the Kit is (`arves-standard-kit 0.2.0`), the five ACS version tags, ratification status (RATIFIED v1.1 at grade **G1**), and the verbatim **G2 exit criterion**. |
+| 1 | [`standard/VERSION`](standard/VERSION) | What the Kit is (`arves-standard-kit 0.3.1`), the five ACS version tags, ratification status (RATIFIED v1.1 at grade **G1**; CCP-006/007 added the semantic reject tiers), and the verbatim **G2 exit criterion**. |
 | 2 | [`standard/README.md`](standard/README.md) | Kit overview, the independence test, the 4-step "How to implement ARVES (from this Kit alone)", and the honest **G1-not-G2** status. |
 | 3 | [`standard/RUNTIME_AUTHORS_GUIDE.md`](standard/RUNTIME_AUTHORS_GUIDE.md) | **The single authoritative build+certify procedure.** Steps 1–4. If any other page seems to describe a different procedure, follow this one. |
 | 4 | [`standard/acs/ACS-005_Normative_Language.md`](standard/acs/ACS-005_Normative_Language.md) | **Read FIRST among the ACS specs.** Defines what MUST / SHALL / SHOULD / MAY mean here (RFC 2119/8174), the requirement-ID grammar, and the 14-term glossary the other four specs cite. |
@@ -46,7 +46,7 @@ it as an ambiguity in the relevant ACS.
 | 8 | [`standard/acs/ACS-004_Universal_Type_Registry.md`](standard/acs/ACS-004_Universal_Type_Registry.md) | The type registry (domain `0x07`): schema-document shape, type codes + cardinality, the §6.5 closed-schema validator, and the §8 `invocation`-iff-`origin==derived` state machine. |
 | 9 | [`standard/conformance/CONFORMANCE.md`](standard/conformance/CONFORMANCE.md) | **The pass gate.** The two language-neutral checks (encoder+addresser over the golden TSV; rejection over the negative TSV), the stable reason-code list, and the core-vs-full verdict semantics. |
 | 10 | [`standard/vectors/acs_golden_vectors.tsv`](standard/vectors/acs_golden_vectors.tsv) | The 12 positive byte-exact targets you must reproduce. |
-| 11 | [`standard/vectors/acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) | 35 negatives: **16 `core`** (your gate) + 1 `nfc` + 18 semantic `envelope`/`instance`/`language` (deferrable by a core ACS-002 codec — §3d). Reject each with the matching reason. |
+| 11 | [`standard/vectors/acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) | 36 negatives: **16 `core`** (your gate) + 1 `nfc` + 19 semantic (7 `envelope` + 8 `instance` + 4 `language`, deferrable by a core ACS-002 codec — §3d). Reject each with the matching reason. |
 
 Optional but useful, in this order, once the above is understood:
 
@@ -111,12 +111,16 @@ also refuse every non-canonical byte string, with the **exact** reason code — 
 two runtimes accept different encodings of "the same" value and disagree on its address.
 Validate canonical form **inline while parsing**; never pattern-match whole test inputs.
 
-Source: [`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) — **35 rows
+Source: [`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv) — **36 rows
 across five tiers.** Your ACS-002 challenge runtime is graded on the **16 `core`** rows (the
-interoperability gate) below; the `nfc` row is deferrable (§3c); and the **18 semantic** rows
-(`envelope`/`instance`/`language`, added by CCP-006) are **above the ACS-002 byte layer** and
-are deferrable by a core codec — see §3d. **The certification verdict counts only `core`, so
-building ACS-001 + ACS-002 is enough to reach `CERTIFIED`.**
+interoperability gate) below; the `nfc` row is deferrable (§3c); and the **19 semantic** rows
+(7 `envelope` + 8 `instance` + 4 `language`, added by CCP-006/007) are **above the ACS-002 byte
+layer** and are deferrable by a core codec — see §3d. **Building ACS-001 + ACS-002 reaches the
+*core* stamp** (`CERTIFIED (ACS-002 core)` / `SOUND-CERTIFIED (ACS core; semantic DEFERRED)`) —
+honestly labeled. **The unqualified `SOUND-CERTIFIED (full ACS-001..005 surface)` — the strongest
+win — additionally requires rejecting the 19 semantic vectors** (`verify_runtime_sound.py` grades
+them non-gameably; the stamp is never printed unqualified, so a core-only pass never implies the
+whole standard).
 
 | # | case | tier | reject_reason |
 |---|------|------|---------------|
@@ -174,26 +178,29 @@ The certification verdict counts **only the `core` tier**, so a declared-deferri
 runtime still certifies. If your runtime must be safe against hostile non-NFC input,
 be **fully** conformant.
 
-### 3d. The 18 semantic reject vectors (ACS-003/004/005) — now shipped, deferrable for a core codec
+### 3d. The 19 semantic reject vectors (ACS-003/004/005) — now shipped, deferrable for a core codec
 
-**Updated by CCP-006 (Kit 0.3.0).** ACS-003 §6.3 (envelope validation), ACS-004 §6.5/§7/§8
+**Updated by CCP-006/007 (Kit 0.3.1).** ACS-003 §6.3 (envelope validation), ACS-004 §6.5/§7/§8
 (instance validation + the `origin`/`invocation` state machine), and ACS-005 §8/§9.2/§11
 (term-set) all state **normative MUST-reject** rules. These **now have negative vectors** —
-18 of them (7 `envelope` + 7 `instance` + 4 `language`) in
+19 of them (7 `envelope` + 8 `instance` + 4 `language`) in
 [`acs_negative_vectors.tsv`](standard/vectors/acs_negative_vectors.tsv), each with a stable
 reason code registered in [`CONFORMANCE.md`](standard/conformance/CONFORMANCE.md) (per ACS-001
 §4.1). Every one **decodes cleanly as canonical dCBOR** — so they are *not* ACS-002 rejects;
 the defect is purely semantic, one layer up.
 
 What this means for you:
-- **A pure ACS-002 challenge runtime MAY DEFER these 18 rows** (exactly like the `nfc` tier) —
+- **A pure ACS-002 challenge runtime MAY DEFER these 19 rows** (exactly like the `nfc` tier) —
   declare the deferral, do not silently accept. The `core` gate (16/16) is unchanged, so you
-  still reach `CERTIFIED` with ACS-001 + ACS-002 alone.
+  still reach the **core** stamp with ACS-001 + ACS-002 alone (`CERTIFIED (ACS-002 core)` /
+  `SOUND-CERTIFIED (ACS core; semantic DEFERRED)` — honestly labeled).
 - **A full cognitive runtime (one that parses envelopes / typed instances / glossaries) MUST
-  reject them** with the matching code. Worked reference validators exist as living examples —
+  reject them** with the matching code — and only then does it earn the unqualified
+  `SOUND-CERTIFIED (full ACS-001..005 surface)`, graded non-gameably by
+  `verify_runtime_sound.py`. Worked reference validators exist as living examples —
   `verification/independent/python/acs003_envelope.py`, `acs004_instance.py`,
-  `acs005_checker.py` — and are exercised over the frozen vectors by
-  `conformance_semantic.py` (`envelope 7/7 instance 7/7 language 4/4`). Copy their structure;
+  `acs005_checker.py` (Python) and the native `acs_validate` bin (Rust) — exercised over the
+  frozen vectors by `conformance_semantic.py` (`envelope 7/7 instance 8/8 language 4/4`). Copy their structure;
   each proves its reject rules from the spec text alone.
 
 Even the frozen **Rust reference** defers these tiers today (it implements ACS-001/002 only;

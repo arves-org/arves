@@ -78,12 +78,15 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
   agree on the golden conformance vectors; the **Rust↔Python** pair is differentially
   fuzzed (13,807 inputs, 0 divergences). A 3-way fuzz including TypeScript is on the v1.1
   track.
-- **Independent runtimes** — 2 runtimes (Rust + Python) certified against `standard/` alone
-  by a maintainer-independent harness (`python verification/certification/certify_runtime.py`)
-  — at grade **G1 (same-process)**. A genuine third-party (G2) runtime is the Growth
-  Program's open exit gate.
+- **Independent runtimes** — 2 runtimes (Rust + Python) certified against `standard/` alone over
+  the **full ACS-001..005 surface** — `SOUND-CERTIFIED (full surface)`, incl. the ACS-003/004/005
+  semantic reject tiers — by a maintainer-independent, non-gameable harness
+  (`python verification/certification/verify_runtime_sound.py`), at grade **G1 (same-process)**.
+  (The **TypeScript** codec is a 3rd independent implementation that agrees on every vector — a 3rd
+  *codec*, not a 3rd certified *runtime*: `certify_runtime.py`/`verify_runtime_sound.py` drive the
+  Rust + Python runtime adapters.) A genuine third-party (G2) runtime is the open exit gate.
 - **Robustness** — a whole-system destroy pass hardened the stack; the product robustness
-  suite is **43/43**, and the Rust workspace is **75/75** green.
+  suite is **43/43**, and the Rust workspace is **81/81** green.
 - **Ecosystem** — a cold, fresh-context developer (grade **G1**, same-process) authored +
   certified a capability from the Authoring Kit alone; a genuine external third party (G2)
   is pending.

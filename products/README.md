@@ -36,8 +36,10 @@ is certified."* This IDR reconciles that with the two-arm pivot — deliberately
 the constitution's own instrument for an engineering decision (not a silent edit).
 
 - **Decision.** Products may be **developed now**, in parallel with the Standard Program.
-- **As a frozen, versioned dependency.** A product consumes `arves-standard-kit 0.2.0`
-  (`standard/`) and the reference runtime at its current tag. It treats them like an
+- **As a frozen, versioned dependency.** A product consumes `arves-standard-kit 0.3.1`
+  (`standard/`; the current ratified Kit — CCP-006/007 added the ACS-003/004/005 semantic
+  reject tiers, a vector-set addition with no byte-affecting API change) and the reference
+  runtime at its current tag. It treats them like an
   external package with a pinned version.
 - **Hard guardrail (non-negotiable).** No product may modify `runtime/` or `standard/`.
   If a product needs a platform change, it STOPS and files a **Platform Change Proposal**
