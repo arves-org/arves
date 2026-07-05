@@ -27,11 +27,11 @@ can be implemented **correctly, independently, deterministically, and at product
 
 | | |
 |---|---|
-| Current Era | **Standard Validation Era** (maintainer-set 2026-07) |
+| Current Era | **Standard Validation + Industrialization (parallel)** — maintainer Ruling 002, 2026-07-05 (`docs/MAINTAINER_RULINGS.md`) |
 | Specification Era | COMPLETE / FROZEN |
 | Implementation Era | COMPLETE (I1 runtime core · ACS-001..005 · Conformance Platform · Standard Kit) |
-| Standard Validation Era | IN PROGRESS — *prove ARVES wrong*; KPI = **Evidence Increased** (Evidence Ledger, `verification/evidence/`) |
-| Industrialization Era | GATED behind validation (I2–I6, Kernel Integration, scale) |
+| Standard Validation Era | CONTINUES IN PARALLEL — *prove ARVES wrong*; KPI = **Evidence Increased**; independence honestly capped at G1 until a real G2 event |
+| Industrialization Era | **OPEN (maintainer Ruling 002)** — I2–I6 build proceeds from the reviewed design packages (`docs/design/`), via RCR with full 15-step discipline; **primary driver = the maintainer's own product on ARVES**, public adoption de-prioritized |
 | **ARVES Runtime** | **v1.0 FROZEN** (tag `runtime-v1.0`) — the platform is a stable substrate; changes ONLY via a Runtime Change Request. See `runtime/RUNTIME_FREEZE_v1.0.md` |
 | Product Program | **OPEN** — products are *customers* of the frozen Runtime v1.0; **GA** still gated on the four conditions |
 | Current Milestone | *«supplied by task»* |
@@ -66,7 +66,11 @@ can be implemented **correctly, independently, deterministically, and at product
 > ARVES; you are trying to prove ARVES wrong. If you fail, only then ARVES becomes
 > stronger.* Independence is graded (self → same-process → third-party); the Era-3
 > exit gate is a **third-party runtime** that passes certification with no help.
-> Further implementation (I2–I6) is gated behind this era. See
+> ~~Further implementation (I2–I6) is gated behind this era.~~ **Superseded by maintainer
+> Ruling 002 (2026-07-05, `docs/MAINTAINER_RULINGS.md`): I2–I6 build is OPEN and runs in
+> PARALLEL with validation; the primary driver is the maintainer's own product on ARVES;
+> public adoption is de-prioritized. Independence grading and freeze discipline unchanged —
+> nothing internal is ever presented as G2.** See
 > `verification/evidence/CERTIFICATION_PROGRAM.md` and `ARVES_Master_Roadmap.md`.
 
 Milestones (from the frozen ARVES v1.0 Baseline, Part 5 — single-sourced, do not diverge):
