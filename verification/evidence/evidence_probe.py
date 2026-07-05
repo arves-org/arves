@@ -51,6 +51,7 @@ TSDIR = os.path.join(ROOT, "verification", "independent", "typescript")
 FUZZ = os.path.join(ROOT, "verification", "differential", "acs002_differential_fuzz.py")
 SEM_FUZZ = os.path.join(ROOT, "verification", "differential", "acs_semantic_differential.py")
 SOUND = os.path.join(ROOT, "verification", "certification", "verify_runtime_sound.py")
+CAPSTONE = os.path.join(ROOT, "products", "organization-day.capstone.mjs")
 LEDGER_TSV = os.path.join(HERE, "evidence_ledger.tsv")
 LEDGER_MD = os.path.join(HERE, "EVIDENCE_LEDGER.md")
 
@@ -211,6 +212,20 @@ def probe():
                        sm.group(1), sm.group(2), sm.group(3), sm.group(4), sm.group(5), sm.group(6)))
     else:
         r.metric = "NOT full-surface SOUND-CERTIFIED"
+    rows.append(r)
+
+    # 8. CAPSTONE — a full organization day on the real Kernel, proven reproducible end-to-end.
+    #    Runs the products (Personal + Enterprise OS) through the real bridge, re-runs the whole
+    #    day on a fresh Kernel and asserts byte-identical truth, and invokes conformance_live to
+    #    tie in the WAL-replay reconstruction (RCR-010). One runnable line that exercises the whole
+    #    stack — products -> bridge -> Kernel -> WAL — inside the drift-proof loop.
+    rc, out = run(["node", "products/organization-day.capstone.mjs"])
+    checks = len(re.findall(r"(?m)^\s*✓ ", out))
+    r = Row("capstone-organization-day", "Capstone: full organization day on the real Kernel, reproducible end-to-end",
+            "Behaviour+Reproducibility+Audit", "L2", "G1",
+            "node products/organization-day.capstone.mjs")
+    r.ok = rc == 0 and "CAPSTONE PASS" in out and "REPRODUCIBLE" in out
+    r.metric = ("%d properties held incl. byte-identical re-run + WAL-replay (RCR-010)" % checks) if r.ok else "CAPSTONE FAIL"
     rows.append(r)
 
     return rows
