@@ -162,6 +162,19 @@ def probe():
     r.metric = "%d tests passed" % passed
     rows.append(r)
 
+    # 6b. Live L1 conformance — the FIRST executable ConformanceArtifact, emitted by driving the
+    #     real Kernel (RCR-008). Behaviour L0 -> L1 for the Kernel node; the outcomes are derived
+    #     from actual commit/replay/isolation, not hardcoded.
+    rc, out = run(["cargo", "run", "-q", "--manifest-path", MANIFEST,
+                   "-p", "arves-conformance", "--bin", "conformance_live"])
+    r = Row("live-conformance", "Live L1 conformance artifact (Kernel node, real RefKernel)",
+            "Behaviour", "L1", "G1",
+            "cargo run -p arves-conformance --bin conformance_live")
+    r.ok = rc == 0 and "live L1 core-runtime conformance: PASS" in out
+    held = len(re.findall(r"invariant \S+\s+Held", out))
+    r.metric = ("VERDICT Pass; %d/4 invariants Held (ORCH-003/004, OWN-001, SHARD-001)" % held) if r.ok else "NOT PASS"
+    rows.append(r)
+
     # 7. Anti-gaming SOUND runtime verifier — grader owns the truth (gap B3 backstop).
     #    Inputs-only grading + fresh + accept probes defeat a hollow echo adapter. Wiring
     #    it here puts the flagship survivability check INSIDE the drift-proof loop.

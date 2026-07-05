@@ -6,3 +6,8 @@ publish = false
 
 [dependencies]
 arves-acs = { path = "../arves-acs" }
+# RCR-008: the live L1 conformance runner drives the real Kernel to emit a ConformanceArtifact.
+# LAYER-001: conformance (rank 110, the test harness "may read all") -> kernel (40) / persistence
+# (20) are DOWNWARD edges (legal); the architecture gate confirms this.
+arves-kernel = { path = "../arves-kernel" }
+arves-persistence = { path = "../arves-persistence" }

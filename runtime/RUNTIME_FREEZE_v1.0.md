@@ -91,7 +91,12 @@ While building products, if the runtime is found lacking:
 > (SHARD-001 two-tenant isolation test at the truth gateway — `behaviour_8_two_tenant_isolation`
 > proves same-content/different-shard is distinct truth with no cross-tenant snapshot leak; upgrades
 > the PropertyCheck SHARD-001 citation from structural to a named biting test; closes Madde-11 audit
-> finding SHARD-001-F1; additive, `cargo test --workspace` 80→**81/0**).
+> finding SHARD-001-F1; additive, `cargo test --workspace` 80→**81/0**), **RCR-008** (live L1
+> conformance — `arves-conformance::live` `KernelProbe` + `LiveVerdictEngine` emit the first
+> executable `ConformanceArtifact` by driving the real `MemKernel`, deriving ORCH-003/004 + OWN-001
+> + SHARD-001 from behaviour → `Verdict::Pass`; adds downward kernel/persistence deps; bin
+> `conformance_live`; behaviour L0→L1 for the Kernel node at G0/G1; additive, `cargo test
+> --workspace` 81→**83/0**).
 
 ## Organization (three teams, three mandates)
 

@@ -72,6 +72,12 @@ pub mod semantic;
 /// architecture-gate checkers used by `tests/architecture_gate.rs`.
 pub mod property_check;
 
+/// Live L1 conformance (RCR-008): the first executable `ConformanceArtifact`, emitted by driving
+/// the real frozen Kernel — populating the previously type-only Scenario Conformance vocabulary
+/// for the Core-Runtime scenario (Kernel node). An Evidence-Level raise (behaviour L0 → L1) at
+/// grade G0/G1, not an independence-grade raise.
+pub mod live;
+
 // =============================================================================
 // Part 5 - Conformance Axes (12)
 // =============================================================================
