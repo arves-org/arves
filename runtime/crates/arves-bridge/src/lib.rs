@@ -15,7 +15,7 @@
 
 use arves_acs::{cbor, content_id};
 use arves_capability_fabric::{CapabilityId, CapabilityRegistry, ShardKey as CapShardKey};
-use arves_engine_fabric::Engine;
+use arves_engine_fabric::{invoke_enforced, Engine, FabricViolation};
 use arves_kernel::{CommitError, ContentHash, Kernel, ProposedWrite, ShardKey, TruthRef};
 
 /// Commit a canonical ACS body as truth, addressed by its ACS-001 ContentId.
@@ -80,6 +80,10 @@ pub enum InvokeError {
     /// The engine proposed an effect targeting a resource it did not declare in its
     /// manifest `produces` set (ENG-004) — refused rather than committed.
     UndeclaredEffect(String),
+    /// The engine violated the fabric's enforced invocation contract (RCR-012):
+    /// a mis-keyed `Inference` (ORCH-004) or a false `Determinism::Deterministic`
+    /// declaration caught by the double-invoke probe — refused BEFORE any commit.
+    Fabric(FabricViolation),
     /// The Kernel refused to commit a proposed effect for a reason other than idempotency.
     Commit(CommitError),
 }
@@ -121,8 +125,12 @@ where
         return Err(InvokeError::ProviderMismatch { expected: expected_provider, bound: binding.provider.0 });
     }
 
-    // 2. Engine layer: pure invocation → Inference (proposals only, ENG-003).
-    let inference = engine.invoke(input);
+    // 2. Engine layer: FABRIC-ENFORCED invocation (RCR-012) → Inference (proposals
+    // only, ENG-003). The fabric derives the ORCH-004 key itself and verifies the
+    // engine's returned key; a self-declared Deterministic engine is double-invoked
+    // and compared — a mis-keyed or falsely-deterministic engine is refused here,
+    // BEFORE any effect can reach the Kernel.
+    let inference = invoke_enforced(engine, input).map_err(InvokeError::Fabric)?;
 
     // 3. Kernel: commit each proposed effect as ACS-001-addressed truth. An effect MUST
     // target a resource the engine declared (ENG-004); undeclared effects are refused
@@ -244,6 +252,45 @@ mod tests {
             invoke(&k, &reg, shard(), "derive.fact", &impostor, b"x".to_vec(), domain::COMMIT_CONTENT),
             Err(InvokeError::ProviderMismatch { .. })
         ));
+
+        // RCR-012: a bound engine whose Determinism declaration is FALSE (per-invocation
+        // counter in its output) is refused by the fabric BEFORE any commit — the bridge
+        // invokes engines only through invoke_enforced, so the promise is enforced on
+        // the real path, not trusted.
+        use arves_engine_fabric::{invocation_key, EngineManifest, Inference};
+        use std::cell::Cell;
+        struct Liar {
+            ctr: Cell<u64>,
+        }
+        impl arves_engine_fabric::Engine for Liar {
+            type Input = Vec<u8>;
+            fn manifest(&self) -> EngineManifest {
+                EngineManifest {
+                    name: "derive.fact".into(),
+                    version: "1.0.0".into(),
+                    produces: vec!["uci.fact".into()],
+                    ..Default::default() // Determinism::Deterministic — the false promise
+                }
+            }
+            fn invoke(&self, input: Vec<u8>) -> Inference {
+                let n = self.ctr.get();
+                self.ctr.set(n + 1);
+                let mut payload = input.clone();
+                payload.extend_from_slice(&n.to_be_bytes());
+                Inference {
+                    key: invocation_key(&self.manifest(), &input),
+                    output: payload.clone(),
+                    proposed_effects: vec![arves_engine_fabric::ProposedEffect { target: "uci.fact".into(), payload }],
+                }
+            }
+        }
+        let before = k.snapshot_shard(&shard()).len();
+        assert!(matches!(
+            invoke(&k, &reg, shard(), "derive.fact", &Liar { ctr: Cell::new(0) }, b"x".to_vec(), domain::COMMIT_CONTENT),
+            Err(InvokeError::Fabric(arves_engine_fabric::FabricViolation::NondeterministicOutput))
+        ));
+        // Nothing reached the Kernel: refusal happened BEFORE any commit.
+        assert_eq!(k.snapshot_shard(&shard()).len(), before);
     }
 
     // ORCH-004 idempotency is now keyed on the ACS address: same body -> AlreadyCommitted.

@@ -5,3 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# RCR-012: the fabric DERIVES the ORCH-004 invocation key (ACS-001 content address of
+# the canonical input) instead of trusting an engine to mint it. Downward edge only:
+# arves-engine-fabric (rank 60) -> arves-acs (rank 15), LAYER-001-legal.
+arves-acs = { path = "../arves-acs" }

@@ -68,11 +68,16 @@
 //!
 //! ## STATUS
 //!
-//! I1 CONTRACT-ONLY (by design, not unfinished). This crate defines the Engine
-//! Fabric interfaces/types; it carries no engine execution logic. The exercised
+//! I1 CONTRACT + FABRIC ENFORCEMENT (RCR-012). This crate defines the Engine
+//! Fabric interfaces/types AND, since RCR-012, the fabric-owned invocation
+//! discipline: [`invocation_key`] (the fabric derives the ORCH-004
+//! content-addressable key — engines no longer self-mint it) and
+//! [`invoke_enforced`] (key verification + a double-invoke determinism probe, so
+//! a false `Determinism::Deterministic` declaration is refused, not trusted).
+//! Engine *business* logic still lives outside this crate; the exercised
 //! engine logic in the reference runtime flows through the SDK/Bridge in
-//! `products/` (see RUNTIME_FREEZE_v1.0.md, guarantee alignment). Any bodies
-//! here are trivial placeholders that exist only so the contract compiles.
+//! `products/` (see RUNTIME_FREEZE_v1.0.md, guarantee alignment), and the bridge
+//! invokes engines exclusively through [`invoke_enforced`].
 //! Frozen specification governs; this crate *implements*, never changes it.
 
 #![forbid(unsafe_code)]
@@ -348,6 +353,83 @@ pub trait Engine {
 }
 
 // ---------------------------------------------------------------------------
+// Fabric-enforced invocation (RCR-012) — derive the key, verify the promise.
+// ---------------------------------------------------------------------------
+
+/// Derive the content-addressable [`IdempotencyKey`] for one invocation — **the
+/// FABRIC's derivation, not the engine's** (RCR-012; ORCH-004).
+///
+/// `scheme:name@version:<ACS-001 ContentId of the input under the INVOCATION domain>`
+/// — the scheme tag comes from [`EngineManifest::idempotency_key`], the identity from
+/// the manifest, and the input address is the standard ACS-001 content address
+/// (`0x12 0x20 ‖ SHA-256(0x04 ‖ input)`), so two invocations share a key **iff** they
+/// share engine identity and canonical input bytes.
+///
+/// Honest scope: the ORCH-004 derivation names `(manifest identity, canonicalized
+/// input, read-snapshot)`. I1 engines have empty declared read-sets (`reads: []`), so
+/// the read-snapshot component is vacuous here; when Query-layer reads land (I2+), the
+/// snapshot address joins this derivation — an additive extension of the same scheme.
+pub fn invocation_key(manifest: &EngineManifest, input: &[u8]) -> IdempotencyKey {
+    IdempotencyKey(format!(
+        "{}:{}@{}:{}",
+        manifest.idempotency_key.0,
+        manifest.name,
+        manifest.version,
+        arves_acs::hex(&arves_acs::content_id(arves_acs::domain::INVOCATION, input))
+    ))
+}
+
+/// Why the fabric refused an engine invocation (RCR-012).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FabricViolation {
+    /// The engine's returned [`Inference::key`] does not equal the fabric-derived
+    /// key — the engine is mis-keying its own invocations, so its outputs cannot be
+    /// replayed/deduped safely (ORCH-004). Refused before any effect is considered.
+    KeyMismatch { expected: IdempotencyKey, got: IdempotencyKey },
+    /// A self-declared [`Determinism::Deterministic`] engine returned two different
+    /// [`Inference`]s for the same input — its declaration is FALSE. Refused: the
+    /// runtime must never cache/dedupe/replay on a broken promise (ORCH-003/004).
+    NondeterministicOutput,
+}
+
+/// Invoke an engine **under fabric enforcement** (RCR-012) — closes the v1.1 debt
+/// *"the fabric derives/enforces the idempotency key rather than trusting an engine's
+/// self-declared `Determinism`"*:
+///
+/// 1. The fabric derives the expected [`IdempotencyKey`] itself ([`invocation_key`])
+///    and VERIFIES the engine's returned `Inference.key` equals it — a mis-keyed
+///    engine is refused ([`FabricViolation::KeyMismatch`]).
+/// 2. A self-declared [`Determinism::Deterministic`] engine is **double-invoked** and
+///    the two `Inference`s compared bit-for-bit — a false declaration is refused
+///    ([`FabricViolation::NondeterministicOutput`]) instead of trusted.
+///    [`Determinism::Seeded`]/[`Determinism::Nondeterministic`] engines are not
+///    re-invoked (their recorded inference is authoritative on replay, ORCH-003);
+///    their key is still verified.
+///
+/// Honest scope: the double-invoke is a **probe, not a proof** — an engine whose
+/// nondeterminism is input-scoped or slower than back-to-back invocation can evade it
+/// (the same honesty boundary as the authoring kit's certify probe). The key check,
+/// by contrast, is exact.
+pub fn invoke_enforced<E>(engine: &E, input: Vec<u8>) -> Result<Inference, FabricViolation>
+where
+    E: Engine<Input = Vec<u8>>,
+{
+    let manifest = engine.manifest();
+    let expected = invocation_key(&manifest, &input);
+    let first = engine.invoke(input.clone());
+    if first.key != expected {
+        return Err(FabricViolation::KeyMismatch { expected, got: first.key });
+    }
+    if manifest.determinism == Determinism::Deterministic {
+        let second = engine.invoke(input);
+        if second != first {
+            return Err(FabricViolation::NondeterministicOutput);
+        }
+    }
+    Ok(first)
+}
+
+// ---------------------------------------------------------------------------
 // Reference engine: a concrete, pure engine over a deterministic transform.
 // ---------------------------------------------------------------------------
 
@@ -362,9 +444,10 @@ pub trait Engine {
 /// on its own demonstrate an end-to-end cognitive work chain. The runtime (here,
 /// the bridge) is what commits its proposed effect(s) via the Kernel.
 ///
-/// **NON-CONFORMANT re: ORCH-004.** As written, [`invoke`](PureEngine::invoke)
-/// does not honour the [`Engine::invoke`] key contract (see the note on its
-/// body). Treat this type as illustrative, not as a conformant reference engine.
+/// **ORCH-004 conformant since RCR-012:** [`invoke`](PureEngine::invoke) returns the
+/// fabric-derived [`invocation_key`] (it previously returned a documented
+/// NON-CONFORMANT `IdempotencyKey::default()` placeholder; that runtime-forward item
+/// is closed — see `runtime/rcr/RCR-012.md`).
 pub struct PureEngine<F> {
     name: EngineName,
     target: ResourceName,
@@ -396,16 +479,13 @@ impl<F: Fn(&[u8]) -> Vec<u8>> Engine for PureEngine<F> {
 
     fn invoke(&self, input: Vec<u8>) -> Inference {
         let output = (self.transform)(&input);
-        // NON-CONFORMANT PLACEHOLDER (ORCH-004; violates the Engine::invoke
-        // contract documented above — "the returned Inference::key MUST match
-        // the idempotency key of this invocation"). This returns an empty
-        // IdempotencyKey::default() instead of a key derived from
-        // (manifest identity, canonicalized input, read-snapshot), so it is NOT
-        // content-addressable and MUST NOT be relied on for replay/dedupe. Left
-        // as a placeholder for the I1 CONTRACT-ONLY milestone; deriving the real
-        // key is a runtime-forward item, not a doc change.
+        // RCR-012: the key is the FABRIC's derivation — content-addressable from
+        // (manifest identity, ACS-001 address of the canonical input), per ORCH-004.
+        // This closes the NON-CONFORMANT `IdempotencyKey::default()` placeholder this
+        // body carried through I1 (the documented runtime-forward item).
+        let key = invocation_key(&self.manifest(), &input);
         Inference {
-            key: IdempotencyKey::default(),
+            key,
             proposed_effects: vec![ProposedEffect { target: self.target.clone(), payload: output.clone() }],
             output,
         }
@@ -425,6 +505,136 @@ mod pure_engine_tests {
         assert_eq!(inf.proposed_effects[0].target, "uci.fact");
         assert_eq!(inf.proposed_effects[0].payload, b"hello");
         assert_eq!(e.manifest().produces, vec!["uci.fact".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod rcr012_fabric_enforcement_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    // The fabric-derived key is content-addressable (ORCH-004): same identity + same
+    // input -> same key; different input OR different version -> different key; and the
+    // key embeds the ACS-001 ContentId of the input under the INVOCATION domain.
+    #[test]
+    fn invocation_key_is_content_addressable() {
+        let e = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+        let m = e.manifest();
+        let k1 = invocation_key(&m, b"hello");
+        assert_eq!(k1, invocation_key(&m, b"hello"), "same identity+input -> same key");
+        assert_ne!(k1, invocation_key(&m, b"world"), "different input -> different key");
+        let mut m2 = m.clone();
+        m2.version = "2.0.0".into();
+        assert_ne!(k1, invocation_key(&m2, b"hello"), "re-version -> prior keys invalidated");
+        let cid_hex = arves_acs::hex(&arves_acs::content_id(arves_acs::domain::INVOCATION, b"hello"));
+        assert!(k1.0.ends_with(&cid_hex), "key embeds the ACS-001 invocation address");
+    }
+
+    // RCR-012 closes the documented PureEngine placeholder: the returned Inference.key
+    // IS the fabric derivation, not IdempotencyKey::default().
+    #[test]
+    fn pure_engine_returns_the_fabric_key() {
+        let e = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+        let inf = e.invoke(b"hello".to_vec());
+        assert_eq!(inf.key, invocation_key(&e.manifest(), b"hello"));
+        assert_ne!(inf.key, IdempotencyKey::default());
+    }
+
+    // A conformant deterministic engine passes enforcement; the result carries the key.
+    #[test]
+    fn enforced_accepts_a_conformant_deterministic_engine() {
+        let e = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| b.to_vec());
+        let inf = invoke_enforced(&e, b"hello".to_vec()).expect("conformant engine accepted");
+        assert_eq!(inf.key, invocation_key(&e.manifest(), b"hello"));
+    }
+
+    /// An adversarial engine that self-mints a wrong key (the pre-RCR-012 behaviour).
+    struct MisKeyed;
+    impl Engine for MisKeyed {
+        type Input = Vec<u8>;
+        fn manifest(&self) -> EngineManifest {
+            EngineManifest { name: "mis.keyed".into(), version: "1.0.0".into(), ..Default::default() }
+        }
+        fn invoke(&self, input: Vec<u8>) -> Inference {
+            Inference { key: IdempotencyKey("self-minted".into()), output: input, proposed_effects: vec![] }
+        }
+    }
+
+    // The fabric refuses a mis-keyed engine BEFORE any effect is considered — the key
+    // is the fabric's derivation, not the engine's claim.
+    #[test]
+    fn enforced_refuses_a_mis_keyed_engine() {
+        match invoke_enforced(&MisKeyed, b"x".to_vec()) {
+            Err(FabricViolation::KeyMismatch { expected, got }) => {
+                assert_eq!(got.0, "self-minted");
+                assert!(expected.0.contains("mis.keyed@1.0.0"));
+            }
+            other => panic!("expected KeyMismatch, got {other:?}"),
+        }
+    }
+
+    /// An engine that DECLARES Deterministic but embeds a per-invocation counter in its
+    /// output — the exact false promise the v1.1 debt said must be enforced, not trusted.
+    struct FalselyDeterministic {
+        ctr: Cell<u64>,
+    }
+    impl Engine for FalselyDeterministic {
+        type Input = Vec<u8>;
+        fn manifest(&self) -> EngineManifest {
+            EngineManifest {
+                name: "liar".into(),
+                version: "1.0.0".into(),
+                determinism: Determinism::Deterministic,
+                ..Default::default()
+            }
+        }
+        fn invoke(&self, input: Vec<u8>) -> Inference {
+            let n = self.ctr.get();
+            self.ctr.set(n + 1);
+            let mut output = input.clone();
+            output.extend_from_slice(&n.to_be_bytes());
+            Inference { key: invocation_key(&self.manifest(), &input), output, proposed_effects: vec![] }
+        }
+    }
+
+    // The double-invoke probe catches the false Determinism declaration.
+    #[test]
+    fn enforced_refuses_a_false_determinism_declaration() {
+        let e = FalselyDeterministic { ctr: Cell::new(0) };
+        assert_eq!(invoke_enforced(&e, b"x".to_vec()), Err(FabricViolation::NondeterministicOutput));
+    }
+
+    /// A declared-Nondeterministic engine: varying output is LAWFUL (its recorded
+    /// inference is authoritative on replay, ORCH-003) — but its key must still be the
+    /// fabric derivation.
+    struct DeclaredNondet {
+        ctr: Cell<u64>,
+    }
+    impl Engine for DeclaredNondet {
+        type Input = Vec<u8>;
+        fn manifest(&self) -> EngineManifest {
+            EngineManifest {
+                name: "oracle".into(),
+                version: "1.0.0".into(),
+                determinism: Determinism::Nondeterministic,
+                ..Default::default()
+            }
+        }
+        fn invoke(&self, input: Vec<u8>) -> Inference {
+            let n = self.ctr.get();
+            self.ctr.set(n + 1);
+            Inference { key: invocation_key(&self.manifest(), &input), output: n.to_be_bytes().to_vec(), proposed_effects: vec![] }
+        }
+    }
+
+    #[test]
+    fn enforced_allows_declared_nondeterminism_but_still_verifies_the_key() {
+        let e = DeclaredNondet { ctr: Cell::new(0) };
+        // Accepted: no double-invoke for a declared-Nondeterministic engine.
+        let first = invoke_enforced(&e, b"x".to_vec()).expect("declared nondet accepted");
+        assert_eq!(first.key, invocation_key(&e.manifest(), b"x"));
+        // Exactly ONE invocation was consumed by enforcement (no hidden probe).
+        assert_eq!(e.ctr.get(), 1);
     }
 }
 

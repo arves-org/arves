@@ -109,7 +109,14 @@ While building products, if the runtime is found lacking:
 > shift every later response onto the wrong caller; malformed ids refused as `ERR bad-id` without
 > echo; backward compatible — un-prefixed lines byte-identical to before; closes v1.1 backlog
 > item 1; additive, `cargo test --workspace` 87→**91/0**, product regression 49→**50/50** incl. a
-> biting reverse-order fake-bridge test).
+> biting reverse-order fake-bridge test), **RCR-012** (engine-**enforced** determinism &
+> fabric-derived idempotency — `arves-engine-fabric` gains `invocation_key` (the FABRIC derives the
+> ORCH-004 key: ACS-001 address of the canonical input under domain 0x04; engines no longer
+> self-mint it — closes `PureEngine`'s documented NON-CONFORMANT placeholder) and `invoke_enforced`
+> (key verification + a double-invoke probe that REFUSES a false `Determinism::Deterministic`
+> declaration instead of trusting it); the bridge invokes engines only through it, so refusal
+> happens BEFORE any effect reaches the Kernel; new LAYER-001-legal downward edge
+> engine-fabric→acs; closes v1.1 backlog item 2; additive, `cargo test --workspace` 91→**97/0**).
 
 ## Organization (three teams, three mandates)
 
@@ -132,6 +139,10 @@ Recorded, important, and explicitly NOT blocking P4 (per the destroy-round repor
 2. **Engine-enforced determinism** — the fabric derives/enforces the idempotency key
    rather than trusting an engine's self-declared `Determinism` (today: the reference
    `PureEngine` is pure by construction).
+   **ADDRESSED by RCR-012 (v1.1):** `invocation_key` (fabric-derived, content-addressable
+   ORCH-004 key) + `invoke_enforced` (key verification + a double-invoke probe refusing a
+   false `Deterministic` declaration), enforced on the bridge's real invoke path. The
+   probe is honestly a probe, not a proof — see `runtime/rcr/RCR-012.md`.
 3. **Kernel batch-commit** — atomic multi-effect / multi-shard commit (today: single-effect
    invocations are all-or-nothing; multi-effect effects are independent idempotent truths).
 
