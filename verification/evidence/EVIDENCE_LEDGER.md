@@ -42,7 +42,7 @@ destroy-offices workflow.
 | Rust↔Python differential (encode + decode) | Differential, Independent | L3 | G1 | PASS | 13807 inputs, 0 hard divergences | `python verification/differential/acs002_differential_fuzz.py` <!-- probe:differential -->
 | Independent **TypeScript** runtime (cold, Kit-only) | Independent | L3 | G1 | PASS | positive 12/12 + 16 core+nfc | `node verification/independent/typescript/src/conformance.mjs` <!-- probe:ts-golden -->
 | Rust workspace tests (I1 runtime + gates + ACS + bridge) | Behaviour, Formal | L2 | G0 | PASS | 81 tests passed | `cargo test --manifest-path runtime/Cargo.toml --workspace` | <!-- probe:rust-workspace -->
-| **Sound runtime verification** (non-gameable; grader owns the truth, gap B3) | Certification, Integrity | L2 | G1 | PASS | published 12/12, fresh 3/3, core-reject 16/16, accept 3/3 -> SOUND-CERTIFIED | `python verification/certification/verify_runtime_sound.py` <!-- probe:sound-certified -->
+| **Sound runtime verification** (non-gameable; grader owns the truth, gap B3) | Certification, Integrity | L2 | G1 | PASS | published 12/12, fresh 3/3, core 16/16, accept 3/3, semantic env 7/7 inst 8/8 lang 4/4 -> SOUND-CERTIFIED (full surface) | `python verification/certification/verify_runtime_sound.py` | <!-- probe:sound-certified -->
 
 **Reason for A.1 note (`--check` drift gate).** A prior header claimed *all 17 Section A
 rows* were probe-regenerated and "cannot drift"; the probe in fact ran only 7 (audit

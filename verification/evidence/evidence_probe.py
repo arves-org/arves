@@ -167,15 +167,20 @@ def probe():
     #    it here puts the flagship survivability check INSIDE the drift-proof loop.
     rc, out = run([sys.executable, SOUND])
     m = re.search(r"published\s+(\d+)/(\d+)\s+fresh\s+(\d+)/(\d+)\s+core-reject\s+(\d+)/(\d+)\s+accept\s+(\d+)/(\d+)", out)
-    r = Row("sound-certified", "Sound runtime verification (non-gameable, grader owns truth)",
+    sm = re.search(r"semantic:\s+envelope\s+(\d+)/(\d+)\s+instance\s+(\d+)/(\d+)\s+language\s+(\d+)/(\d+)", out)
+    r = Row("sound-certified", "Sound runtime verification (non-gameable, full ACS-001..005 surface)",
             "Certification+Integrity", "L2", "G1",
             "python verification/certification/verify_runtime_sound.py")
-    r.ok = rc == 0 and "SOUND-CERTIFIED" in out
-    if m:
-        r.metric = ("published %s/%s, fresh %s/%s, core-reject %s/%s, accept %s/%s -> SOUND-CERTIFIED"
-                    % m.groups()) if r.ok else "NOT CERTIFIED"
+    # Require the FULL-surface verdict (rank 1): the probe fails if the gate degrades to core-only
+    # for the reference runtimes, so the drift-proof ledger reflects that the gate attests the whole
+    # standard (envelope/instance/language), not just the ACS-002 byte layer.
+    r.ok = rc == 0 and "SOUND-CERTIFIED (full ACS-001..005 surface)" in out and bool(sm)
+    if r.ok and m and sm:
+        r.metric = ("published %s/%s, fresh %s/%s, core %s/%s, accept %s/%s, semantic env %s/%s inst %s/%s lang %s/%s -> SOUND-CERTIFIED (full surface)"
+                    % (m.group(1), m.group(2), m.group(3), m.group(4), m.group(5), m.group(6), m.group(7), m.group(8),
+                       sm.group(1), sm.group(2), sm.group(3), sm.group(4), sm.group(5), sm.group(6)))
     else:
-        r.metric = "SOUND-CERTIFIED" if r.ok else "NOT CERTIFIED"
+        r.metric = "NOT full-surface SOUND-CERTIFIED"
     rows.append(r)
 
     return rows

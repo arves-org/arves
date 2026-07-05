@@ -153,7 +153,7 @@ def main():
         p, pt = r["positive"]
         c, ct = r["negative_core"]
         print(f"  {r['runtime']:<28} positive {p}/{pt}  core-reject {c}/{ct}  ->  "
-              f"{'CERTIFIED' if r['certified'] else 'NOT CERTIFIED'}")
+              f"{'CERTIFIED (ACS-002 core)' if r['certified'] else 'NOT CERTIFIED'}")
     avail = [r for r in records if not r.get("unavailable")]
     all_certified = len(avail) > 0 and all(r["certified"] for r in avail)
     print("-" * 66)
@@ -166,7 +166,10 @@ def main():
     # RUNTIME_AUTHORS_GUIDE contract, which receives the answer key and does not recompute;
     # a hollow echo adapter can pass it. The non-gameable check is verify_runtime_sound.py.
     print("  Certified by the Standard + this harness alone — no maintainer required.")
-    print("  (Soundness note: verify_runtime_sound.py re-grades non-gameably — see G2_READINESS.md B3.)")
+    print("  SCOPE: this harness grades the ACS-002 core interop layer (positive + core-reject).")
+    print("  The FULL ACS-001..005 surface — incl. the ACS-003/004/005 semantic reject tiers —")
+    print("  is graded NON-GAMEABLY by verify_runtime_sound.py (a full-surface SOUND-CERTIFIED is")
+    print("  the CHALLENGE.md win-condition; see G2_READINESS.md B3). Run it next.")
     return 0 if all_certified else 1
 
 
