@@ -171,3 +171,70 @@ fn behaviour_8_two_tenant_isolation() {
     assert!(!contains_bytes(&snap_acme, b"globex-secret"), "SHARD-001: acme snapshot leaked globex data");
     assert!(!contains_bytes(&snap_globex, b"acme-secret"), "SHARD-001: globex snapshot leaked acme data");
 }
+
+/// Behaviour 9 (RCR-013): same-shard atomic batch commit — all-or-nothing across the
+/// validation class; idempotent duplicates resolve, never fork; cross-shard refused
+/// up front (IDR-004: multi-shard intent is a saga, not a commit).
+#[test]
+fn behaviour_9_batch_commit_atomic_validation() {
+    use arves_kernel::{BatchError, BatchOutcome};
+
+    // (a) A clean batch commits every proposal; outcomes are ordered and fresh.
+    let k = MemKernel::new(MemWalStore::new());
+    let out = k
+        .commit_batch(vec![proposal(b"c1", b"p1"), proposal(b"c2", b"p2"), proposal(b"c3", b"p3")])
+        .expect("clean batch commits");
+    assert_eq!(out.len(), 3);
+    assert!(out.iter().all(|o: &BatchOutcome| o.fresh));
+    assert_eq!(k.committed_count(), 3);
+
+    // (b) Re-batching the same proposals is IDEMPOTENT (ORCH-004): same truths, fresh=false.
+    let again = k
+        .commit_batch(vec![proposal(b"c1", b"p1"), proposal(b"c2", b"p2")])
+        .expect("idempotent re-batch resolves");
+    assert!(again.iter().all(|o| !o.fresh));
+    assert_eq!(again[0].truth, out[0].truth);
+    assert_eq!(k.committed_count(), 3, "no duplicate truth from a re-batch");
+
+    // (c) ALL-OR-NOTHING: a batch whose LAST entry forks committed truth (same address,
+    // different payload — RCR-005 content-integrity) commits NOTHING, including the
+    // valid entries before it.
+    let before = k.committed_count();
+    match k.commit_batch(vec![proposal(b"c9", b"fresh"), proposal(b"c1", b"DIFFERENT")]) {
+        Err(BatchError::Refused { index, cause: CommitError::ContentIntegrity { .. } }) => {
+            assert_eq!(index, 1);
+        }
+        other => panic!("expected Refused/ContentIntegrity, got {other:?}"),
+    }
+    assert_eq!(k.committed_count(), before, "nothing from the refused batch was applied");
+
+    // (d) An INTRA-batch fork (one address, two different payloads inside the batch)
+    // is refused up front — nothing applied.
+    match k.commit_batch(vec![proposal(b"cx", b"a"), proposal(b"cx", b"b")]) {
+        Err(BatchError::Refused { index: 1, cause: CommitError::ContentIntegrity { .. } }) => {}
+        other => panic!("expected intra-batch ContentIntegrity refusal, got {other:?}"),
+    }
+    assert_eq!(k.committed_count(), before);
+
+    // (e) An intra-batch IDENTICAL duplicate is lawful: the second entry resolves
+    // idempotently to the first's truth (fresh=false), never a fork.
+    let dup = k
+        .commit_batch(vec![proposal(b"cd", b"same"), proposal(b"cd", b"same")])
+        .expect("identical duplicate resolves");
+    assert!(dup[0].fresh && !dup[1].fresh);
+    assert_eq!(dup[0].truth, dup[1].truth);
+
+    // (f) Cross-shard batches are refused (IDR-004: saga, never a single commit).
+    let other_shard = ProposedWrite {
+        shard: ShardKey { tenant: "t2".into(), workspace: "w1".into() },
+        content: ContentHash(b"c1".to_vec()),
+        payload: b"p1".to_vec(),
+    };
+    match k.commit_batch(vec![proposal(b"ca", b"pa"), other_shard]) {
+        Err(BatchError::CrossShard { index: 1, .. }) => {}
+        other => panic!("expected CrossShard refusal, got {other:?}"),
+    }
+
+    // (g) The empty batch is a lawful no-op.
+    assert_eq!(k.commit_batch(Vec::new()).expect("empty batch"), Vec::new());
+}

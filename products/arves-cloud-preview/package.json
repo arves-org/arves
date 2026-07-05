@@ -1,0 +1,16 @@
+{
+  "name": "@arves/cloud-preview",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Cloud Platform (P8) PREVIEW — a local multi-tenant HTTP gateway in front of the real reference Kernel: one-world ContentIds over HTTP, per-tenant idempotency via process isolation, hard input hygiene. NOT a deployed SaaS; no auth, no TLS, no durability across restart.",
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (SDK KernelBridge -> arves-bridge -> real Kernel) — FROZEN",
+    "modifiesRuntime": false,
+    "proves": ["hosted access to the real Kernel", "one-world identity over HTTP", "universal content addressing across tenants", "per-tenant idempotency + isolated truth", "hard input hygiene"],
+    "rcrCandidates": ["bridge: shard selection per request (SHARD-001 native tenancy)", "bridge: durable WAL store option"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": { "demo": "node examples/cloud-day.mjs", "test": "node cloud.test.mjs" }
+}

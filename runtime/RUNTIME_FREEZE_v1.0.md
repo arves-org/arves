@@ -116,7 +116,14 @@ While building products, if the runtime is found lacking:
 > (key verification + a double-invoke probe that REFUSES a false `Determinism::Deterministic`
 > declaration instead of trusting it); the bridge invokes engines only through it, so refusal
 > happens BEFORE any effect reaches the Kernel; new LAYER-001-legal downward edge
-> engine-fabric→acs; closes v1.1 backlog item 2; additive, `cargo test --workspace` 91→**97/0**).
+> engine-fabric→acs; closes v1.1 backlog item 2; additive, `cargo test --workspace` 91→**97/0**),
+> **RCR-013** (same-shard **atomic batch commit** — `RefKernel::commit_batch` validates the whole
+> batch first (cross-shard refused per IDR-004 saga rule; content-integrity forks against
+> committed truth AND intra-batch forks refuse the WHOLE batch, zero applied) then applies through
+> the identical single-commit gateway under one lock; identical duplicates resolve idempotently
+> (`fresh:false`), never fork; honest boundary — a mid-apply host I/O failure surfaces loudly as
+> `PartialApply` (WAL-transactional apply is I2/Raft work); frozen `Kernel` trait untouched; closes
+> v1.1 backlog item 3; additive, `cargo test --workspace` 97→**98/0**).
 
 ## Organization (three teams, three mandates)
 
@@ -145,6 +152,10 @@ Recorded, important, and explicitly NOT blocking P4 (per the destroy-round repor
    probe is honestly a probe, not a proof — see `runtime/rcr/RCR-012.md`.
 3. **Kernel batch-commit** — atomic multi-effect / multi-shard commit (today: single-effect
    invocations are all-or-nothing; multi-effect effects are independent idempotent truths).
+   **ADDRESSED by RCR-013 (v1.1) for the same-shard half:** `RefKernel::commit_batch` is
+   all-or-nothing across the validation class under one lock. The multi-SHARD half is
+   deliberately NOT a commit — IDR-004 rules cross-shard intent a saga; that path is I2+
+   (per-shard Raft) work. See `runtime/rcr/RCR-013.md`.
 
 ### Added by the Build Program Closure Audit (2026-07) — RCR-tracked
 

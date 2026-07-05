@@ -674,6 +674,19 @@ impl<S: WalStore> RefKernel<S> {
 impl<S: WalStore> Kernel for RefKernel<S> {
     fn commit(&self, proposed: ProposedWrite) -> Result<TruthRef, CommitError> {
         let mut state = self.state.lock().expect("state poisoned");
+        Self::commit_inner(&mut state, &self.store, proposed)
+    }
+}
+
+impl<S: WalStore> RefKernel<S> {
+    /// The single-proposal commit body, factored so [`Kernel::commit`] and
+    /// [`RefKernel::commit_batch`] (RCR-013) run the IDENTICAL gateway logic under
+    /// one caller-held state lock — batch is not a second, divergent commit path.
+    fn commit_inner(
+        state: &mut KernelState,
+        store: &S,
+        proposed: ProposedWrite,
+    ) -> Result<TruthRef, CommitError> {
         let key = (
             proposed.shard.tenant.clone(),
             proposed.shard.workspace.clone(),
@@ -696,7 +709,7 @@ impl<S: WalStore> Kernel for RefKernel<S> {
             return Err(CommitError::AlreadyCommitted(existing_tr.clone()));
         }
         let pshard = to_pshard(&proposed.shard);
-        let mut wal = self.store.open(&pshard).map_err(|e| CommitError::Rejected {
+        let mut wal = store.open(&pshard).map_err(|e| CommitError::Rejected {
             reason: format!("wal open: {e:?}"),
         })?;
         let offset = wal
@@ -719,5 +732,128 @@ impl<S: WalStore> Kernel for RefKernel<S> {
         state.committed.push((tr.clone(), proposed.payload));
         state.index.insert(key, pos);
         Ok(tr)
+    }
+}
+
+// =============================================================================
+// RCR-013 — same-shard atomic batch commit (v1.1 backlog item 3).
+// =============================================================================
+
+/// One outcome inside a successful [`RefKernel::commit_batch`]: the truth and whether
+/// it was newly committed (`fresh`) or resolved to already-existing truth (ORCH-004).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchOutcome {
+    /// The (new or pre-existing) committed truth.
+    pub truth: TruthRef,
+    /// `true` iff this batch entry created the truth; `false` = idempotent resolve.
+    pub fresh: bool,
+}
+
+/// Why a [`RefKernel::commit_batch`] did not commit the whole batch.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BatchError {
+    /// The batch mixes shards. There is **no cross-shard atomic commit** (IDR-004:
+    /// multi-shard intent is a saga, never a single commit) — refused up front,
+    /// nothing applied.
+    CrossShard {
+        /// The batch's shard (from its first proposal).
+        expected: ShardKey,
+        /// The differing shard found at `index`.
+        found: ShardKey,
+        /// Index of the offending proposal.
+        index: usize,
+    },
+    /// Validation refused the batch — **nothing was applied** (all-or-nothing over
+    /// the whole validation class: a content-integrity fork against committed truth,
+    /// or two batch entries binding the same address to different payloads).
+    Refused {
+        /// Index of the offending proposal.
+        index: usize,
+        /// The underlying refusal.
+        cause: CommitError,
+    },
+    /// A WAL append failed mid-apply (host-level I/O). The `applied` prefix IS
+    /// durable truth (each entry passed the full gateway); the remainder was not
+    /// attempted. Surfaced loudly — the batch does not pretend to be a WAL
+    /// transaction (see the honesty note on [`RefKernel::commit_batch`]).
+    PartialApply {
+        /// Outcomes for the prefix that committed before the failure.
+        applied: Vec<BatchOutcome>,
+        /// Index of the proposal whose append failed.
+        index: usize,
+        /// The underlying failure.
+        cause: CommitError,
+    },
+}
+
+impl<S: WalStore> RefKernel<S> {
+    /// Commit several proposals to ONE shard as a batch — **all-or-nothing across
+    /// the validation class** (RCR-013, v1.1 backlog item 3).
+    ///
+    /// Under a single state lock (no interleaving with other commits):
+    ///
+    /// 1. **Validate (no mutation):** every proposal must target the batch's shard
+    ///    (cross-shard intent is a saga per IDR-004 — [`BatchError::CrossShard`]);
+    ///    no proposal may fork committed truth (RCR-005 content-integrity) or bind
+    ///    the same address to two different payloads *within* the batch
+    ///    ([`BatchError::Refused`], nothing applied).
+    /// 2. **Apply:** each proposal runs the IDENTICAL single-commit gateway logic
+    ///    (`commit_inner`). An identical duplicate (pre-committed or intra-batch)
+    ///    resolves idempotently to `fresh: false` (ORCH-004), never a fork.
+    ///
+    /// **Honest atomicity boundary:** the all-or-nothing guarantee covers the entire
+    /// validation class — the failure modes a caller can *cause*. A mid-apply WAL
+    /// **I/O** failure (host-level) leaves the already-appended prefix as durable
+    /// truth and is surfaced loudly as [`BatchError::PartialApply`]; the reference
+    /// WAL has no multi-record transaction primitive to roll a prefix back. Making
+    /// the apply phase itself transactional is consensus-era work (I2: a Raft log
+    /// entry naturally carries a batch) — recorded in `runtime/rcr/RCR-013.md`.
+    pub fn commit_batch(&self, proposals: Vec<ProposedWrite>) -> Result<Vec<BatchOutcome>, BatchError> {
+        if proposals.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut state = self.state.lock().expect("state poisoned");
+
+        // ---- Phase 1: validate everything before touching anything. ----
+        let shard = proposals[0].shard.clone();
+        let mut in_batch: HashMap<&[u8], &[u8]> = HashMap::new();
+        for (i, p) in proposals.iter().enumerate() {
+            if p.shard != shard {
+                return Err(BatchError::CrossShard { expected: shard, found: p.shard.clone(), index: i });
+            }
+            // Intra-batch fork: same address, different payload inside ONE batch.
+            match in_batch.get(p.content.0.as_slice()) {
+                Some(prev) if *prev != p.payload.as_slice() => {
+                    return Err(BatchError::Refused {
+                        index: i,
+                        cause: CommitError::ContentIntegrity { shard: p.shard.clone() },
+                    });
+                }
+                _ => {
+                    in_batch.insert(p.content.0.as_slice(), p.payload.as_slice());
+                }
+            }
+            // Fork against already-committed truth (RCR-005) — refuse the WHOLE batch.
+            let key = (p.shard.tenant.clone(), p.shard.workspace.clone(), p.content.0.clone());
+            if let Some(&pos) = state.index.get(&key) {
+                if state.committed[pos].1 != p.payload {
+                    return Err(BatchError::Refused {
+                        index: i,
+                        cause: CommitError::ContentIntegrity { shard: p.shard.clone() },
+                    });
+                }
+            }
+        }
+
+        // ---- Phase 2: apply through the identical single-commit gateway. ----
+        let mut out = Vec::with_capacity(proposals.len());
+        for (i, p) in proposals.into_iter().enumerate() {
+            match Self::commit_inner(&mut state, &self.store, p) {
+                Ok(truth) => out.push(BatchOutcome { truth, fresh: true }),
+                Err(CommitError::AlreadyCommitted(truth)) => out.push(BatchOutcome { truth, fresh: false }),
+                Err(cause) => return Err(BatchError::PartialApply { applied: out, index: i, cause }),
+            }
+        }
+        Ok(out)
     }
 }
