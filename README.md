@@ -96,6 +96,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
 ## Build on ARVES
 
 - **Understand why** → [WHY_ARVES.md](WHY_ARVES.md) — the manifesto (start here)
+- **What's left to *truly done*** → [ARVES_COMPLETION_MAP.md](ARVES_COMPLETION_MAP.md) — the 5 chapters (2 done; the rest gated on a third-party runtime + real adoption)
 - **Use it** → [QUICKSTART.md](QUICKSTART.md)
 - **Build & certify your OWN runtime — the open G2 challenge** → [IMPLEMENTING_ARVES.md](IMPLEMENTING_ARVES.md) (cold-start packet) · [CHALLENGE.md](CHALLENGE.md) (the invitation + how to submit) · [CERTIFY_YOUR_RUNTIME.md](verification/certification/CERTIFY_YOUR_RUNTIME.md) (the copy-paste last mile + `--self-test`)
 - **Publish a capability** → [products/arves-ecosystem-sdk/](products/arves-ecosystem-sdk/)
