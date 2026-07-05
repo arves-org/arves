@@ -81,7 +81,7 @@
 
 | Item | Instrument | Status |
 |------|-----------|--------|
-| Complete `RELEASING.md` (CODE_OF_CONDUCT / SECURITY / public org) + PUBLISH | EXT | **Technical pre-conditions now MET** — ranks 1 (sound gate full-surface), 2, 3, and **15** (certify-YOUR-runtime path) are all CLOSED, so the "never publish an under-attesting gate" bar is cleared. PUBLISH itself stays **maintainer-gated**: it needs the maintainer's explicit go + a chosen public org/namespace, and is irreversible (external distribution). Not something the engineering arm does unilaterally. |
+| Complete `RELEASING.md` (CODE_OF_CONDUCT / SECURITY / public org) + PUBLISH | EXT | **All prep DONE except the two irreversible maintainer acts.** Ranks 1/2/3/15 CLOSED (gate is full-surface, not under-attesting); `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) + `SECURITY.md` (honest v1.0 trusted-single-host threat model) now present at root; RELEASING checklist refreshed + green (robustness 49/49, workspace 87/0, probe 12/12, capstone PASS, freeze 266/0). **The ONLY remaining pre-publish items are the maintainer's:** (a) set the private contact address (one marked field in COC/SECURITY, or use GitHub private reporting), (b) **pick the public GitHub org/name**, (c) push + enable Pages + cut the release. All irreversible; the engineering arm does not do them unilaterally. |
 | Distribute CHALLENGE + recognition path + leading-indicator funnel (fetches→attempts→self-check→submissions→G2) | EXT | OPEN (rank 18) |
 
 ---

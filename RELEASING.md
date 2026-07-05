@@ -15,15 +15,18 @@ Verify green, then publish. Every command below runs offline, no keys:
   `node tools/build_docs_site.mjs` regenerates the site and runs a **build-time link-gate** that
   fails (non-zero exit) on any broken in-site relative link; the checklist is green only when that
   build exits 0 (`link-gate: OK — 0 broken links`).
-- [x] **Green:** `node products/robustness.test.mjs` (46/46) ·
-  `cargo test --manifest-path runtime/Cargo.toml --workspace` (81/0) ·
+- [x] **Green:** `node products/robustness.test.mjs` (49/49) ·
+  `cargo test --manifest-path runtime/Cargo.toml --workspace` (87/0) ·
   `python verification/certification/certify_runtime.py` (2/2) ·
-  `python verification/evidence/evidence_probe.py` (9/9) ·
+  `python verification/evidence/evidence_probe.py` (12/12) ·
   `python verification/certification/verify_runtime_sound.py` (2/2 SOUND-CERTIFIED full surface) ·
-  `python verification/freeze/freeze_check.py check` (0 drift).
-- [ ] **`CODE_OF_CONDUCT.md` + `SECURITY.md`** — standard community/security-policy files
-  (a maintainer action; outward-facing policy, not code).
-- [ ] **Pick the public GitHub org/name.**
+  `node products/organization-day.capstone.mjs` (CAPSTONE PASS) ·
+  `python verification/freeze/freeze_check.py check` (0 drift, 266 files).
+- [x] **`CODE_OF_CONDUCT.md` + `SECURITY.md`** — present at the repo root (Contributor Covenant 2.1;
+  security policy stating the honest v1.0 trusted-single-host threat model). **One field left for the
+  maintainer:** set the private contact address (marked `<!-- maintainer: set … -->` in both files),
+  or rely on GitHub private reporting.
+- [ ] **Pick the public GitHub org/name.** *(maintainer decision — the only remaining pre-publish item)*
 
 ## Publish
 
