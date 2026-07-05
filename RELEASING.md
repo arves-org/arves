@@ -26,7 +26,10 @@ Verify green, then publish. Every command below runs offline, no keys:
   security policy stating the honest v1.0 trusted-single-host threat model). **One field left for the
   maintainer:** set the private contact address (marked `<!-- maintainer: set … -->` in both files),
   or rely on GitHub private reporting.
-- [ ] **Pick the public GitHub org/name.** *(maintainer decision — the only remaining pre-publish item)*
+- [x] **Pick the public GitHub org/name.** — **DONE (2026-07-05): `arves-org/arves`.** Published:
+  repo public (`main` + 12 tags) · release `arves-build-v1.0` · Pages live at
+  `https://arves-org.github.io/arves/` (link-gated deploy) · all 5 CI gates green on a clean
+  clone · freeze job **Required** on `main`.
 
 ## Publish
 
