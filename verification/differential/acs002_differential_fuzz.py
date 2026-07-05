@@ -1,21 +1,24 @@
 """
-ARVES ACS-002 differential fuzzer — Rust reference vs. independent Python.
+ARVES ACS-002 differential fuzzer — 3-way: Rust reference vs independent Python vs independent TypeScript.
 
-Verification Office harness (NOT part of the independent authoring — it drives both
+Verification Office harness (NOT part of the independent authoring — it drives three
 finished decoders). It generates a large, deterministic corpus of candidate bodies
 (canonical values, byte-level mutations of them, and random byte strings), feeds the
-SAME bytes to:
-  - the Rust reference decoder via `runtime/target/debug/acs_decode` (line protocol:
-    ACCEPT<TAB>reencoded_hex | REJECT<TAB>reason | ERR<TAB>bad-hex), and
-  - the independent Python decoder `acs002_decode.decode` (Kit-only authorship),
-and asserts they AGREE on the interop-critical property: ACCEPT vs REJECT, and — on
-ACCEPT — identical canonical re-encoding.
+SAME bytes to all three, and asserts they AGREE on the interop-critical property:
+ACCEPT vs REJECT, and — when they all ACCEPT — identical canonical re-encoding.
+  - Rust reference   — `runtime/target/debug/acs_decode` (line protocol:
+    ACCEPT<TAB>reencoded_hex | REJECT<TAB>reason | ERR<TAB>bad-hex),
+  - independent Python — `acs002_decode.decode` (Kit-only authorship, in-process),
+  - independent TypeScript — `typescript/src/decode_lines.mjs` (Kit-only authorship, same
+    line protocol as the Rust bin; core mode / nfc DEFERRED).
 
-The single documented asymmetry is the ACS-002 nfc-tier deferral: the dependency-free
-Rust reference ACCEPTS non-NFC text while the Python (stdlib unicodedata) REJECTS it
-as `non-nfc-text`. That specific pair is classified NFC-DEFERRAL, not a divergence.
-Any other accept/reject disagreement, or a reencode-byte disagreement, is a hard
-DIVERGENCE and fails the run.
+The single documented asymmetry is the ACS-002 nfc-tier deferral: the dependency-free Rust
+reference AND the TypeScript codec (core mode) ACCEPT non-NFC text, while the Python (stdlib
+`unicodedata`) REJECTS it as `non-nfc-text`. A mixed verdict whose every REJECT is exactly
+`non-nfc-text` is classified NFC-DEFERRAL, not a divergence. Any OTHER accept/reject
+disagreement, or a reencode-byte disagreement among the accepters, is a hard DIVERGENCE and
+fails the run. (Reason codes on an all-REJECT input are reported but not required to match —
+multi-defect inputs can reject for different, equally-correct reasons.)
 
 Deterministic: fixed RNG seed, so the corpus and verdict are reproducible.
 Run: python verification/differential/acs002_differential_fuzz.py
@@ -32,6 +35,7 @@ PYDIR = os.path.join(ROOT, "verification", "independent", "python")
 RUST_BIN = os.path.join(ROOT, "runtime", "target", "debug", "acs_decode.exe")
 if not os.path.exists(RUST_BIN):
     RUST_BIN = os.path.join(ROOT, "runtime", "target", "debug", "acs_decode")
+TS_DRIVER = os.path.join(ROOT, "verification", "independent", "typescript", "src", "decode_lines.mjs")
 
 sys.path.insert(0, PYDIR)
 from acs002_dcbor import AInt, AFloat, encode          # noqa: E402  (our own encoder)
@@ -158,6 +162,21 @@ def rust_verdicts(corpus):
     return out
 
 
+def ts_verdicts(corpus):
+    payload = "\n".join(b.hex() for b in corpus) + "\n"
+    p = subprocess.run(["node", TS_DRIVER], input=payload.encode("ascii"),
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    lines = p.stdout.decode("ascii").splitlines()
+    if len(lines) != len(corpus):
+        sys.exit("TS harness returned %d lines for %d inputs (stderr: %s)"
+                 % (len(lines), len(corpus), p.stderr.decode("utf-8", "replace")[:300]))
+    out = []
+    for ln in lines:
+        kind, _, rest = ln.partition("\t")
+        out.append((kind, rest))
+    return out
+
+
 def py_verdict(b):
     try:
         v = decode(b)
@@ -171,56 +190,65 @@ def py_verdict(b):
 def main():
     corpus, n_canon = build_corpus()
     rust = rust_verdicts(corpus)
+    ts = ts_verdicts(corpus)
 
-    aa = rr = 0
+    reencode_ok = all_reject = 0
     reason_match = reason_mismatch = 0
     reason_diff_samples = []
     nfc_deferral = 0
     divergences = []
-    pyerrs = []
 
-    for b, (rk, rv) in zip(corpus, rust):
+    for b, (rk, rv), (tk, tv) in zip(corpus, rust, ts):
         pk, pv = py_verdict(b)
-        if pk == "PYERR":
-            pyerrs.append((b.hex(), pv))
-            divergences.append((b.hex(), "PYERR", "rust=%s/%s py=%s" % (rk, rv, pv)))
+        arms = {"rust": (rk, rv), "py": (pk, pv), "ts": (tk, tv)}
+        # An arm that neither cleanly ACCEPTed nor REJECTed (PYERR / ERR / crash) is a hard finding.
+        errs = [(n, k, v) for n, (k, v) in arms.items() if k not in ("ACCEPT", "REJECT")]
+        if errs:
+            divergences.append((b.hex(), "ARM-ERROR", "; ".join("%s=%s/%s" % e for e in errs)))
             continue
-        if rk == "ACCEPT" and pk == "ACCEPT":
-            aa += 1
-            if rv != pv:
-                divergences.append((b.hex(), "REENCODE", "rust=%s py=%s" % (rv, pv)))
-        elif rk == "REJECT" and pk == "REJECT":
-            rr += 1
-            if rv == pv:
+        accepts = {n: v for n, (k, v) in arms.items() if k == "ACCEPT"}
+        rejects = {n: v for n, (k, v) in arms.items() if k == "REJECT"}
+        if not rejects:                                   # all three ACCEPT
+            if len(set(accepts.values())) == 1:
+                reencode_ok += 1
+            else:
+                divergences.append((b.hex(), "REENCODE", " ".join("%s=%s" % kv for kv in accepts.items())))
+        elif not accepts:                                 # all three REJECT
+            all_reject += 1
+            if len(set(rejects.values())) == 1:
                 reason_match += 1
             else:
                 reason_mismatch += 1
                 if len(reason_diff_samples) < 15:
-                    reason_diff_samples.append((b.hex(), rv, pv))
-        elif rk == "ACCEPT" and pk == "REJECT" and pv == "non-nfc-text":
-            nfc_deferral += 1                       # documented ACS-002 nfc-tier deferral
-        else:
-            divergences.append((b.hex(), "ACCEPT/REJECT", "rust=%s/%s py=%s/%s" % (rk, rv, pk, pv)))
+                    reason_diff_samples.append((b.hex(), dict(rejects)))
+        else:                                             # mixed accept/reject
+            if all(r == "non-nfc-text" for r in rejects.values()):
+                nfc_deferral += 1                         # documented ACS-002 nfc-tier deferral
+                if len(set(accepts.values())) != 1:       # the accepters must still agree on bytes
+                    divergences.append((b.hex(), "REENCODE(nfc)", " ".join("%s=%s" % kv for kv in accepts.items())))
+            else:
+                divergences.append((b.hex(), "ACCEPT/REJECT",
+                                    " ".join("%s=%s/%s" % (n, k, v) for n, (k, v) in arms.items())))
 
     total = len(corpus)
-    print("ARVES ACS-002 Differential Fuzz — Rust reference vs independent Python")
+    print("ARVES ACS-002 Differential Fuzz — 3-way: Rust reference vs independent Python vs independent TypeScript")
     print("  seed=%d  inputs=%d (canonical bodies=%d, +mutations, +random)" % (SEED, total, n_canon))
-    print("  ACCEPT/ACCEPT (reencode identical): %d" % aa)
-    print("  REJECT/REJECT                     : %d  (reason match %d, reason differ %d)"
-          % (rr, reason_match, reason_mismatch))
-    print("  nfc-tier deferral (Rust ACCEPT / Py REJECT non-nfc-text): %d" % nfc_deferral)
+    print("  ACCEPT (all 3, reencode identical): %d" % reencode_ok)
+    print("  REJECT (all 3)                    : %d  (reason match %d, reason differ %d)"
+          % (all_reject, reason_match, reason_mismatch))
+    print("  nfc-tier deferral (Rust/TS ACCEPT / Py REJECT non-nfc-text): %d" % nfc_deferral)
     print("  hard divergences                  : %d" % len(divergences))
     if reason_diff_samples:
-        print("  --- reason-differ samples (both REJECT; interop-safe) ---")
-        for h, rv, pv in reason_diff_samples:
-            print("   %-28s rust=%-22s py=%s" % (h, rv, pv))
+        print("  --- reason-differ samples (all REJECT; interop-safe, reasons not required equal) ---")
+        for h, rd in reason_diff_samples:
+            print("   %-28s %s" % (h, " ".join("%s=%s" % kv for kv in rd.items())))
     if divergences:
         print("  --- first divergences ---")
         for h, kind, detail in divergences[:20]:
             print("   [%s] %s  %s" % (kind, h, detail))
     ok = len(divergences) == 0
-    print("VERDICT: %s" % ("DIFFERENTIAL PASS (no accept/reject or reencode disagreement)"
-                           if ok else "DIFFERENTIAL FAIL"))
+    print("VERDICT: %s" % ("3-WAY DIFFERENTIAL PASS (no accept/reject or reencode disagreement across Rust/Python/TypeScript)"
+                           if ok else "3-WAY DIFFERENTIAL FAIL"))
     return 0 if ok else 1
 
 

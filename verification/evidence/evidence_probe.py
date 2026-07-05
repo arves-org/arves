@@ -151,7 +151,7 @@ def probe():
     rc, out = run([sys.executable, FUZZ])
     div = re.search(r"hard divergences\s*:\s*(\d+)", out)
     tot = re.search(r"inputs=(\d+)", out)
-    r = Row("differential", "Rust<->Python differential (encode+decode)",
+    r = Row("differential", "3-way differential (Rust / Python / TypeScript, encode+decode)",
             "Differential+Independent", "L3", "G1",
             "python verification/differential/acs002_differential_fuzz.py")
     r.ok = rc == 0 and bool(div) and div.group(1) == "0"

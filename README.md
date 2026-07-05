@@ -75,10 +75,10 @@ Every bullet below is backed by a command you can run; independence is **graded*
 same-process/in-program, G2 = a genuine outside party with no help) and stated honestly.
 
 - **Interoperability** — 3 independent codec implementations (Rust / Python / TypeScript)
-  agree on the golden conformance vectors; the **Rust↔Python** pair is differentially
-  fuzzed (13,807 inputs, 0 divergences) at the ACS-002 byte layer, and the ACS-003/004/005
-  **semantic** reject surface is differential too (Rust-native vs Python, 62/62 cases agree).
-  A 3-way fuzz including TypeScript is on the v1.1 track.
+  agree on the golden conformance vectors and are **3-way differentially fuzzed** (13,807
+  inputs, 0 divergences: identical accept/reject across all three, byte-identical re-encode
+  on every accept) at the ACS-002 byte layer; the ACS-003/004/005 **semantic** reject surface
+  is differential too (Rust-native vs Python, 62/62 cases agree).
 - **Independent runtimes** — 2 runtimes (Rust + Python) certified against `standard/` alone over
   the **full ACS-001..005 surface** — `SOUND-CERTIFIED (full surface)`, incl. the ACS-003/004/005
   semantic reject tiers — by a maintainer-independent, non-gameable harness
