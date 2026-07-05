@@ -5,11 +5,11 @@
 # wiring them into CI turns "the author ran it" into "the branch cannot merge
 # unless it passes".
 #
-# HONEST STATUS: no CI host is provisioned yet (this repo has no git remote).
-# This file is therefore the GATE DEFINITION, not a green badge. When the repo
-# is hosted on GitHub, these jobs run as-is; pair with branch protection that
-# marks the `freeze` job "Required" so freeze drift is a HARD merge blocker
-# (freeze_check.py exits non-zero on drift, which fails the step and the job).
+# STATUS: LIVE as of the arves-org publish (2026-07) — these jobs run on GitHub-hosted
+# runners on every push/PR. Pair with branch protection that marks the `freeze` job
+# "Required" so freeze drift is a HARD merge blocker (freeze_check.py exits non-zero
+# on drift, which fails the step and the job). Freeze hashing is line-ending-
+# independent (CRLF->LF normalized), so Windows and Linux checkouts agree.
 #
 # Gates (all present in-repo):
 #   * freeze     — verification/freeze/freeze_check.py check    (HARD: drift => fail)
@@ -72,6 +72,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      # The product suites drive the REAL runtime through the bridge; a fresh runner
+      # has no prebuilt bins, so build them first (locally they already exist).
+      - name: Build the bridge (Runtime API bins)
+        run: cargo build --locked -p arves-bridge --manifest-path runtime/Cargo.toml
       - name: Run robustness test
         run: node products/robustness.test.mjs
 
@@ -99,7 +105,7 @@ jobs:
   # "Evidence Increased"; this keeps the ledger machine-checked).
   # --------------------------------------------------------------------------
   evidence:
-    name: Evidence probe
+    name: Evidence probe (drift gate)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -108,8 +114,21 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run evidence probe
-        run: python verification/evidence/evidence_probe.py
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      # The probe's 12 rows exercise the REAL runtime end-to-end (conformance bins,
+      # acs_validate, conformance_live, the bridge-backed capstone) — build the bins a
+      # fresh runner lacks. `--locked` pins the committed Cargo.lock.
+      - name: Build runtime bins (conformance + bridge)
+        run: cargo build --locked -p arves-conformance -p arves-bridge --manifest-path runtime/Cargo.toml
+      # --check (not regenerate): CI verifies the COMMITTED ledger cells match a fresh
+      # run — metric drift fails the job instead of being silently rewritten.
+      - name: Run evidence probe (drift check)
+        run: python verification/evidence/evidence_probe.py --check
 
   # --------------------------------------------------------------------------
   # RUST — reference runtime workspace test suite. Uses the committed

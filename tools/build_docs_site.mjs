@@ -157,6 +157,8 @@ const PAGES = [
   { section: 'Foundation', slug: 'implementing-arves', title: 'Implementing ARVES (cold-start)', src: 'IMPLEMENTING_ARVES.md' },
   { section: 'Foundation', slug: 'challenge', title: 'The G2 Challenge', src: 'CHALLENGE.md' },
   { section: 'Foundation', slug: 'closure', title: 'Build Program Closure', src: 'ARVES_BUILD_PROGRAM_CLOSURE.md' },
+  { section: 'Foundation', slug: 'completion-map', title: 'Completion Map (5 chapters)', src: 'ARVES_COMPLETION_MAP.md' },
+  { section: 'Platform', slug: 'certify-your-runtime', title: 'Certify YOUR Runtime', src: 'verification/certification/CERTIFY_YOUR_RUNTIME.md' },
   { section: 'Foundation', slug: 'rcr-001', title: 'RCR-001 (Runtime v1.1)', src: 'runtime/rcr/RCR-001.md' },
   { section: 'Foundation', slug: 'rcr-002', title: 'RCR-002 (truth-store integrity)', src: 'runtime/rcr/RCR-002.md' },
   { section: 'Foundation', slug: 'success', title: 'Success — the North Star', src: 'SUCCESS.md' },

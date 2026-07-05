@@ -51,7 +51,15 @@ def compute():
     out = {}
     for rel, p in iter_frozen_files():
         with open(p, "rb") as f:
-            out[rel] = hashlib.sha256(f.read()).hexdigest()
+            # Line-ending-independent hashing: normalize CRLF -> LF before hashing so the
+            # SAME content hashes identically on a Windows checkout (git autocrlf smudges
+            # text files to CRLF) and a Linux CI checkout (LF). Without this, 67 frozen
+            # files hashed differently across platforms and the CI freeze gate would
+            # report mass phantom drift on a clean clone. The normalization is a
+            # deterministic function of the bytes, applied uniformly (binaries too), so
+            # both platforms always agree; a REAL content edit still changes the hash —
+            # only a pure line-ending flip (exactly what git's smudge does) is invisible.
+            out[rel] = hashlib.sha256(f.read().replace(b"\r\n", b"\n")).hexdigest()
     return out
 
 

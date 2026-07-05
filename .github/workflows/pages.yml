@@ -1,0 +1,53 @@
+# ARVES — docs-site deployment (GitHub Pages)
+# =============================================================================
+# Deploys the self-contained static site under docs-site/ (92 pages: 42 primary
+# + 50 spec-mirror) to GitHub Pages via the Actions deployment path — Pages'
+# branch mode only serves / or /docs, and the site lives at docs-site/, so the
+# artifact route is the correct one (RELEASING.md step 2).
+#
+# The site is REBUILT here (not trusted from the committed copy) and the build's
+# LINK-GATE fails the deploy on any broken in-site relative link — a broken
+# front door never ships.
+# =============================================================================
+
+name: Deploy docs-site (GitHub Pages)
+
+"on":
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build (link-gated) + deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Rebuild site (link-gate HARD-fails on any broken in-site link)
+        run: node tools/build_docs_site.mjs
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

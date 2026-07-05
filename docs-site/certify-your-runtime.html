@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Certify YOUR Runtime · ARVES</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">ARVES</a>
+  <span class="badge">v1.0 · BUILD SEALED</span>
+  <input id="q" class="search" type="search" placeholder="Search the docs…" autocomplete="off">
+  <div id="results" class="results"></div>
+</header>
+<div class="layout">
+  <nav class="sidebar"><div class="nav-sec">Getting Started</div><a href="index.html">Home</a><a href="manifesto.html">Why ARVES Exists</a><a href="quickstart.html">Quickstart (10 min)</a><a href="why-arves.html">Why ARVES</a><a href="contributing.html">Contributing</a><a href="cli-reference.html">CLI Reference</a><a href="deploy.html">Deploy (Docker)</a><div class="nav-sec">Platform</div><a href="runtime.html">Runtime v1.0 (Frozen)</a><a href="standard.html">The Standard</a><a href="certification.html">Certification Program</a><a href="evidence.html">Evidence Ledger</a><a href="certify-your-runtime.html" class="active">Certify YOUR Runtime</a><a href="runtime-authors.html">Add Your Own Runtime (G2)</a><a href="spec-starter.html">Spec — Read These First</a><a href="acs-001.html">ACS-001 Content Addressing</a><a href="acs-002.html">ACS-002 Canonical Serialization</a><a href="acs-003.html">ACS-003 Canonical Envelope</a><a href="acs-004.html">ACS-004 Universal Type Registry</a><a href="acs-005.html">ACS-005 Normative Language</a><a href="acs-ratification.html">ACS Ratification (CCP-GATE)</a><div class="nav-sec">SDK & Ecosystem</div><a href="sdk.html">Developer SDK</a><a href="authoring-kit.html">Authoring Kit (arves CLI)</a><a href="marketplace.html">Marketplace</a><a href="reasoning.html">AI Capability SDK</a><a href="authoring-languages.html">Authoring Languages</a><div class="nav-sec">Products</div><a href="products.html">Products Overview</a><a href="personal-os.html">Personal Cognitive OS</a><a href="enterprise-os.html">Enterprise Cognitive OS</a><a href="cognitive-memory.html">Cognitive Memory</a><a href="agent-runtime.html">Agent Runtime</a><div class="nav-sec">Foundation</div><a href="foundation.html">Foundation</a><a href="implementing-arves.html">Implementing ARVES (cold-start)</a><a href="challenge.html">The G2 Challenge</a><a href="closure.html">Build Program Closure</a><a href="completion-map.html">Completion Map (5 chapters)</a><a href="rcr-001.html">RCR-001 (Runtime v1.1)</a><a href="rcr-002.html">RCR-002 (truth-store integrity)</a><a href="success.html">Success — the North Star</a><a href="failure.html">Why ARVES Could Fail</a><a href="releasing.html">Releasing (Growth Protocol)</a><a href="dx-baseline.html">Developer Journey (DX baseline)</a><div class="nav-sec">Specification</div><a href="spec.html">Specification Corpus</a></nav>
+  <main class="content"><h1 id="certify-your-runtime-the-copy-paste-last-mile">Certify YOUR runtime — the copy-paste last mile</h1>
+<blockquote><p><strong>Status:</strong> LIVING · NON-NORMATIVE. This page is the <em>operational</em> companion to the cold-start packet <a href="implementing-arves.html"><code>IMPLEMENTING_ARVES.md</code></a> and the invitation <a href="challenge.html"><code>CHALLENGE.md</code></a>. It changes nothing normative — <code>standard/</code> wins on any disagreement, and a disagreement is a docs bug to report. It assumes you have <strong>already built</strong> an ACS-001 addresser + ACS-002 canonical codec (and, for the full stamp, the ACS-003/004/005 validators) from <code>standard/</code> alone. This is only <em>how to run the graders against what you built.</em></p></blockquote>
+<p>You built a runtime. Here is the shortest honest path from "it works on my machine" to the <strong><code>SOUND-CERTIFIED (full ACS-001..005 surface)</code></strong> verdict that is the G2 win-condition — with <strong>zero contact with the authors</strong>.</p>
+<h2 id="two-verdicts-know-which-one-you-are-chasing">Two verdicts — know which one you are chasing</h2>
+<div class="table-wrap"><table><thead><tr><th>Command</th><th>What it proves</th><th>Gameable?</th></tr></thead><tbody><tr><td><code>certify_runtime.py</code></td><td><code>positive 12/12  core-reject 16/16 -&gt; CERTIFIED</code> — the ACS-002 interop <strong>format</strong></td><td><strong>Yes</strong> — it trusts your adapter's output (frozen <code>RUNTIME_AUTHORS_GUIDE</code> contract). Treat it as the verdict <em>shape</em>, not the proof.</td></tr><tr><td><strong><code>verify_runtime_sound.py</code></strong></td><td><strong><code>SOUND-CERTIFIED</code></strong> — the grader <strong>owns the truth</strong>: it recomputes every ContentId, probes <strong>fresh</strong> <code>(domain, body)</code> pairs not in the vectors, and injects valid bodies you <strong>must accept</strong></td><td><strong>No.</strong> A hollow echo of the published answers fails. <strong>This is the real proof and the CHALLENGE win-condition.</strong></td></tr></tbody></table></div>
+<p>Chase the second one. The first is a convenience that reports the same numbers.</p>
+<hr>
+<h2 id="path-1-zero-python-recommended-speak-three-line-protocols">Path 1 — zero Python (recommended): speak three line protocols</h2>
+<p>If your runtime can read a batch on <strong>stdin</strong> and write one answer <strong>per line</strong> to <strong>stdout</strong>, you write no Python at all. These are the exact protocols the reference bins already speak.</p>
+<div class="table-wrap"><table><thead><tr><th>Program</th><th>stdin (one per line)</th><th>stdout (one per line)</th></tr></thead><tbody><tr><td><strong>address</strong></td><td><code>&lt;domain_hex&gt; &lt;body_hex&gt;</code></td><td>a line whose <strong>first whitespace token</strong> is your <code>ContentId</code> hex = <code>0x12 0x20 ‖ SHA-256(domain_tag ‖ body)</code>. <code>ERR …</code>/blank = wrong answer.</td></tr><tr><td><strong>decode</strong></td><td><code>&lt;body_hex&gt;</code></td><td><code>ACCEPT</code> · <code>ACCEPT\t&lt;hex&gt;</code> · <code>REJECT\t&lt;reason&gt;</code> · <code>ERR\t…</code>. <code>&lt;reason&gt;</code> is your ACS-002 reason code, compared <strong>byte-for-byte</strong> to the vector.</td></tr><tr><td><strong>validate</strong> <em>(optional)</em></td><td><code>&lt;tier&gt;\t&lt;body_hex&gt;</code> (`tier ∈ envelope\</td><td>instance\</td><td>language`)</td><td><code>ACCEPT</code> · <code>REJECT\t&lt;kebab-reason-code&gt;</code>. Omit this program → the semantic tiers are <strong>DEFERRED</strong> (you earn the labeled core stamp, not the full one).</td></tr></tbody></table></div>
+<p>Then run the driver — it grades you through the <strong>non-gameable</strong> grader and prints your verdict:</p>
+<pre><code class="lang-bash">python verification/certification/certify_your_runtime.py \
+    --addr    "./my-runtime address" \
+    --decode  "./my-runtime decode" \
+    --validate "./my-runtime validate"     # omit for the ACS-002-core-only stamp</code></pre>
+<p><strong>See a real pass first.</strong> Build the reference bins and grade <em>them</em> through the identical vendor path — this proves the driver is real and shows you exactly what green looks like:</p>
+<pre><code class="lang-bash">cargo build -p arves-conformance -p arves-bridge --manifest-path runtime/Cargo.toml
+python verification/certification/certify_your_runtime.py --self-test
+#  ARVES Rust (reference, via vendor path) published 12/12  fresh 3/3  core-reject 16/16
+#     accept 3/3  -&gt;  SOUND-CERTIFIED (full ACS-001..005 surface)
+#     semantic: envelope 7/7  instance 8/8  language 4/4  accept 3/3</code></pre>
+<p>Exit code: <code>0</code> = SOUND-CERTIFIED · <code>1</code> = graded but not certified · <code>2</code> = not configured.</p>
+<hr>
+<h2 id="path-2-in-process-your-runtime-is-importable-from-python">Path 2 — in-process (your runtime is importable from Python)</h2>
+<p>Import the grader and pass it three functions. The grader hands them <strong>inputs only</strong>; every expected value lives inside the grader.</p>
+<pre><code class="lang-python"># your_cert.py  (run from the repo root: python your_cert.py)
+import sys
+sys.path.insert(0, "verification/certification")
+from verify_runtime_sound import grade_sound, _print_record
+
+def addresser(domain: int, body: bytes) -&gt; str:
+    # return your ContentId hex for (domain_tag, body)
+    return my_runtime.content_id(domain, body).hex()
+
+def rejecter(body: bytes):
+    # return ("ACCEPT", "") or ("REJECT", "&lt;acs-002-reason-code&gt;")
+    try:
+        my_runtime.decode(body);  return ("ACCEPT", "")
+    except my_runtime.Rejected as e:
+        return ("REJECT", e.reason)
+
+def semantic(tier: str, body: bytes):        # optional; drop the arg for core-only
+    # tier in {"envelope","instance","language"} -&gt; ("ACCEPT","") | ("REJECT","&lt;kebab-code&gt;")
+    return my_runtime.validate(tier, body)
+
+rec = grade_sound("My Runtime (vendor)", addresser, rejecter, semantic)  # semantic=None -&gt; DEFERRED
+_print_record(rec)
+sys.exit(0 if rec["certified"] else 1)</code></pre>
+<p>The convenience <code>certify_runtime.py</code> uses a slightly different (list-based, answer-key) contract — <code>certify(name, addresses(golden), rejects(neg), golden, neg)</code>; use it only for the format line. The <code>grade_sound</code> contract above is the one that actually proves your work.</p>
+<hr>
+<h2 id="the-rules-they-are-the-point">The rules (they are the point)</h2>
+<ul><li><strong>No reading <code>runtime/</code>.</strong> Build from the normative <code>standard/</code> text. If you needed our code, the Kit failed — that ambiguity <em>is</em> a finding.</li><li><strong>We will not help during the attempt.</strong> A question collapses G2 → G1. Bank every ambiguity for your submission instead.</li><li><strong><code>SOUND-CERTIFIED</code> given inputs-only, as a genuinely unrelated party, is the G2 evidence ARVES is missing.</strong> Submit it via <a href="challenge.html"><code>CHALLENGE.md</code></a> → <em>How to submit</em> (the <code>g2-runtime-certification</code> issue template): your source, the <strong>verbatim</strong> <code>verify_runtime_sound.py</code> (or <code>certify_your_runtime.py</code>) output, a no-contact confirmation, and every point the Kit forced a guess. The ambiguity list is worth as much as the pass — it becomes a CCP Amendment that hardens the Standard for the next party.</li></ul>
+<p><em>Honest status: G2 is open and unmet. This page makes it attemptable; reaching it is your part.</em></p>
+    <footer class="foot">ARVES — a cognitive computing platform · Runtime/Spec/Standard FROZEN · changes via RCR only · generated from the repository Markdown (do not hand-edit).</footer>
+  </main>
+</div>
+<script>window.DEPTH=0;</script>
+<script src="search.js"></script>
+</body>
+</html>
