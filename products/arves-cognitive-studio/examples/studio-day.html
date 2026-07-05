@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plan-my-day — ARVES Cognitive Studio</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; color: #1c2430; background: #f6f7f9; }
+  h1 { font-size: 1.3rem; } code { font-size: 12px; word-break: break-all; }
+  .meta { color: #5b6472; font-size: 12px; }
+  .frame { background: #fff; border: 1px solid #d9dee5; border-radius: 12px; padding: 1rem; overflow-x: auto; }
+  svg { max-width: 100%; height: auto; display: block; }
+  .node { fill: #eef2f7; stroke: #7a8699; stroke-width: 1.2; }
+  .nid { font: 600 14px system-ui, sans-serif; fill: #1c2430; }
+  .cap { font: 12px ui-monospace, monospace; fill: #3d4756; }
+  .truth { font: 11px ui-monospace, monospace; fill: #556; }
+  .wire { font: 11px ui-monospace, monospace; fill: #5b6472; }
+  table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+  th, td { border: 1px solid #d9dee5; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #eef2f7; }
+  footer { margin-top: 1rem; color: #5b6472; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>plan-my-day</h1>
+<p class="meta">graph id (content address of the spec): <code>1220bdfe74e7807cb90f30b9ae1e56420323535f695f068595f1b037dac3b235bf4d</code><br>
+run root: <code>1220eb3c8feb1e01cac383a5b98658102c5be7fd6166f5932f5b1585d992a8056c2a</code> <em>(committed)</em></p>
+<div class="frame">
+<svg viewBox="0 0 980 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cognitive graph plan-my-day">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b6472"/></marker></defs>
+<path d="M280,81 C325,81 325,81 370,81" fill="none" stroke="#5b6472" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="325" y="75" text-anchor="middle" class="wire">uci.observation</text>
+<path d="M610,81 C655,81 655,81 700,81" fill="none" stroke="#5b6472" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="655" y="75" text-anchor="middle" class="wire">uci.derivation</text>
+<g><rect x="40" y="40" width="240" height="82" rx="10" class="node"/>
+<text x="54" y="64" class="nid">observe</text>
+<text x="54" y="82" class="cap">observe.calendar@1.0.0</text>
+<text x="54" y="100" class="truth">uci.observation 12205383047c8737… (committed)</text>
+</g>
+<g><rect x="370" y="40" width="240" height="82" rx="10" class="node"/>
+<text x="384" y="64" class="nid">derive</text>
+<text x="384" y="82" class="cap">derive.meeting-load@1.0.0</text>
+<text x="384" y="100" class="truth">uci.derivation 12203b34daf7018d… (committed)</text>
+</g>
+<g><rect x="700" y="40" width="240" height="82" rx="10" class="node"/>
+<text x="714" y="64" class="nid">decide</text>
+<text x="714" y="82" class="cap">decide.day-plan@1.0.0</text>
+<text x="714" y="100" class="truth">uci.decision 122086090559b64b… (committed)</text>
+</g>
+</svg>
+</div>
+<table>
+<tr><th>node</th><th>capability</th><th>committed truth (ACS ContentId)</th></tr>
+<tr><td>observe</td><td>observe.calendar@1.0.0</td><td><code>12205383047c8737ecd249c214d26339b881a8bf5beaed93cc61203923a84e0c0d6e</code> <em>(committed)</em></td></tr>
+<tr><td>derive</td><td>derive.meeting-load@1.0.0</td><td><code>12203b34daf7018d12e864fc59705a74cf0a15ebae4a920d36809eb707176d3687bb</code> <em>(committed)</em></td></tr>
+<tr><td>decide</td><td>decide.day-plan@1.0.0</td><td><code>122086090559b64bb3c7897342493ac66cd481f81b6d8fe4f1b4c001a47ee7eae525</code> <em>(committed)</em></td></tr>
+</table>
+<footer>ARVES Cognitive Studio (P6 preview) — static render of a graph-as-data spec. Not an
+interactive editor. Truth ids were committed through the real Runtime v1.0 KernelBridge; the
+bridge Kernel is in-memory, so ids are reproducible but the bridge session is not durable.</footer>
+</body>
+</html>

@@ -63,10 +63,10 @@ the constitution's own instrument for an engineering decision (not a silent edit
 | **P3** | **Agent Runtime** ✅ | Reasoning · Planning · Capability selection · Execution · Truth update — **on the real Kernel** | P0–P2 |
 | **P4** | **Personal Cognitive OS** ✅ | persistent world model · reproducible/audited reasoning · contradiction-with-prior-decision · evidence-backed (not a chatbot) | P0–P3, Runtime v1.0 |
 | **P5** | **Enterprise Cognitive OS** ✅ | Multi-Agent shared truth · Governance · Policy-as-truth · Compliance ledger · cross-dept consistency | P0–P3, Runtime v1.0 |
-| P6 | Visual Cognitive Studio | visual authoring of cognitive graphs | P1–P3 |
+| P6 | Visual Cognitive Studio 🟢 *preview* | visual authoring of cognitive graphs — **preview shipped** (`arves-cognitive-studio`): graphs authored as data, nodes certification-gated, execution truth-committed + byte-reproducible, static-HTML render; an interactive GUI editor remains future work | P1–P3 |
 | **P6.5** | **Ecosystem SDK & Authoring Kit** ✅ | third parties author/certify/sign/publish capabilities that run on the frozen runtime — *no runtime change* | Runtime v1.0 API |
 | **P7** | **Marketplace** ✅ | distribute certified/signed capabilities — publish once, install anywhere; refuses uncertified/tampered/duplicate | P6.5 |
-| P8 | Cloud Platform | hosted ARVES | P0–P7 |
+| P8 | Cloud Platform 🟢 *preview* | hosted ARVES — **preview shipped** (`arves-cloud-preview`): local multi-tenant HTTP gateway over the real Kernel (process-per-tenant isolation, one-world ids over the wire, per-tenant idempotency); no authN (v2.0 debt #8), no TLS, not a deployed SaaS | P0–P7 |
 | P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P0–P8 |
 | **P8** | **Foundation** 🟢 | governance + maintainer-independent certification; **2 runtimes certified under one conformance** — see `FOUNDATION.md` | Standard + Certification |
 | P9 | Certified Vendors · P10 Independent Runtime Alliance · P11 Academic · P12 Registry · P13 Cloud · P14 Ecosystem | the self-sustaining ecosystem (external parties) | P8 |

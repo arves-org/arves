@@ -1,0 +1,18 @@
+{
+  "name": "@arves/cognitive-studio",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Cognitive Studio (P6 preview) — graph-as-data authoring of cognitive graphs: certified capability nodes, truth-committed execution on the frozen Runtime v1.0 Kernel, reproducible ContentIds, self-contained static HTML render. NOT an interactive GUI editor.",
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (P0 SDK + P6.5 Ecosystem Kit + Bridge -> real Kernel) — FROZEN",
+    "modifiesRuntime": false,
+    "proves": ["graph authoring as data", "enforced node certification", "truth-committed execution", "reproducible ContentIds on a fresh Kernel", "evidence chaining", "static HTML visualization"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": {
+    "demo": "node examples/studio-day.mjs",
+    "test": "node studio.test.mjs"
+  }
+}
