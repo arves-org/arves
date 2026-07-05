@@ -14,6 +14,11 @@ mechanically check it. The frozen `.docx` corpus is untouched (ED-001).
 
 ## How to run TLC (reproducible recipe)
 
+> **First captured run: 2026-07-05 — `Model checking completed. No error has been found.`**
+> Both `SafetyInv` and `EventuallyCommitted` hold over the exhaustive state space. Verbatim
+> output, environment pins (TLC 2.19, Temurin 21, jar sha256), and the symmetry-unsoundness
+> finding the run surfaced-and-fixed are recorded in [`TLC_RUN.md`](TLC_RUN.md).
+
 TLC is **not** vendored in this repo. You need Java and a TLA+ tool
 (`tla2tools.jar`, bundled with the TLA+ Toolbox or downloadable standalone).
 

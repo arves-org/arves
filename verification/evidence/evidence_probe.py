@@ -147,15 +147,20 @@ def probe():
     r.metric = ("%s/%s cases agree, 0 hard divergences" % (sd.group(1), sd.group(2))) if (r.ok and sd) else "no-parse"
     rows.append(r)
 
-    # 4. Rust <-> Python differential fuzzer — accept/reject agreement.
+    # 4. 3-way differential fuzzer — accept/reject agreement. Fz1: the metric also SURFACES the
+    #    all-reject reason-code differs (interop-safe by design — multi-defect inputs may reject
+    #    for different, equally-correct reasons) so "0 hard divergences" is never silently read
+    #    as "0 disagreements of any kind".
     rc, out = run([sys.executable, FUZZ])
     div = re.search(r"hard divergences\s*:\s*(\d+)", out)
     tot = re.search(r"inputs=(\d+)", out)
+    rd = re.search(r"reason match (\d+), reason differ (\d+)", out)
     r = Row("differential", "3-way differential (Rust / Python / TypeScript, encode+decode)",
             "Differential+Independent", "L3", "G1",
             "python verification/differential/acs002_differential_fuzz.py")
     r.ok = rc == 0 and bool(div) and div.group(1) == "0"
-    r.metric = ("%s inputs, %s hard divergences" % (tot.group(1) if tot else "?", div.group(1))
+    r.metric = ("%s inputs, %s hard divergences (%s all-reject reason-code differs, interop-safe)"
+                % (tot.group(1) if tot else "?", div.group(1), rd.group(2) if rd else "?")
                 if div else "no-parse")
     rows.append(r)
 

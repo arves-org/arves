@@ -7,21 +7,35 @@
 > It creates no evidence and changes no frozen byte; each item routes through its sanctioned
 > instrument (CCP / RCR / freeze-clean living_fix / external).
 >
-> **Status:** ratified as the working roadmap; execution NOT yet started (paused at the user's
-> request after planning). Resume at Wave 0, rank 2 → rank 1.
+> **Status (updated 2026-07-05):** execution largely COMPLETE. Done: Wave 0 (ranks 1–4, 9–11),
+> the live-conformance triple (ranks 6–8, RCR-008/009/010), **rank 5** (TLC unblocked via a
+> portable JRE — `SafetyInv` + `EventuallyCommitted` HOLD, `verification/formal/TLC_RUN.md`),
+> rank 12 (semantic differential 62/62), rank 14 (E1/E2), rank 15 (certify-YOUR-runtime path),
+> rank 19-A (3-way TS fuzz 13807/0), rank 20 (capstone). Remaining: **r16 PUBLISH** (maintainer:
+> org/name + push — the only unchecked pre-publish item), r17 CI-host, r18 external funnel,
+> r19-B (Connector/Query promote RCR — maintainer-gated). Ch4 (I2..I6) is in **prep mode** by
+> maintainer ruling (2026-07-05): design packages only (`docs/design/`), build gate (G2) closed.
+> Live tracker: `verification/OPEN_DEBT_REGISTER.md`.
 
 ---
 
-## The decisive finding (why rank 1 is rank 1)
+## The decisive finding (why rank 1 was rank 1) — ✅ RESOLVED (rank 1, commit 3c08ff5)
+
+> **RESOLVED:** the gate now grades the **full ACS-001..005 surface** — all 19 semantic vectors
+> plus semantic accept-probes — and the verdict is coverage-labeled (`SOUND-CERTIFIED (full
+> ACS-001..005 surface)` vs `(ACS core; semantic DEFERRED)`), never printed unqualified. The
+> drift-proof probe (row `sound-certified`) FAILS if the gate ever degrades to core-only. The
+> paragraph below is preserved as the historical planning-time finding.
 
 The flagship **SOUND-CERTIFIED** gate that `CHALLENGE.md` §4/§5 names as *the G2 win-condition*
-grades only `tier=="core"` (`verify_runtime_sound.py:111`; `certify_runtime.py:105`) — **0 of the
-19 ACS-003/004/005 semantic reject vectors** that CCP-006/007 added, and RCR-004 proved a runtime
-*can* reject. So a genuine external pass on the gate **as written today** would attest only the
-ACS-001/002 byte layer while the stamp implies the whole standard — a program-defining **over-claim
-of the exact B1 defect ARVES exists to prevent.** The whole critical path is therefore: **make the
-gate attest the whole standard, de-drift the cold-start packet, and open the front door BEFORE
-publishing** — everything else parallelizes to raise honestly-graded Evidence Level.
+graded only `tier=="core"` at planning time (`verify_runtime_sound.py:111`;
+`certify_runtime.py:105`) — **0 of the 19 ACS-003/004/005 semantic reject vectors** that
+CCP-006/007 added, and RCR-004 proved a runtime *can* reject. So a genuine external pass on the
+gate **as then written** would have attested only the ACS-001/002 byte layer while the stamp
+implied the whole standard — a program-defining **over-claim of the exact B1 defect ARVES exists
+to prevent.** The whole critical path was therefore: **make the gate attest the whole standard,
+de-drift the cold-start packet, and open the front door BEFORE publishing** — everything else
+parallelized to raise honestly-graded Evidence Level.
 
 ## North star (unchanged)
 

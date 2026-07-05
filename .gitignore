@@ -14,3 +14,8 @@ __pycache__/
 
 # local capability registry (arves publish/install) — runtime data, not source
 /.arves-registry/
+
+# TLA+ tooling — the 2.3 MB tla2tools.jar is downloaded, not committed (see
+# verification/formal/TLC_RUN.md for the pinned URL + sha256); states/ is TLC scratch
+verification/formal/tla2tools.jar
+verification/formal/states/
