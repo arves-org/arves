@@ -29,11 +29,16 @@ project's headline independence claim stays capped at **G1**, and we say so ever
    serializer/decoder (then ACS-003/004 as dCBOR maps). No network, no keys, offline.
 3. **Self-check** against the frozen vectors with your own recompute-everything runner (mirror
    `verification/independent/reference-runner/run.mjs`).
-4. **Certify:** wire your runtime as an adapter and run
-   `python verification/certification/certify_runtime.py`, then the non-gameable
-   `python verification/certification/verify_runtime_sound.py` (grader owns the truth + fresh
-   probes — this is the one that actually proves you did the work).
-5. **Win condition:** `SOUND-CERTIFIED` from the Kit alone, with no help from us.
+4. **Certify:** the copy-paste last mile is
+   [`verification/certification/CERTIFY_YOUR_RUNTIME.md`](verification/certification/CERTIFY_YOUR_RUNTIME.md).
+   The shortest path: expose three tiny stdin/stdout programs (address / decode / validate) and run
+   `python verification/certification/certify_your_runtime.py --addr … --decode … --validate …`
+   (add `--self-test` first to see the reference bins pass through the identical vendor path). It
+   grades you through the **non-gameable** `verify_runtime_sound.py` (grader owns the truth + fresh
+   probes — the one that actually proves you did the work). No Python? Wire an adapter instead —
+   both contracts are in that page.
+5. **Win condition:** `SOUND-CERTIFIED (full ACS-001..005 surface)` from the Kit alone, with no help
+   from us.
 
 ## The rules (they are the point, not red tape)
 

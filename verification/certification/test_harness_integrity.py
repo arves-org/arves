@@ -24,6 +24,7 @@ sys.path.insert(0, HERE)
 
 import verify_runtime_sound as S   # noqa: E402
 import certify_runtime as C        # noqa: E402
+import certify_your_runtime as D   # noqa: E402
 
 failures = []
 
@@ -127,6 +128,41 @@ finally:
     S.RUST_BRIDGE = _saved_bridge
 
 
+# ---- B3-driver: certify_your_runtime.py's vendor line-protocol path inherits non-gameability ----
+#
+# The rank-15 driver lets a new runtime certify itself by speaking three line protocols. It reuses
+# grade_sound() verbatim (grader owns the truth), so a hollow runtime driven THROUGH the driver must
+# be NOT SOUND-CERTIFIED, and a real runtime must pass — proving the driver's batching/keying/parsing
+# forwards inputs-only correctly and does not soften the gates.
+
+_PY = '"%s"' % sys.executable
+_PROBE = '"%s"' % os.path.join(HERE, "_hollow_probe.py")
+
+# (a) NEGATIVE: a hollow line-protocol runtime (fixed wrong address / reject-everything) fails.
+_h_addr, _h_rej, _h_sem = D.build_line_protocol_adapters(
+    "%s %s addr" % (_PY, _PROBE), "%s %s decode" % (_PY, _PROBE), "%s %s validate" % (_PY, _PROBE))
+hollow_drv = S.grade_sound("hollow-lineproto", _h_addr, _h_rej, _h_sem)
+if hollow_drv["certified"]:
+    failures.append(f"SECURITY REGRESSION (B3-driver): hollow line-protocol runtime was "
+                    f"SOUND-CERTIFIED through certify_your_runtime: {hollow_drv}")
+if hollow_drv["fresh"][0] != 0 or hollow_drv["accept"][0] != 0:
+    failures.append(f"(B3-driver) hollow line-protocol runtime cleared an anti-gaming gate: "
+                    f"fresh={hollow_drv['fresh']} accept={hollow_drv['accept']}")
+
+# (b) POSITIVE: the reference Rust bins, driven through the SAME vendor path, MUST certify —
+# proving the driver's plumbing is correct (not merely that everything fails). Skipped if unbuilt.
+_addr_bin = D._reference_bin("arves-bridge")
+_dec_bin = D._reference_bin("acs_decode")
+_val_bin = D._reference_bin("acs_validate")
+if os.path.exists(_addr_bin) and os.path.exists(_dec_bin):
+    r_addr, r_rej, r_sem = D.build_line_protocol_adapters(
+        '"%s"' % _addr_bin, '"%s"' % _dec_bin, ('"%s"' % _val_bin) if os.path.exists(_val_bin) else None)
+    real_drv = S.grade_sound("real-rust-via-driver", r_addr, r_rej, r_sem)
+    if not real_drv["certified"]:
+        failures.append(f"(B3-driver) reference Rust bins should SOUND-CERTIFY through the vendor "
+                        f"path, got {real_drv}")
+
+
 # ---- B4: certify_runtime.py must degrade (not crash) when a reference binary is absent ----
 
 _saved = C.RUST_BRIDGE
@@ -160,4 +196,5 @@ if failures:
         print("  - " + f)
     sys.exit(1)
 print("HARNESS-INTEGRITY OK: real=SOUND-CERTIFIED, hollow=REJECTED (B3), "
-      "byte-broken-rust=REJECTED (B3-rust), missing-runtime=degraded-not-crashed (B4/B4-rust)")
+      "byte-broken-rust=REJECTED (B3-rust), hollow-via-driver=REJECTED + real-via-driver=CERTIFIED "
+      "(B3-driver), missing-runtime=degraded-not-crashed (B4/B4-rust)")

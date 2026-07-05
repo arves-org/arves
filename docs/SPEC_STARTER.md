@@ -13,6 +13,13 @@ next.
 > [ACS-005](../standard/acs/ACS-005_Normative_Language.md). Everything is frozen — changes go
 > through CCP / Amendment / IDR, never a silent edit.
 
+> **Which Documentation Index is current?** The `spec-markdown/` folder carries four frozen
+> registers — `v1`, `v2`, `v2.1`, `v2.2`. **The current master register is
+> [`ARVES_00_Documentation_Index_v2.2.md`](../spec-markdown/ARVES_00_Documentation_Index_v2.2.md)**
+> (it self-declares *"MASTER REGISTRY — Supersedes v2.1"*); `v1`/`v2`/`v2.1` are **superseded**
+> historical registers, kept only because the `.docx` corpus is frozen (a superseded mirror is
+> removed via regeneration, never a silent delete). Read v2.2.
+
 ---
 
 ## 1. The Invariant Registry — *what must always be true*

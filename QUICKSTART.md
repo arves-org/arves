@@ -72,12 +72,23 @@ Rules for a capability `value` are the ARVES value model (see the ecosystem-sdk 
 ## 5. Certify a runtime (~1 min)
 
 ```bash
-python verification/certification/certify_runtime.py
+python verification/certification/certify_runtime.py           # the two reference runtimes
+python verification/certification/verify_runtime_sound.py      # the non-gameable, grader-owns-truth proof
 ```
 
 Certifies runtimes against `standard/` alone — no maintainer required. Two runtimes
 (Rust + Python) pass under one conformance — at grade **G1** (same-process); a genuine
 third-party (G2) runtime is the open goal.
+
+**Built your OWN runtime?** Certify it through the same non-gameable grader — zero Python if it
+speaks three tiny line protocols (see a real pass with `--self-test` first):
+
+```bash
+python verification/certification/certify_your_runtime.py --self-test   # grades the reference bins via the vendor path
+```
+
+The copy-paste last mile is [`verification/certification/CERTIFY_YOUR_RUNTIME.md`](verification/certification/CERTIFY_YOUR_RUNTIME.md);
+the cold-start build packet is [IMPLEMENTING_ARVES.md](IMPLEMENTING_ARVES.md).
 
 ## Where next
 

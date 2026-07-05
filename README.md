@@ -76,8 +76,9 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
 
 - **Interoperability** — 3 independent codec implementations (Rust / Python / TypeScript)
   agree on the golden conformance vectors; the **Rust↔Python** pair is differentially
-  fuzzed (13,807 inputs, 0 divergences). A 3-way fuzz including TypeScript is on the v1.1
-  track.
+  fuzzed (13,807 inputs, 0 divergences) at the ACS-002 byte layer, and the ACS-003/004/005
+  **semantic** reject surface is differential too (Rust-native vs Python, 62/62 cases agree).
+  A 3-way fuzz including TypeScript is on the v1.1 track.
 - **Independent runtimes** — 2 runtimes (Rust + Python) certified against `standard/` alone over
   the **full ACS-001..005 surface** — `SOUND-CERTIFIED (full surface)`, incl. the ACS-003/004/005
   semantic reject tiers — by a maintainer-independent, non-gameable harness
@@ -86,7 +87,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
   *codec*, not a 3rd certified *runtime*: `certify_runtime.py`/`verify_runtime_sound.py` drive the
   Rust + Python runtime adapters.) A genuine third-party (G2) runtime is the open exit gate.
 - **Robustness** — a whole-system destroy pass hardened the stack; the product robustness
-  suite is **43/43**, and the Rust workspace is **81/81** green.
+  suite is **49/49**, and the Rust workspace is **87/87** green.
 - **Ecosystem** — a cold, fresh-context developer (grade **G1**, same-process) authored +
   certified a capability from the Authoring Kit alone; a genuine external third party (G2)
   is pending.
@@ -96,7 +97,7 @@ same-process/in-program, G2 = a genuine outside party with no help) and stated h
 
 - **Understand why** → [WHY_ARVES.md](WHY_ARVES.md) — the manifesto (start here)
 - **Use it** → [QUICKSTART.md](QUICKSTART.md)
-- **Build & certify your OWN runtime — the open G2 challenge** → [IMPLEMENTING_ARVES.md](IMPLEMENTING_ARVES.md) (cold-start packet) · [CHALLENGE.md](CHALLENGE.md) (the invitation + how to submit)
+- **Build & certify your OWN runtime — the open G2 challenge** → [IMPLEMENTING_ARVES.md](IMPLEMENTING_ARVES.md) (cold-start packet) · [CHALLENGE.md](CHALLENGE.md) (the invitation + how to submit) · [CERTIFY_YOUR_RUNTIME.md](verification/certification/CERTIFY_YOUR_RUNTIME.md) (the copy-paste last mile + `--self-test`)
 - **Publish a capability** → [products/arves-ecosystem-sdk/](products/arves-ecosystem-sdk/)
 - **Contribute / extend** → [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Govern / certify** → [FOUNDATION.md](FOUNDATION.md)

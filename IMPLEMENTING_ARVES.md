@@ -280,6 +280,13 @@ record alongside the existing ones and run:
 python verification/certification/certify_runtime.py
 ```
 
+> **The copy-paste last mile** — wiring shapes for both harnesses, plus a zero-Python
+> line-protocol path — is [`verification/certification/CERTIFY_YOUR_RUNTIME.md`](verification/certification/CERTIFY_YOUR_RUNTIME.md).
+> If your runtime speaks three tiny stdin/stdout programs you can skip the adapter entirely:
+> `python verification/certification/certify_your_runtime.py --addr … --decode … --validate …`
+> (run it with `--self-test` first to grade the reference bins through that same path). It reports
+> your **non-gameable** `verify_runtime_sound.py` verdict directly.
+
 > **Two operational notes before you run it — both detailed in §5:**
 > 1. The harness **also** drives the reference Rust binaries at
 >    `runtime/target/debug/{arves-bridge,acs_decode}`. **As of 2026-07-02 these are
