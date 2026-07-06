@@ -22,10 +22,16 @@
 //   - why.mjs: why(assistant, truthIdOrSubject) reconstructs the decision path from
 //     committed truths. Its feed is the DECISION JOURNAL below: every truth this
 //     Assistant commits (or re-proves via already-committed) is journaled in commit
-//     order with its id and body. HONEST MECHANISM: the journal is an in-process READ
-//     PROJECTION of committed truth — rebuilt after a restart by re-running the same
-//     deterministic day (every body answers already-committed, the membership proof);
-//     a native WAL-scan verb over the bridge remains the recorded RCR candidate.
+//     order with its id and body. HONEST MECHANISM: the journal is a READ PROJECTION of
+//     committed truth. Since RCR-033 it can be rebuilt after a restart WITHOUT re-running
+//     the day: recoverFromWal() enumerates the shard's committed truth read-only via the
+//     bridge `scan` verb (the Kernel replays its WAL through the Query layer) and rebuilds
+//     the memory + journal with ZERO re-commits — TOTAL WAL-backed reconstruction, real.
+//     (The one residual: an invoke-EFFECT truth's causal link to its skill/proposal is
+//     process metadata, not in the self-describing body, so a scan-rebuilt journal
+//     reconstructs every decision station EXCEPT that last effect→skill edge — stated,
+//     not hidden. The re-run path still supplies it; a native attributed-INVOKE verb is
+//     the recorded next-RCR candidate.)
 //
 // PLATFORM BOUNDARY (IDR-006): this product CONSUMES the frozen ARVES Runtime v1.0
 // exclusively through the published Runtime API — the TS SDK codec (ACS-001/002) and the
@@ -41,20 +47,24 @@
 //  - The in-process indexes (#facts/#evidence/#decisions) are READ PROJECTIONS of
 //    committed truth, rebuildable via `rebuild()` — they are never themselves the truth.
 //
-// THE REBUILD MECHANISM (A1 — closes P4's X1 caveat at the product level), stated loudly:
-// the bridge line protocol has NO verb to enumerate or scan committed truth (no
-// "replay"/"scan" — recorded as an RCR candidate in README.md). What the frozen Kernel
-// DOES guarantee is idempotent, content-addressed commit: re-committing a byte-identical
-// body answers `already-committed` with the SAME ContentId iff that exact body is already
-// truth. `rebuild()` therefore re-derives candidate bodies deterministically (connectors
-// re-read their sources; the caller re-supplies its decision journal), re-commits them,
-// and treats the Kernel's `already-committed` answer as the MEMBERSHIP PROOF. The
-// candidate list is an untrusted hint; only the Kernel's answer is evidence. Honest
-// side effect: a candidate that was NOT previously committed becomes newly committed
-// truth (there is no read-only membership probe over the line protocol) — the rebuild
-// report separates `recovered` from `fresh` so nothing is silently smuggled in.
+// TWO REBUILD MECHANISMS (A1 — closes P4's X1 caveat at the product level), both loud:
+//  (1) recoverFromWal() [RCR-033, the real one]: the bridge `scan` verb now enumerates
+//      the shard's committed truth READ-ONLY (the Kernel replays its WAL through the Query
+//      layer's ShardProjection). recoverFromWal() decodes that committed set and rebuilds
+//      the memory + journal with ZERO commits and NO caller-supplied candidates — total,
+//      side-effect-free reconstruction from truth itself.
+//  (2) rebuild() [the pre-RCR-033 membership proof, retained]: the frozen Kernel
+//      guarantees idempotent content-addressed commit — re-committing a byte-identical
+//      body answers `already-committed` iff that exact body is already truth. rebuild()
+//      re-derives candidate bodies deterministically (connectors re-read their sources;
+//      the caller re-supplies its decision journal), re-commits them, and treats
+//      `already-committed` as the MEMBERSHIP PROOF. Honest side effect: a candidate that
+//      was NOT previously committed becomes newly committed truth — the report separates
+//      `recovered` from `fresh` so nothing is silently smuggled in. This path also re-
+//      establishes the invoke-effect journal metadata that a pure scan cannot (above).
 
 import { KernelBridge } from '../../arves-sdk-ts/src/bridge.mjs';
+import { decode } from '../../arves-sdk-ts/src/codec.mjs';
 import { Arves } from '../../arves-sdk-ts/src/arves.mjs';
 import { certifyCapability } from '../../arves-ecosystem-sdk/src/kit.mjs';
 import { Guardrails } from './guardrails.mjs';
@@ -248,6 +258,81 @@ export class Assistant {
     }
     report.recoveredIds.sort();
     report.freshIds.sort();
+    return report;
+  }
+
+  /** RCR-033 — READ-ONLY enumeration of this assistant's shard's committed truth, by WAL
+   *  replay over the bridge `scan` verb. Returns `[{ id, body }]` in deterministic commit
+   *  order: `body` is the decoded ARVES value (codec.decode) for a self-describing dCBOR
+   *  truth, or `null` for a truth this SDK cannot interpret (e.g. an attribution envelope
+   *  — RCR-034 — which is not a bare dCBOR body). No commit, no candidate list: this is
+   *  the shard's committed set as it actually IS, straight from the WAL. */
+  async scanTruths() {
+    const scanned = await this.#bridge.scan({ bodies: true });
+    return scanned.map(({ id, body }) => {
+      let value = null;
+      try { value = decode(body); } catch { value = null; } // opaque (non-dCBOR) truth
+      return { id, body: value };
+    });
+  }
+
+  /** A1 (RCR-033) — TOTAL, read-only reconstruction of the memory + decision journal from
+   *  COMMITTED TRUTH, with ZERO re-commits and no caller-supplied candidates. Unlike
+   *  rebuild(), this does not re-derive or re-commit anything: it scans the shard's WAL,
+   *  decodes each committed truth, and rebuilds #facts / #evidence / #decisions and the
+   *  A7 journal so why() reconstructs the decision path from truth itself.
+   *
+   *  HONEST RESIDUAL (stated, not hidden): an invoke-EFFECT truth's causal edge to its
+   *  skill/proposal is process metadata, not part of the self-describing committed body,
+   *  so a scan-rebuilt journal recovers every decision station EXCEPT that effect→skill
+   *  link (the COMMITTED station of why() for effect subjects). Non-effect subjects — the
+   *  observation layer, agent proposals/conflicts/resolutions, findings, policies,
+   *  approvals, decisions — reconstruct in full and byte-identically. Returns a report. */
+  async recoverFromWal() {
+    const truths = await this.scanTruths();
+    // Reset the in-process projections; the WAL is the sole source now.
+    this.#facts = new Map();
+    this.#evidence = new Map();
+    this.#decisions = new Map();
+    this.#journal = [];
+    this.#seq = 0;
+    const report = { recovered: truths.length, facts: 0, attestations: 0, decisions: 0, other: 0, opaque: 0 };
+    for (const { id, body } of truths) {
+      let via = 'commit';
+      let meta;
+      if (body === null || typeof body !== 'object') {
+        report.opaque++;
+        meta = { via: 'recovered-opaque' };
+      } else {
+        switch (body.type) {
+          case 'uci.assistant.fact':
+            this.#facts.set(id, body);
+            if (!this.#evidence.has(id)) this.#evidence.set(id, new Map());
+            report.facts++; via = 'observe';
+            break;
+          case 'uci.assistant.attestation': {
+            if (!this.#evidence.has(body.of)) this.#evidence.set(body.of, new Map());
+            this.#evidence.get(body.of).set(body.source, id);
+            report.attestations++; via = 'observe';
+            meta = { via, source: body.source };
+            break;
+          }
+          case 'uci.assistant.decision':
+            this.#decisions.set(body.subject, { id, subject: body.subject, action: body.action, because: body.because });
+            report.decisions++; via = 'decision';
+            break;
+          default:
+            report.other++; via = 'commit';
+            break;
+        }
+      }
+      this.#journal.push({
+        seq: this.#seq++, id, status: 'already-committed',
+        domain: (body && body.type === 'uci.assistant.fact') ? 'commit' : 'trace',
+        body: (body === null || typeof body !== 'object') ? null : journalSnapshot(body),
+        meta: meta ?? { via },
+      });
+    }
     return report;
   }
 

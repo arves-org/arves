@@ -573,7 +573,72 @@ While building products, if the runtime is found lacking:
 > rank-checked first (conformance(110)→lcw(50)); additive, `cargo test
 > --workspace` 246→**251/0**. **I5 MILESTONE: ✅ DONE — pending maintainer
 > integration (RCR-029..031).** Record: `runtime/rcr/RCR-031.md` (milestone
-> summary)).
+> summary)), **RCR-032** (REAL TRANSPORT — the single biggest reduction of the
+> "in-process, no network" caveat for the Runtime: through RCR-019..031 the
+> whole I2–I5 cluster ran on ONE vehicle, the in-process deterministic
+> MessageBus (`sim.rs`). RCR-032 adds a **`Transport` delivery seam** in
+> `arves-consensus` with TWO impls — `InProcessTransport` (the existing FIFO bus
+> as a trait impl; `sim.rs` byte-unchanged) and **`LoopbackTransport`, a REAL
+> `std::net` TCP transport on `127.0.0.1`** that length-frames the SAME
+> serialized `Envelope`s onto real OS sockets (partial-read + one-reconnect
+> handling) — and proves, via one identical driver (`TransportRound`), that a
+> small cluster round (leader election + one commit) commits **byte-identical
+> truth over real TCP sockets and over the in-memory bus**. DETERMINISM
+> PRESERVED (HARD RULE 4): the core stays a pure function of (messages, seed,
+> tick); the harness canonicalizes each drain's order so the socket only moves
+> bytes — *the transport moves bytes, the protocol decides truth, the harness
+> fixes the order*. HONEST SCOPE (unchanged, NOT claimed): loopback = one
+> process (NOT multi-host); no TLS/mutual-auth (OQ-7, mTLS v2.0 debt); no real
+> latency / message loss / partition TIMING (the socket delivers every sent
+> frame; adversarial delivery stays the `sim.rs` filter/mangle model); wire
+> format decision stays OQ-3 (this LE codec is internal framing). **No new
+> dependency** (`std::net` only — `arves-consensus` `[dependencies]` empty, rank
+> 30, LAYER-001 gate green); no frozen type/trait touched; retroactive
+> scope-annotation appended to RCR-019/021/022/024/027/031 ("in-process OR
+> real-loopback transport (RCR-032)"); additive, `cargo test --workspace`
+> 251→**255/0** (loopback socket run re-run 5× — deterministic, no flake).
+> Record: `runtime/rcr/RCR-032.md`), **RCR-033** (BRIDGE `scan` VERB — the
+> read-only WAL-enumeration seam that closes JARVIS's recorded "the bridge has
+> NO verb to scan/enumerate committed truth" caveat: `scan` / `scan bodies`
+> (composable with `id=`/`shard=`) replays the target shard's WAL through the
+> Query layer's `ShardProjection` and streams its committed set —
+> content-ids, optionally with payloads — in deterministic commit order.
+> OWN-001 read tier: reads are NOT on the `Kernel` trait, so this exposes the
+> Query layer (RCR-010/023), never a Kernel read hook; the store is read behind
+> `&` only (no write handle reachable). Tenant isolation is structural
+> (SHARD-001 — a foreign record never enters the fold); a never-committed shard
+> answers `scan 0`. New enumerator `ShardProjection::committed()` (read-only,
+> `&[u8]` refs); new downward edges bridge(105)→query(60) and bridge(105)→
+> control-plane(90); no frozen type/trait touched. Record: `runtime/rcr/
+> RCR-033.md`), **RCR-034** (BRIDGE `commit-as` VERB — exposes the EXISTING I5
+> attribution (RCR-029 `encode_attributed`) over the seam: `commit-as
+> <agent_hex> <domain_hex> <body_hex>` wraps the body in the agent-attribution
+> envelope so the Who rides INSIDE committed truth (WAL/IDR-005) and is
+> recoverable by `decode_attributed` over a `scan`. An attributed commit is a
+> DISTINCT truth from a plain commit of the same body (idempotent per ORCH-004);
+> plain commits are byte-unchanged. HONEST: a CLAIMED Who — no registration
+> gate, no caller-identity check (v2.0 debt #8); the attributed-INVOKE path is
+> the recorded next candidate. New public `AgentId::from_hex`; no frozen
+> type/trait touched. RCR-033+RCR-034 additive, `cargo test --workspace`
+> 255→**263/0** (verified). Downstream products (freeze-clean, IDR-006):
+> SDK `scan()`/`commitAs()`/`decode()`, assistant `recoverFromWal()` (total
+> read-only reconstruction, ZERO re-commits), `jarvis-day` 17→18 properties.
+> Record: `runtime/rcr/RCR-034.md`), **RCR-035** (BRIDGE `scan` HONESTY FIX,
+> amends RCR-033 — an adversarial review found `scan_shard` swallowed EVERY
+> read/replay fault as an empty result, so a corrupt/compacted retained log was
+> indistinguishable from a never-committed shard: both answered `scan 0`, masking
+> truth-loss as emptiness. `scan_shard` now returns `Result<…, ScanFault>`: a
+> shard the store has NO log for is a legitimate empty `Ok`, but a shard whose log
+> EXISTS yet cannot be replayed (open/replay fault, or a compacted prefix with no
+> query-side snapshot — RCR-023 DR-7) is `Err(ScanFault)`, surfaced on the wire as
+> `ERR scan-fault`, NEVER `scan 0`. Still a read (the probe is `WalStore::shards()`;
+> no write path, no new dependency edge); determinism unchanged. The SDK `scan()`
+> already throws on any `ERR`. Additive+corrective, `cargo test --workspace`
+> 263→**265/0** (verified). Downstream (freeze-clean, IDR-006): the assistant
+> effect-subject test + `jarvis-day` capstone now PROVE the disclosed
+> reconstruction residual (the effect→skill edge is absent after a read-only WAL
+> recovery) by a RUNNING assertion instead of prose; `jarvis-day` 18→19 properties.
+> Record: `runtime/rcr/RCR-035.md`).
 
 ## Organization (three teams, three mandates)
 

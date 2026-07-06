@@ -212,6 +212,36 @@ impl AgentId {
         AgentId(bytes)
     }
 
+    /// Rebuild an id from an external lowercase-hex token (RCR-034). Returns
+    /// `None` for malformed hex (odd length or a non-hex digit). Like the
+    /// RCR-030 flow decoders, the result is a **CLAIMED** identity: it names
+    /// whatever bytes the caller supplied and is trustworthy only once
+    /// cross-checked with [`is_registered`] against committed truth (RCR-029
+    /// amendment A2 honesty). This is the constructor the bridge attributed-
+    /// commit verb uses to carry a caller-supplied Who into the attribution
+    /// envelope — the envelope records the claim into the truth trail; it does
+    /// not, by itself, prove the claim.
+    pub fn from_hex(s: &str) -> Option<AgentId> {
+        if s.len() % 2 != 0 {
+            return None;
+        }
+        let b = s.as_bytes();
+        let nib = |c: u8| -> Option<u8> {
+            match c {
+                b'0'..=b'9' => Some(c - b'0'),
+                b'a'..=b'f' => Some(c - b'a' + 10),
+                _ => None,
+            }
+        };
+        let mut out = Vec::with_capacity(s.len() / 2);
+        let mut i = 0;
+        while i < b.len() {
+            out.push((nib(b[i])? << 4) | nib(b[i + 1])?);
+            i += 2;
+        }
+        Some(AgentId(out))
+    }
+
     /// The identity of `def` as registered in `shard`.
     pub fn of(shard: &KernelShardKey, def: &AgentDefinition) -> AgentId {
         AgentId(arves_acs::content_id(
@@ -512,6 +542,23 @@ mod tests {
         garbage.push(0);
         assert_eq!(decode_attributed(&garbage), None, "trailing garbage refused");
         assert_eq!(decode_attributed(b"ARVES.AGENT.DEF.v1junk"), None);
+    }
+
+    #[test]
+    fn agent_id_from_hex_round_trips_and_rejects_malformed() {
+        // RCR-034: the bridge attributed-commit verb rebuilds a claimed Who from
+        // its lowercase-hex token. The round-trip is exact, and the envelope
+        // carries the same bytes the caller supplied.
+        let shard = KernelShardKey::new("acme", "research").unwrap();
+        let id = AgentId::of(&shard, &def());
+        let parsed = AgentId::from_hex(&id.hex()).expect("valid hex");
+        assert_eq!(parsed, id, "hex form round-trips to the same identity");
+        let env = encode_attributed(&parsed, b"effect");
+        assert_eq!(decode_attributed(&env), Some((id, b"effect".to_vec())));
+        // Malformed hex is refused, never silently truncated.
+        assert_eq!(AgentId::from_hex("abc"), None, "odd length refused");
+        assert_eq!(AgentId::from_hex("zz"), None, "non-hex digit refused");
+        assert_eq!(AgentId::from_hex(""), Some(AgentId(Vec::new())), "empty is the empty id");
     }
 
     #[test]

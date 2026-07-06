@@ -122,6 +122,85 @@ function enc(out, v, depth) {
 /** Canonical dCBOR body of an ARVES value (ACS-002/1). */
 export function encode(v) { const out = []; enc(out, v, 0); return Uint8Array.from(out); }
 
+// --- decode (RCR-033): the inverse of enc(), so a body scanned back from committed truth
+// becomes the SAME JS value it was committed from (BigInt ints, Flt floats, string-keyed
+// maps -> plain objects). Used to reconstruct a shard's committed set from the bridge
+// `scan` verb. Deliberately STRICT: any non-canonical or trailing byte throws, so a
+// corrupt/desynced body fails loudly instead of decoding to a wrong value. This decoder
+// is NOT a full CBOR reader — it accepts exactly the profile enc() emits.
+
+function readHead(b, c) {
+  if (c.i >= b.length) throw new Error('ARVES: decode past end of body');
+  const ib = b[c.i++];
+  const major = ib >> 5;
+  const ai = ib & 0x1f;
+  let val;
+  if (ai < 24) val = BigInt(ai);
+  else if (ai === 24) { val = BigInt(b[c.i++]); }
+  else if (ai === 25) { val = (BigInt(b[c.i]) << 8n) | BigInt(b[c.i + 1]); c.i += 2; }
+  else if (ai === 26) { val = 0n; for (let k = 0; k < 4; k++) val = (val << 8n) | BigInt(b[c.i++]); }
+  else if (ai === 27) { val = 0n; for (let k = 0; k < 8; k++) val = (val << 8n) | BigInt(b[c.i++]); }
+  else throw new Error(`ARVES: non-canonical additional-info ${ai} (ACS-002)`);
+  if (c.i > b.length) throw new Error('ARVES: truncated head');
+  return { major, ai, val };
+}
+
+function dec(b, c, depth) {
+  if (depth > MAX_DEPTH) throw new Error('ARVES: nesting exceeds MAX_DEPTH=128 (ACS-002 §5.10)');
+  const start = c.i;
+  const h = readHead(b, c);
+  switch (h.major) {
+    case 0: return h.val;                 // unsigned integer -> BigInt
+    case 1: return -1n - h.val;           // negative integer -> BigInt
+    case 2: {                             // byte string
+      const n = Number(h.val); const slice = b.slice(c.i, c.i + n);
+      if (slice.length !== n) throw new Error('ARVES: truncated byte string'); c.i += n; return slice;
+    }
+    case 3: {                             // text string (UTF-8)
+      const n = Number(h.val); const slice = b.slice(c.i, c.i + n);
+      if (slice.length !== n) throw new Error('ARVES: truncated text string'); c.i += n;
+      return new TextDecoder('utf-8', { fatal: true }).decode(slice);
+    }
+    case 4: {                             // array
+      const n = Number(h.val); const arr = new Array(n);
+      for (let k = 0; k < n; k++) arr[k] = dec(b, c, depth + 1); return arr;
+    }
+    case 5: {                             // map -> plain object (string keys only)
+      const n = Number(h.val); const obj = {};
+      for (let k = 0; k < n; k++) {
+        const key = dec(b, c, depth + 1);
+        if (typeof key !== 'string') throw new Error('ARVES: decode supports string map keys only (ACS-002 §4)');
+        obj[key] = dec(b, c, depth + 1);
+      }
+      return obj;
+    }
+    case 7: {                             // simple / float
+      if (h.ai === 20) return false;
+      if (h.ai === 21) return true;
+      if (h.ai === 22) return null;
+      if (h.ai === 27) {                  // binary64 float (major 7 ai 27 = 0xfb)
+        const p = start + 1; // the 8 payload bytes follow the single head byte
+        if (p + 8 > b.length) throw new Error('ARVES: truncated float64');
+        const dv = new DataView(new ArrayBuffer(8));
+        for (let k = 0; k < 8; k++) dv.setUint8(k, b[p + k]);
+        c.i = p + 8; return new Flt(dv.getFloat64(0, false));
+      }
+      throw new Error(`ARVES: unsupported simple value ${h.ai} (ACS-002 §5.3)`);
+    }
+    default: throw new Error(`ARVES: unsupported major type ${h.major}`);
+  }
+}
+
+/** Decode a canonical dCBOR body (the inverse of encode). Throws on trailing bytes or any
+ *  non-canonical input — a scanned body must decode exactly or fail loudly. */
+export function decode(bytes) {
+  const b = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
+  const c = { i: 0 };
+  const v = dec(b, c, 0);
+  if (c.i !== b.length) throw new Error('ARVES: trailing bytes after a complete value (non-canonical)');
+  return v;
+}
+
 export function sha256(bytes) { return new Uint8Array(createHash('sha256').update(bytes).digest()); }
 
 /** ACS-001 content address: `0x12 0x20 || SHA-256(domain_tag || body)`. */

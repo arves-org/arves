@@ -74,6 +74,11 @@
 
 pub mod raft;
 pub mod sim;
+/// RCR-032: the message DELIVERY seam — a `Transport` trait with the in-process
+/// FIFO bus AND a REAL `std::net` TCP loopback impl, proven to commit identical
+/// truth (the transport moves bytes; the protocol decides truth; the harness
+/// fixes the order). Additive; no frozen type/trait signature touched.
+pub mod transport;
 
 // ---------------------------------------------------------------------------
 // Shard identity (SHARD-001)

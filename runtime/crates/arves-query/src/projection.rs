@@ -310,6 +310,29 @@ impl ShardProjection {
         self.entries.get(id).map(|e| (e.value.as_slice(), e.committed_at))
     }
 
+    /// Read-only enumeration of the shard's whole materialized committed set,
+    /// in **deterministic commit-offset order** (RCR-033). Each item is
+    /// `(content-address bytes, payload bytes, commit offset)`; every returned
+    /// reference is a shared `&[u8]` (never `&mut`), so this exposes the folded
+    /// truth for total reconstruction without any write handle — the Query
+    /// layer stays "Writes: NOTHING" (OWN-001 / Layer Matrix). The order is a
+    /// pure function of the committed trace (IDR-005, ORCH-003), so two builds
+    /// over the same prefix enumerate byte-identically.
+    ///
+    /// This is the enumeration the RCR-033 bridge `scan` verb streams to a
+    /// caller so a product (JARVIS `why()`/`rebuild()`) can reconstruct a
+    /// shard's committed truth from the WAL alone, rather than re-supplying
+    /// candidate bodies. SHARD-001 isolation is structural: a foreign shard's
+    /// record never entered this fold ([`apply`](ShardProjection::apply)), so it
+    /// can never appear here.
+    pub fn committed(&self) -> Vec<(&[u8], &[u8], Version)> {
+        let mut rows: Vec<&Entry> = self.entries.values().collect();
+        rows.sort_by_key(|e| e.committed_at);
+        rows.into_iter()
+            .map(|e| (e.content.as_slice(), e.value.as_slice(), e.committed_at))
+            .collect()
+    }
+
     /// Commit offset of `id`'s current value (the entry-level version of
     /// RCR-023 DR-4), if present.
     pub fn latest(&self, id: &ProjectionId) -> Option<Version> {
@@ -560,6 +583,35 @@ mod tests {
         assert_eq!(p.len(), 1);
         assert_eq!(p.applied(), 1);
         assert!(p.get(&projection_id_for(&ContentId(b"g".to_vec()))).is_none());
+    }
+
+    #[test]
+    fn committed_enumerates_shard_set_in_commit_order_read_only() {
+        // RCR-033: `committed()` streams the WHOLE folded set in deterministic
+        // commit-offset order, and never a foreign shard's record (SHARD-001).
+        let acme = wshard("acme", "research");
+        let globex = wshard("globex", "research");
+        let mut p = ShardProjection::empty(acme.clone());
+        p.apply(&rec(&acme, 0, b"c0", b"first"));
+        p.apply(&rec(&globex, 1, b"gx", b"foreign")); // ignored, does not advance
+        p.apply(&rec(&acme, 1, b"c1", b"second"));
+        p.apply(&rec(&acme, 2, b"c2", b"third"));
+        let got = p.committed();
+        assert_eq!(
+            got,
+            vec![
+                (b"c0".as_slice(), b"first".as_slice(), 0u64),
+                (b"c1".as_slice(), b"second".as_slice(), 1u64),
+                (b"c2".as_slice(), b"third".as_slice(), 2u64),
+            ],
+            "enumeration is the shard's committed set, offset-ordered, no foreign record"
+        );
+        // A rebuild over the same prefix enumerates byte-identically (ORCH-003).
+        let mut q = ShardProjection::empty(acme);
+        q.apply(&rec(&wshard("acme", "research"), 0, b"c0", b"first"));
+        q.apply(&rec(&wshard("acme", "research"), 1, b"c1", b"second"));
+        q.apply(&rec(&wshard("acme", "research"), 2, b"c2", b"third"));
+        assert_eq!(q.committed(), got);
     }
 
     #[test]

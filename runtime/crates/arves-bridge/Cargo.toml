@@ -15,3 +15,9 @@ arves-persistence = { path = "../arves-persistence" }
 arves-acs = { path = "../arves-acs" }
 arves-engine-fabric = { path = "../arves-engine-fabric" }
 arves-capability-fabric = { path = "../arves-capability-fabric" }
+# RCR-033: the read-only WAL-scan verb reconstructs a shard's committed set through the
+# Query layer's ShardProjection (downward edge 105 -> 60; Query owns "Read projections",
+# never a write path). RCR-034: the attributed-commit verb carries the I5 agent
+# attribution envelope (downward edge 105 -> 90) into committed truth the runtime way.
+arves-query = { path = "../arves-query" }
+arves-control-plane = { path = "../arves-control-plane" }

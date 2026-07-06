@@ -14,14 +14,19 @@
 // is checkable against the ledger, not a narrative.
 //
 // HONEST MECHANISM, stated loudly: the input is the assistant's DECISION JOURNAL — a
-// product-side, in-process index of the truths this process committed (or re-proved via
-// the idempotent already-committed membership proof after a restart). The bridge line
-// protocol has NO verb to scan/enumerate committed truth, so why() can only explain
-// what the journal has re-proved; a native WAL-scan verb (the Kernel already replays
-// its WAL internally, RCR-015/ORCH-003) remains the recorded RCR candidate (README.md).
-// Determinism: the trace is a pure function of the journal — bodies and ContentIds
-// only, no clocks, no process-local sequence numbers in the output — so the SAME day
-// replayed after a restart yields a byte-identical trace.
+// read projection of committed truth. Since RCR-033 the bridge exposes a read-only `scan`
+// verb (the Kernel replays its WAL through the Query layer), so the journal can be rebuilt
+// after a restart WITHOUT re-running the day: assistant.recoverFromWal() enumerates the
+// shard's committed truth and rebuilds the journal with ZERO re-commits — TOTAL WAL-backed
+// reconstruction, real. why() then explains a fresh process's decision path straight from
+// committed truth. Residual (stated, not hidden): an invoke-EFFECT truth's causal edge to
+// its skill/proposal is process metadata, absent from the self-describing body, so a
+// scan-rebuilt journal reconstructs every station EXCEPT that effect→skill link (the
+// COMMITTED station); the deterministic re-run path still supplies it, and a native
+// attributed-INVOKE verb is the recorded next-RCR candidate. Determinism: the trace is a
+// pure function of the journal — bodies and ContentIds only, no clocks, no process-local
+// sequence numbers in the output — so the SAME day replayed after a restart yields a
+// byte-identical trace.
 
 const ID_RE = /^[0-9a-f]{68}$/;
 
@@ -234,7 +239,7 @@ export function renderWhy(trace) {
     }
   }
   for (const d of trace.decisions) lines.push(`  DECIDED: ${s(d.id)} action '${d.action}' — ${d.because}`);
-  lines.push('  (mechanism: product-side journal of committed truths, re-provable via already-committed;');
-  lines.push('   a native WAL-scan verb over the bridge is the recorded RCR candidate — README.md)');
+  lines.push('  (mechanism: read projection of committed truths — rebuildable read-only from the WAL via');
+  lines.push('   the RCR-033 bridge scan verb, recoverFromWal(); no re-commit needed for total reconstruction)');
   return lines.join('\n');
 }

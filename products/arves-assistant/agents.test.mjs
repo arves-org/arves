@@ -155,8 +155,38 @@ test('A7: why() reconstructs the decision path — observed evidence, proposer, 
     // The rendering is printable, deterministic, and id-first.
     const text = renderWhy(trace);
     assert.ok(text.includes('WHY —') && text.includes('POLICY CHECKED') && text.includes('APPROVED')
-      && text.includes('COMMITTED') && text.includes('RCR candidate'));
+      && text.includes('COMMITTED') && text.includes('recoverFromWal'));
     assert.equal(text, renderWhy(why(a, effectId)), 'same journal -> byte-identical rendering');
+
+    // HONEST RESIDUAL, PROVEN BY EXECUTION (adversarial finding): the disclosed
+    // imperfection of read-only reconstruction is that an invoke-EFFECT truth's causal
+    // edge to its skill/proposal is PROCESS metadata, absent from the self-describing
+    // committed body. Prove it on the EFFECT-bearing subject (not just prose): after a
+    // pure WAL recovery, why(subject) rebuilds every self-describing station identically
+    // but the COMMITTED effect→skill edge (and the admission derived from it) is GONE.
+    const liveSubject = why(a, subject);
+    assert.equal(liveSubject.committed.length, 1, 'LIVE: the effect→skill edge is present');
+    assert.equal(liveSubject.admissions.length, 1, 'LIVE: the acting skill admission is present');
+    const report = await a.recoverFromWal();
+    assert.ok(report.recovered >= 1, 'the WAL scan enumerated the committed set');
+    assert.ok(a.journal().every((e) => e.status === 'already-committed'),
+      'recoverFromWal commits nothing — every entry is recovered truth');
+    const recovered = why(a, subject);
+    // The self-describing stations survive byte-identically...
+    assert.deepEqual(recovered.proposals.map((p) => p.id), liveSubject.proposals.map((p) => p.id),
+      'proposals reconstruct from committed truth alone');
+    assert.deepEqual(recovered.policies.map((p) => p.id), liveSubject.policies.map((p) => p.id),
+      'the checked policy reconstructs');
+    assert.deepEqual(recovered.approvals, liveSubject.approvals, 'the approval reconstructs');
+    assert.deepEqual(recovered.compliance.map((c) => c.id), liveSubject.compliance.map((c) => c.id),
+      'the block reconstructs');
+    // ...but the process-metadata edge does NOT — the disclosed residual, asserted:
+    assert.equal(recovered.committed.length, 0,
+      'RESIDUAL: the effect→skill edge is absent after read-only recovery (differs from the live trace)');
+    assert.equal(recovered.admissions.length, 0,
+      'RESIDUAL: the acting-skill admission derives from that edge and is likewise absent');
+    assert.notEqual(snap(recovered), snap(liveSubject),
+      'the effect subject is NOT byte-identical after recovery — the residual is real, not hidden');
   } finally { a.close(); }
 });
 
@@ -215,6 +245,42 @@ test('A5+A7: agent conflicts appear in the why() trace — proposals, first-comm
     assert.deepEqual(trace.findings.map((f) => f.id), [finding.id], 'the evidence-linked finding is cited');
     // why by the LOSING proposal id resolves to the same subject and the same story.
     assert.equal(snap(why(a, lost.id)), snap({ ...trace, target: lost.id }));
+  } finally { a.close(); }
+});
+
+test('A7 (RCR-033): recoverFromWal() rebuilds the journal READ-ONLY from the WAL — why() reconstructs the SAME conflict trace with ZERO re-commits', async () => {
+  const a = new Assistant({ tenant: 'agents', workspace: 'w7' });
+  try {
+    await a.observe('tasks-file', { entity: 'urn:you', event: 'renew-passport', at: 1_751_817_600_000n });
+    const council = new AgentCouncil(a);
+    const researcher = new ResearcherAgent();
+    const scheduler = new SchedulerAgent();
+    const finding = await researcher.research(a, 'passport');
+    const first = await researcher.propose(council,
+      { subject: 'plan:renew-passport', action: 'research-first', findingId: finding.id });
+    const [lost] = await scheduler.planDay(a, council);
+
+    // The live trace (journal built by the running process).
+    const live = why(a, 'plan:renew-passport');
+
+    // Now DISCARD the in-process journal and rebuild it purely from committed truth via
+    // the read-only scan verb — no re-run of the day, no re-commit.
+    const report = await a.recoverFromWal();
+    assert.ok(report.recovered >= 5, 'the WAL scan enumerated the committed set');
+    // Every rebuilt journal entry is already-committed truth (a pure read, nothing fresh).
+    assert.ok(a.journal().every((e) => e.status === 'already-committed'),
+      'recoverFromWal commits nothing — every entry is recovered truth');
+
+    // why() over the scan-rebuilt journal reconstructs the conflict identically.
+    const recovered = why(a, 'plan:renew-passport');
+    assert.equal(snap(recovered), snap(live), 'scan-rebuilt trace is byte-identical to the live trace');
+    assert.deepEqual(recovered.proposals.map((p) => p.by), ['researcher', 'scheduler']);
+    assert.equal(recovered.resolutions[0].winner, first.id);
+    assert.equal(recovered.resolutions[0].loser, lost.id);
+    assert.deepEqual(recovered.findings.map((f) => f.id), [finding.id]);
+    // The observation layer recovered read-only too (fact + its attesting source).
+    assert.equal(recovered.observed.length, 1);
+    assert.deepEqual(recovered.observed[0].sources, ['tasks-file']);
   } finally { a.close(); }
 });
 

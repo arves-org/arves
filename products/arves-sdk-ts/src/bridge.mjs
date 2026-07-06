@@ -12,6 +12,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encode, DOMAIN, hex } from './codec.mjs';
 
+/** Bytes from a lowercase-hex string (the inverse of codec `hex`). Throws on odd length
+ *  or a non-hex digit — a malformed scan body fails loudly, never silently truncates. */
+function unhex(s) {
+  if (typeof s !== 'string' || s.length % 2 !== 0 || /[^0-9a-f]/.test(s)) {
+    throw new Error(`ARVES: malformed hex ${JSON.stringify(s)}`);
+  }
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_EXE = path.resolve(
   HERE, '../../../runtime/target/debug/arves-bridge' + (process.platform === 'win32' ? '.exe' : ''),
@@ -175,6 +186,49 @@ export class KernelBridge {
       throw new Error(`arves-bridge malformed bind response: ${JSON.stringify(line)}`);
     }
     return { bound: capability };
+  }
+
+  /** RCR-033 — READ-ONLY enumerate this client's shard's committed truth by WAL replay.
+   *  Returns `[{ id, body? }]` in deterministic commit order, where `id` is the ACS-001
+   *  ContentId (68-hex) and, when `{ bodies: true }`, `body` is the raw committed payload
+   *  bytes (Uint8Array) — the caller decodes them (codec `decode`, or the attribution
+   *  envelope). This is TOTAL reconstruction of the shard's committed set: no candidate
+   *  bodies re-supplied, no re-commit side effect. A never-committed shard returns [].
+   *  A shard whose retained log EXISTS but cannot be replayed is refused by the bridge
+   *  as `ERR scan-fault` and THROWS here — truth-loss is never silently read as []. */
+  async scan({ bodies = false } = {}) {
+    const line = await this.#send(bodies ? 'scan bodies' : 'scan');
+    if (line.startsWith('ERR')) throw new Error(`bridge scan refused: ${line}`);
+    const parts = line.split(/\s+/);
+    if (parts[0] !== 'scan') throw new Error(`arves-bridge malformed scan response: ${JSON.stringify(line)}`);
+    const count = Number(parts[1]);
+    const items = parts.slice(2).filter((t) => t.length > 0);
+    if (!Number.isInteger(count) || count < 0 || items.length !== count) {
+      throw new Error(`arves-bridge malformed scan response: ${JSON.stringify(line)} (count=${parts[1]})`);
+    }
+    return items.map((tok) => {
+      if (!bodies) {
+        if (!/^[0-9a-f]{68}$/.test(tok)) throw new Error(`arves-bridge malformed scan id: ${JSON.stringify(tok)}`);
+        return { id: tok };
+      }
+      const eq = tok.indexOf('=');
+      const id = tok.slice(0, eq);
+      if (eq < 0 || !/^[0-9a-f]{68}$/.test(id)) throw new Error(`arves-bridge malformed scan entry: ${JSON.stringify(tok)}`);
+      return { id, body: unhex(tok.slice(eq + 1)) };
+    });
+  }
+
+  /** RCR-034 — commit an ARVES value as truth ATTRIBUTED to `agentId` (lowercase-hex),
+   *  the runtime way: the Who rides inside the committed payload (recoverable via scan).
+   *  An attributed commit is a DISTINCT truth from a plain commit of the same value. */
+  async commitAs(value, agentId, domain = 'commit') {
+    const tag = DOMAIN[domain];
+    if (tag === undefined) throw new Error(`unknown domain '${domain}'`);
+    if (typeof agentId !== 'string' || agentId.length === 0 || agentId.length % 2 !== 0 || /[^0-9a-f]/.test(agentId)) {
+      throw new Error(`ARVES: invalid agentId ${JSON.stringify(agentId)} (non-empty even-length lowercase hex)`);
+    }
+    const domHex = tag.toString(16).padStart(2, '0');
+    return this.#parse(await this.#send(`commit-as ${agentId} ${domHex} ${hex(encode(value))}`), 'commit-as');
   }
 
   close() { try { this.#proc.stdin.end(); } catch { /* already gone */ } }

@@ -21,9 +21,14 @@
 //
 // LOUD HONESTY: no AI runs here. The StubReasoner is a keyword table; the agents are
 // rule-based actors; the intelligence arrives when the maintainer plugs their LLM into
-// the Reasoner slot (docs/JARVIS_QUICKSTART.md). Attribution is product-level (in-body
-// tags): the runtime's Rust I5 attribution is not exposed over the bridge — recorded RCR
-// candidate, never faked. Single host, no authN (v1.0 scope). A probe is a probe.
+// the Reasoner slot (docs/JARVIS_QUICKSTART.md). why()/rebuild are now WAL-backed: the
+// RCR-033 bridge `scan` verb replays the Kernel's WAL read-only, so recoverFromWal()
+// reconstructs the decision journal from committed truth with ZERO re-commits (Act 6b).
+// The runtime I5 attribution IS now reachable over the bridge (RCR-034 `commit-as`,
+// proven in the bridge's own tests); this capstone's agents still use product-level
+// in-body tags, and the effect→skill causal edge stays journal metadata — a native
+// attributed-INVOKE verb is the recorded next-RCR candidate, never faked. Single host,
+// no authN (v1.0 scope). A probe is a probe.
 //
 // Exit code: 0 iff every property below PASSes.
 
@@ -177,10 +182,48 @@ try {
       && trace1.admissions.length === 1 && trace1.admissions[0].skill === 'spend.order',
     `stations: observed=${trace1.observed.length} proposal/policy/block/approval/commit all cited`);
 
+  // Day-1 agent-conflict trace (no effects) — the subject we will rebuild READ-ONLY after
+  // the restart to prove total WAL-backed reconstruction without re-running the day.
+  const conflictTrace1 = why(assistant, 'plan:renew-passport');
+
   // ================================ THE RESTART ========================================
   assistant.close();
   assistant = null;
   await sleep(400); // let the bridge process exit (Windows WAL-dir file locks)
+
+  // ---- A7 (RCR-033): TOTAL read-only reconstruction from the WAL, no day re-run --------
+  // A brand-new process over the same WAL rebuilds its decision journal purely by SCANNING
+  // committed truth (the bridge `scan` verb replays the Kernel's WAL) — ZERO re-commits,
+  // no candidate bodies — and why() reconstructs the agent conflict byte-identically.
+  const recon = new Assistant({ tenant: 'maintainer', workspace: 'jarvis', walDir });
+  let reconReport = null; let conflictRecon = null; let reconFresh = true; let effectRecon = null;
+  try {
+    reconReport = await recon.recoverFromWal();               // read-only: nothing committed
+    reconFresh = recon.journal().every((e) => e.status === 'already-committed');
+    conflictRecon = why(recon, 'plan:renew-passport');        // reconstructed from truth alone
+    effectRecon = why(recon, SPEND_SUBJECT);                  // the EFFECT-bearing subject
+  } finally { recon.close(); }
+  await sleep(400);
+  check('A7 (RCR-033): a fresh process rebuilds why() READ-ONLY from the WAL scan — total reconstruction, ZERO re-commits, byte-identical to day 1',
+    reconReport !== null && reconReport.recovered > 0 && reconFresh
+      && conflictRecon !== null && snap(conflictRecon) === snap(conflictTrace1),
+    `scanned ${reconReport ? reconReport.recovered : 0} committed truths; recommitted 0`);
+
+  // A7 (RCR-033) HONEST RESIDUAL — PROVEN BY EXECUTION, not prose. The no-effect subject
+  // above rebuilds byte-identically. The EFFECT subject does NOT: an invoke-EFFECT truth's
+  // causal edge to its skill/proposal is PROCESS metadata, absent from the self-describing
+  // body, so a read-only scan reconstructs every self-describing station (observed,
+  // proposer, policy, block, approval) but the COMMITTED effect→skill edge (and the
+  // admission derived from it) is GONE. The disclosed imperfection is asserted here.
+  check('A7 (RCR-033) HONEST RESIDUAL: the EFFECT subject reconstructs every self-describing station BUT the effect→skill edge is absent after a read-only scan (proven, not just documented)',
+    effectRecon !== null
+      && effectRecon.proposals.map((p) => p.id).join() === trace1.proposals.map((p) => p.id).join()
+      && effectRecon.policies.map((p) => p.id).join() === trace1.policies.map((p) => p.id).join()
+      && effectRecon.approvals.map((a) => a.id).join() === trace1.approvals.map((a) => a.id).join()
+      && effectRecon.compliance.map((c) => c.id).join() === trace1.compliance.map((c) => c.id).join()
+      && trace1.committed.length === 1 && effectRecon.committed.length === 0
+      && effectRecon.admissions.length === 0,
+    `live effect→skill edges=${trace1.committed.length}, scan-recovered=${effectRecon ? effectRecon.committed.length : 'n/a'} (the recorded next-RCR candidate closes this)`);
 
   // ================================ DAY 2 (same WAL) ===================================
   assistant = new Assistant({ tenant: 'maintainer', workspace: 'jarvis', walDir });
