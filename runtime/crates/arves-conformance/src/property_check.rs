@@ -15,7 +15,13 @@
 //! surface; the I5 Orchestrator adds its own obligations when it lands). RCR-028 (I4 Stage 3)
 //! widened the cited proofs across the ADVERSARIAL scheduling surface (schedule storms,
 //! node/scheduler death, poison storms, leadership change) and the live
-//! `capability-scheduling-distributed` conformance artifact.
+//! `capability-scheduling-distributed` conformance artifact. RCR-031 (I5 Stage 3) widened
+//! them again across the MULTI-AGENT surface (RCR-029 identity/attribution + RCR-030
+//! decision/compliance flow + the RCR-031 adversarial proofs: seeded storm permutations,
+//! attribution-forging refusals, partition honesty, full-cluster replay INCLUDING the
+//! attribution trail) and the live `multi-agent-coordination-distributed` artifact —
+//! honest scope: the frozen `Orchestrator` plan-graph contract itself remains
+//! contract-only (delegation/plan-graph execution is NOT pre-certified by these rows).
 //!
 //! `run_suite()` executes every in-process proof; the accompanying test asserts they all hold
 //! and that the coverage map matches reality (no silent "pending → proven" drift).
@@ -251,7 +257,18 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (storm_duplicate_and_reordered_schedules_never_double_execute_orch004, \
                            node_death_mid_invocation_replaces_and_never_duplicates_commit, \
                            leadership_change_mid_schedule_lands_each_invocation_exactly_once); \
-                           arves-conformance::live (live_capability_scheduling_scenario_passes)",
+                           arves-conformance::live (live_capability_scheduling_scenario_passes); \
+                           MULTI-AGENT surface (I5, RCR-029/030/031): arves-control-plane::tests::agent_identity \
+                           (registration_commits_content_addressed_truth_and_is_idempotent_orch004, \
+                           duplicate_attributed_effects_converge_to_one_truth_orch004); \
+                           arves-control-plane::tests::multi_agent_orchestration \
+                           (duplicate_and_agreeing_proposals_converge_to_one_truth_orch004_across_agents, \
+                           seeded_interleaving_permutations_yield_one_derived_truth_and_no_forks); \
+                           arves-control-plane::tests::multi_agent_adversarial \
+                           (agent_storm_truth_set_identical_across_all_seeded_schedule_permutations — \
+                           the order-independence proof: one truth set across ALL permutations; \
+                           replay_rebind_and_rewrap_cannot_forge_attribution_and_floods_never_double_commit); \
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
             },
         },
         // ORCH-003 — replay from the recorded trace reproduces identical truth. Under
@@ -276,7 +293,18 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (leader_loss_mid_dispatch_replays_from_record_and_commits_exactly_once — \
                            the retry replays from the RECORDED inference, engine never re-invoked); \
                            arves-control-plane::tests::adversarial_scheduling \
-                           (node_death_mid_invocation_replaces_and_never_duplicates_commit)",
+                           (node_death_mid_invocation_replaces_and_never_duplicates_commit); \
+                           MULTI-AGENT surface incl. ATTRIBUTION (I5, RCR-029/030/031): \
+                           arves-lcw::tests::shared_world \
+                           (world_view_at_commit_index_n_is_identical_on_every_replica); \
+                           arves-control-plane::tests::multi_agent_orchestration \
+                           (conflicting_decisions_resolve_first_committed_wins_with_loser_receiving_winner — \
+                           same scripted schedule ⇒ byte-identical shard state); \
+                           arves-control-plane::tests::multi_agent_adversarial \
+                           (full_cluster_replay_from_wal_rebuilds_identical_truth_and_attribution_trail — \
+                           every node rebuilt from its own WAL reproduces identical truth AND an \
+                           identical attribution trail / decision derivation / compliance ledger); \
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
             },
         },
         // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
@@ -306,7 +334,17 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            same_capability_provider_and_input_in_two_shards_both_commit_their_own_truth); \
                            arves-control-plane::tests::adversarial_scheduling \
                            (poison_capability_storm_cannot_block_shard_or_cluster, \
-                           overcapacity_refusals_are_explicit_accounted_and_retriable_never_silent)",
+                           overcapacity_refusals_are_explicit_accounted_and_retriable_never_silent); \
+                           MULTI-AGENT surface (I5, RCR-029/030/031): arves-control-plane::tests::agent_identity \
+                           (identity_is_shard_bound_for_life_shard001, \
+                           smuggled_foreign_shard_definition_is_refused_shard001); \
+                           arves-lcw::tests::shared_world \
+                           (hydration_into_a_foreign_shard_memory_is_refused_shard001); \
+                           arves-control-plane::tests::multi_agent_adversarial \
+                           (full_cluster_replay_from_wal_rebuilds_identical_truth_and_attribution_trail — \
+                           two tenants' attribution trails never blur, before or after replay); \
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes — \
+                           cross-tenant attribution refused, per-shard worlds isolated)",
             },
         },
         // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Pending until RCR-027
@@ -334,7 +372,15 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (poison_capability_storm_cannot_block_shard_or_cluster — a poisoned \
                            capability contributes ZERO truth); \
                            arves-conformance::live (live_capability_scheduling_scenario_passes — \
-                           dropping the scheduler moves zero committed truth, derived live)",
+                           dropping the scheduler moves zero committed truth, derived live); \
+                           MULTI-AGENT surface (I5, RCR-029/030/031 — the flow decides, only the \
+                           Kernel commits; refusals commit nothing): \
+                           arves-control-plane::tests::multi_agent_orchestration \
+                           (agent_proposals_flow_through_the_scheduler_and_only_the_kernel_commits); \
+                           arves-control-plane::tests::multi_agent_adversarial \
+                           (partition_minority_proposals_fail_honestly_and_heal_loses_no_attributed_truth — \
+                           a minority-side proposal commits NOTHING, never a fork); \
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
             },
         },
         PropertyCheck {
@@ -351,7 +397,16 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (node_death_mid_invocation_replaces_and_never_duplicates_commit — the \
                            content-addressed key carries across scheduler death; a fresh scheduler \
                            rebuilt from the plan re-commits idempotently, zero duplicates); \
-                           arves-conformance::live (live_capability_scheduling_scenario_passes)",
+                           arves-conformance::live (live_capability_scheduling_scenario_passes); \
+                           MULTI-AGENT surface (I5, RCR-029/030/031 — identities/policies/approvals/ \
+                           decisions live ONLY in the truth base; the flow holds no state): \
+                           arves-control-plane::tests::agent_identity \
+                           (registered_identity_is_addressable_from_the_shared_world_on_every_replica — \
+                           the registry recovers with the truth, never from orchestrator memory); \
+                           arves-lcw::tests::shared_world \
+                           (hydrated_working_memory_is_derived_disposable_and_never_writes_back); \
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes — \
+                           scheduler drop/rebuild converges with zero fresh commits)",
             },
         },
     ]

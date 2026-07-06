@@ -34,6 +34,7 @@ dependencies = [
  "arves-control-plane",
  "arves-engine-fabric",
  "arves-kernel",
+ "arves-lcw",
  "arves-persistence",
  "arves-query",
 ]
@@ -51,6 +52,9 @@ dependencies = [
  "arves-consensus",
  "arves-engine-fabric",
  "arves-kernel",
+ "arves-lcw",
+ "arves-persistence",
+ "arves-query",
 ]
 
 [[package]]
@@ -83,6 +87,11 @@ dependencies = [
 [[package]]
 name = "arves-lcw"
 version = "0.0.0"
+dependencies = [
+ "arves-consensus",
+ "arves-kernel",
+ "arves-persistence",
+]
 
 [[package]]
 name = "arves-ontology"

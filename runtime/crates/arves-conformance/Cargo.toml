@@ -30,3 +30,10 @@ arves-query = { path = "../arves-query" }
 arves-control-plane = { path = "../arves-control-plane" }
 arves-capability-fabric = { path = "../arves-capability-fabric" }
 arves-engine-fabric = { path = "../arves-engine-fabric" }
+# RCR-031 (I5 Stage 3): the live MULTI-AGENT COORDINATION scenario (I5 design §5.1 axis 9
+# primary + axes 3/10/12, §5.3 Control-Plane/LCW node probes) reads committed truth through
+# the RCR-029 LCW `WorldView` shared-truth surface (the declared-basis discipline of the
+# multi-agent flow). LAYER-001: conformance (rank 110) -> lcw (50) is a DOWNWARD edge
+# (legal; ranks checked in src/property_check.rs BEFORE adding); the architecture gate
+# confirms this.
+arves-lcw = { path = "../arves-lcw" }

@@ -14,3 +14,23 @@ arves-engine-fabric = { path = "../arves-engine-fabric" }
 arves-kernel = { path = "../arves-kernel" }
 arves-consensus = { path = "../arves-consensus" }
 arves-acs = { path = "../arves-acs" }
+# RCR-029 (I5 Stage 1): ONE new architectural edge, downward (LAYER-001; ranks
+# checked in arves-conformance/src/property_check.rs BEFORE adding:
+# control-plane(90) -> lcw(50)) — agent addressability/attribution reads the
+# LCW shared-truth WorldView; writes stay on the frozen Kernel gateway.
+arves-lcw = { path = "../arves-lcw" }
+# RCR-030 (I5 Stage 2): ONE new architectural edge, downward (LAYER-001; ranks
+# checked in arves-conformance/src/property_check.rs BEFORE adding:
+# control-plane(90) -> persistence(20)) — the decision flow reconciles at the
+# serialization point against the at-head WorldView, which folds a WalStore.
+# (Promoted from the RCR-029 dev-dependency; reads only, behind `&`.)
+arves-persistence = { path = "../arves-persistence" }
+
+[dev-dependencies]
+# Test-only edge (excluded from the LAYER-001 gate on purpose): the I5 Stage-2
+# cross-agent consistency proofs read committed truth through the I3 ladder
+# (ClusterQuery, labeled guarantees). A src edge control-plane -> query would
+# ALSO be downward (90 > 60) but is deliberately NOT taken: the flow's read
+# surface is the LCW WorldView; the ladder is exercised as the agents' read
+# path in tests only.
+arves-query = { path = "../arves-query" }

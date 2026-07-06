@@ -1466,6 +1466,603 @@ pub fn run_capability_scheduling_scenario() -> ConformanceArtifact {
     LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
 }
 
+// ---------------------------------------------------------------------------
+// MULTI-AGENT COORDINATION scenario (RCR-031, I5 Stage 3): the I5 design's
+// conformance plan — §5.1 instantiates axis 9 (Multi-agent Coordination, the
+// milestone's defining axis: N agents over ONE shared truth base, conflicting
+// decisions resolved deterministically and recorded, never silently
+// overwritten), axis 3 (Human Collaboration: the approval gate — HONEST: the
+// "approval" is a SEPARATE COMMITTED TRUTH by a registered second identity,
+// the G1 E1 semantics at runtime grade, NOT an interactive human), axis 10
+// (Policy-heavy Governance: committed policy truths enforced by the Control
+// Plane with the refusal itself committed as auditable compliance truth) and
+// axis 12 (Recovery & Replay: full-cluster rebuild-from-WAL reproduces truth
+// INCLUDING the attribution trail — ORCH-003 over the multi-agent history).
+// Axes 11 (Autonomous Decision: no risk/confidence-limit machinery exists)
+// and 8 (High-volume: no volume/throughput claim is exercisable in-process)
+// are OMITTED HONESTLY. §5.3's multi-agent artifact fields are populated for
+// the first time: proposing-agent identity per decision, policy gates fired,
+// conflicts detected/arbitrated (`arbitration_choices` + `policy_gates`).
+// HONEST SCOPE: the "agents" are DETERMINISTIC TEST ACTORS (registered
+// identities driven by scripted schedules), NOT AI models; identity is
+// structural, not cryptographic (v2.0 debt #8 / design OQ-1); the cluster is
+// the in-process deterministic `ClusterSim` — NO network exists; the frozen
+// `Orchestrator` plan-graph contract remains contract-only (delegation/
+// arbitration-policy language are design OQ-8-class instruments, not built).
+// The "arbitration" recorded here is exactly the registered rule the runtime
+// enforces: first-committed-wins in shard log order (IDR-001/IDR-005), the
+// loser receiving the winner + a committed conflict event.
+// ---------------------------------------------------------------------------
+
+use arves_control_plane::agents::{
+    attributed_effects, propose_attributed, register_agent, AgentDefinition, AgentError,
+};
+use arves_control_plane::multi_agent::{
+    commit_approval, commit_policy, compliance_on, decision_of, propose_decision,
+    submit_attributed_effect, ComplianceOutcome, FlowError, PolicyRecord, ProposalOutcome,
+};
+use arves_lcw::world::WorldView;
+use arves_lcw::ShardKey as LcwShardKey;
+
+/// The **I5 multi-agent coordination under distribution** scenario (design §5).
+pub fn multi_agent_coordination_scenario() -> Scenario {
+    Scenario {
+        id: "multi-agent-coordination-distributed",
+        name: "I5 — Multi-agent coordination: N deterministic agent identities over ONE \
+                shared truth base; attributed proposals, policy/approval flow, \
+                first-committed-wins conflict arbitration, replay incl. attribution",
+        axes: vec![
+            Axis::MultiAgentCoordination,
+            Axis::HumanCollaboration,
+            Axis::PolicyHeavyGovernance,
+            Axis::RecoveryAndReplay,
+        ],
+        expected_path: vec![PipelineNode::ControlPlane, PipelineNode::LivingCognitiveWorld],
+        required_invariants: vec![
+            Invariant::Orch001ControlPlaneOwnsNoTruth,
+            Invariant::Orch002NoPersistentStateInControlPlane,
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::TenantWorkspaceIsolation,
+            Property::PolicyGatesFired,
+            Property::SafetyGatesBlockedUnsafePlans,
+            Property::ReplayReproducesTrace,
+        ],
+    }
+}
+
+/// Observes the **Control Plane** node under multi-agent coordination (design
+/// §5.3: "expanded multi-agent evidence — which agent proposed, which policy
+/// gates fired, which conflicts were detected; ORCH-001..004 upheld, no truth
+/// produced") by driving the RCR-029/030 identity + flow surface over a real
+/// 3-replica, 2-tenant `ClusterSim`: agent registration as committed truth,
+/// scheduler-borne attributed proposals (duplicate collapses visibly), the
+/// policy/approval decision flow (unapproved ⇒ BLOCKED with the refusal
+/// committed; self-approval never satisfies; a peer approval — a separate
+/// committed truth — admits the decision, which cites it), a scripted
+/// conflict race (first-committed-wins; the loser receives the winner + a
+/// committed conflict event), cross-tenant refusals, scheduler drop/rebuild
+/// convergence, and a full-cluster crash-recover that must reproduce truth
+/// INCLUDING the attribution trail. Every check outcome is derived from
+/// behaviour (never hardcoded). The multi-agent artifact fields (§5.3) are
+/// collected into `policy_gates` / `arbitration_choices` via interior
+/// mutability and attached to the artifact by the run function.
+pub struct MultiAgentControlPlaneProbe {
+    /// Policy gates encountered during the run (name@scope → outcome).
+    pub policy_gates: RefCell<Vec<(String, CheckOutcome)>>,
+    /// Arbitration records: the deterministic first-committed-wins choices.
+    pub arbitration_choices: RefCell<Vec<String>>,
+}
+
+impl MultiAgentControlPlaneProbe {
+    /// A fresh probe with empty multi-agent evidence collectors.
+    pub fn new() -> Self {
+        Self { policy_gates: RefCell::new(Vec::new()), arbitration_choices: RefCell::new(Vec::new()) }
+    }
+}
+
+impl Default for MultiAgentControlPlaneProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl NodeProbe for MultiAgentControlPlaneProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::ControlPlane
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let a_sid = cluster_sid("acme", "research");
+        let g_sid = cluster_sid("globex", "research");
+        let lwa = LcwShardKey { tenant: "acme".into(), workspace: "research".into() };
+        let lwg = LcwShardKey { tenant: "globex".into(), workspace: "research".into() };
+        let kwa = shard("acme", "research");
+        let mut sim = ClusterSim::new(3);
+        sim.add_shard(a_sid.clone(), 0x15_D1);
+        sim.add_shard(g_sid.clone(), 0x15_D2);
+        let a_leader = sim.elect(&a_sid);
+        let g_leader = sim.elect(&g_sid);
+        let cluster = Rc::new(RefCell::new(sim));
+
+        // Agent identities as committed truth (RCR-029): deterministic test
+        // actors, registered through the frozen gateway; re-registration is
+        // idempotent (ORCH-004 on the registry itself).
+        let ka = ClusterKernel::new(a_leader.clone(), cluster.clone());
+        let kg = ClusterKernel::new(g_leader.clone(), cluster.clone());
+        let def = |name: &str| AgentDefinition {
+            name: name.into(),
+            agent_type: "Worker".into(),
+            owner: "ops@acme".into(),
+            purpose: "deterministic test actor (NOT an AI model)".into(),
+            definition_version: 1,
+        };
+        let a1 = register_agent(&ka, &kwa, &def("proposer")).expect("registers").id;
+        let a2 = register_agent(&ka, &kwa, &def("approver")).expect("registers").id;
+        let g1 = register_agent(&kg, &shard("globex", "research"), &def("globex-worker"))
+            .expect("registers")
+            .id;
+        let reregistered = register_agent(&ka, &kwa, &def("proposer")).expect("resolves");
+        let registry_idempotent = !reregistered.fresh && reregistered.id == a1;
+        cluster.borrow_mut().settle(5);
+        let world_at = |node: &NodeId, sh: &LcwShardKey| -> WorldView {
+            let store = cluster.borrow().wal_store_of(node);
+            WorldView::at_head(&store, sh).expect("world at head")
+        };
+
+        // Scheduler-borne attributed proposals (agents never commit —
+        // ORCH-001): two distinct effects + one duplicate that collapses
+        // VISIBLY at the ledger; the committed truth carries the Who.
+        let world = world_at(&a_leader, &lwa);
+        let mut reg = LifecycleRegistry::new();
+        let mut host = EngineHost::new();
+        let runs = Rc::new(Cell::new(0));
+        let pid = host.host(Box::new(SchedProbeEngine {
+            name: "agent-actor".into(),
+            effects: 1,
+            runs: runs.clone(),
+        }));
+        let fa = fabric_shard("acme", "research");
+        reg.register(&fa, CapabilityId("cap.agent".into())).expect("register");
+        reg.bind(CapabilityBinding {
+            capability: CapabilityId("cap.agent".into()),
+            shard: fa,
+            version: BindingVersion(1),
+            provider: pid,
+            contract: InvocationContract {
+                input_schema: "acs:bytes".into(),
+                output_schema: "acs:bytes".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        })
+        .expect("bind");
+        let down: BTreeSet<NodeId> = BTreeSet::new();
+        let env = DispatchEnv { cluster: &cluster, registry: &reg, host: &host, down: &down };
+        let mut sched = ClusterScheduler::new(1105, SchedulerConfig::default());
+        let plan: [(&arves_control_plane::agents::AgentId, &[u8]); 3] =
+            [(&a1, b"eff:draft"), (&a2, b"eff:review"), (&a1, b"eff:draft")];
+        let mut dedup_visible = false;
+        for (t, (agent, effect)) in plan.iter().enumerate() {
+            match submit_attributed_effect(
+                &mut sched,
+                t as u64 + 1,
+                &world,
+                agent,
+                CapabilityId("cap.agent".into()),
+                PolicyVerdict::Allow,
+                effect,
+                &env,
+            )
+            .expect("registered agents admitted")
+            {
+                SubmitOutcome::Deduplicated { .. } => dedup_visible = true,
+                SubmitOutcome::Admitted { .. } => {}
+                other => panic!("unexpected submit outcome {other:?}"),
+            }
+        }
+        let mut tick = 10u64;
+        while !sched.is_idle() && tick < 30 {
+            sched.dispatch_tick(tick, &env);
+            tick += 1;
+        }
+        // Each DISTINCT proposal computed exactly once in the first pass (the
+        // rebuild below lawfully recomputes — at-least-once compute).
+        let first_pass_runs = runs.get();
+        // An UNREGISTERED identity is refused BEFORE the queue; nothing commits.
+        let ghost = arves_control_plane::agents::AgentId::of(&kwa, &def("never-registered-ghost"));
+        let before = cluster.borrow().committed_count_of(&a_leader);
+        let world = world_at(&a_leader, &lwa);
+        let ghost_refused = matches!(
+            submit_attributed_effect(
+                &mut sched,
+                50,
+                &world,
+                &ghost,
+                CapabilityId("cap.agent".into()),
+                PolicyVerdict::Allow,
+                b"illicit",
+                &env,
+            ),
+            Err(FlowError::NotRegistered { .. })
+        ) && cluster.borrow().committed_count_of(&a_leader) == before;
+
+        // The policy/approval decision flow (axes 3 + 10): the gate reads
+        // COMMITTED policy truth; the refusal is COMMITTED compliance truth;
+        // self-approval never satisfies; the peer approval — a SEPARATE
+        // committed truth — admits the decision, which CITES it.
+        let store_a = cluster.borrow().wal_store_of(&a_leader);
+        let policy =
+            PolicyRecord { name: "legal-review".into(), scope: "contract/".into(), version: 1 };
+        let policy_truth = commit_policy(&ka, &kwa, &policy).expect("policy commits");
+        let basis = world_at(&a_leader, &lwa);
+        let blocked = propose_decision(&ka, &store_a, &basis, &a1, "contract/msa", "sign");
+        let blocked_committed = matches!(&blocked, Ok(ProposalOutcome::Blocked { policy, .. })
+            if policy == "legal-review");
+        self.policy_gates.borrow_mut().push((
+            format!(
+                "legal-review@contract/ (policy truth {}…) FIRED on unapproved proposal by \
+                 agent {}… → Blocked, refusal COMMITTED as compliance truth",
+                &policy_truth.id_hex[..12],
+                &a1.hex()[..12]
+            ),
+            held_if(blocked_committed),
+        ));
+        // Self-approval never satisfies (proposer ≠ approver, structurally).
+        let basis = world_at(&a_leader, &lwa);
+        commit_approval(&ka, &basis, &a1, "contract/msa").expect("self-approval commits as truth");
+        let basis = world_at(&a_leader, &lwa);
+        let self_blocked = matches!(
+            propose_decision(&ka, &store_a, &basis, &a1, "contract/msa", "sign"),
+            Ok(ProposalOutcome::Blocked { .. })
+        );
+        // The peer approval (the HITL checkpoint as a SEPARATE committed
+        // truth — honest: a recorded approval truth, not an interactive human).
+        let basis = world_at(&a_leader, &lwa);
+        let approval = commit_approval(&ka, &basis, &a2, "contract/msa").expect("peer approves");
+        let basis = world_at(&a_leader, &lwa);
+        let decided = propose_decision(&ka, &store_a, &basis, &a1, "contract/msa", "sign");
+        let (decision_admitted, decision_cites_approval) = match &decided {
+            Ok(ProposalOutcome::Committed { decision, .. }) => (
+                decision.record.agent == a1,
+                decision.record.cites == vec![approval.id_hex.clone()],
+            ),
+            _ => (false, false),
+        };
+        self.policy_gates.borrow_mut().push((
+            format!(
+                "legal-review@contract/ SATISFIED by peer approval truth {}… (approver {}… ≠ \
+                 proposer; self-approval stayed Blocked) → decision admitted citing it",
+                &approval.id_hex[..12],
+                &a2.hex()[..12]
+            ),
+            held_if(self_blocked && decision_admitted && decision_cites_approval),
+        ));
+
+        // The scripted conflict race (axis 9): both agents hold ONE stale
+        // basis; first-committed-wins in shard log order; the loser receives
+        // the WINNER and the conflict is committed compliance truth.
+        let stale = world_at(&a_leader, &lwa);
+        let first = propose_decision(&ka, &store_a, &stale, &a1, "plan/q4", "expand");
+        let winner = match &first {
+            Ok(ProposalOutcome::Committed { decision, .. }) => Some(decision.clone()),
+            _ => None,
+        };
+        let second = propose_decision(&ka, &store_a, &stale, &a2, "plan/q4", "cut");
+        let conflict_arbitrated = match (&winner, &second) {
+            (Some(w), Ok(ProposalOutcome::Conflict { winner: got, superseded_attempt, .. })) => {
+                got == w && superseded_attempt.is_some()
+            }
+            _ => false,
+        };
+        if let Some(w) = &winner {
+            self.arbitration_choices.borrow_mut().push(format!(
+                "subject plan/q4: first-committed-wins in shard log order (IDR-001/IDR-005) → \
+                 winner {}… (agent {}…, action 'expand') at offset {}; loser (agent {}…, \
+                 action 'cut') received the winner + a committed conflict event citing it",
+                &w.id_hex[..12],
+                &w.record.agent.hex()[..12],
+                w.committed_at,
+                &a2.hex()[..12]
+            ));
+        }
+        cluster.borrow_mut().settle(5);
+        // The conflict event derives identically on every replica; exactly one
+        // decision derives; the loser stays visible as superseded trace.
+        let mut conflict_recorded_everywhere = true;
+        for n in cluster.borrow().node_ids() {
+            let w = world_at(&n, &lwa);
+            let events = compliance_on(&w, "plan/q4");
+            conflict_recorded_everywhere &= events.len() == 1
+                && matches!(&events[0].0.outcome, ComplianceOutcome::Conflict { prior_id, .. }
+                    if winner.as_ref().map(|w| &w.id_hex) == Some(prior_id))
+                && decision_of(&w, "plan/q4").as_ref() == winner.as_ref();
+        }
+
+        // SHARD-001 across agent populations: globex's world never contains
+        // acme's identities/effects, and attributing acme's agent into the
+        // globex world is refused (cross-shard attribution impossible).
+        let wg = world_at(&g_leader, &lwg);
+        let g_world_clean = !wg.contains(&a1.hex())
+            && attributed_effects(&wg).iter().all(|(who, _, _)| *who == g1);
+        let g_before = cluster.borrow().committed_count_of(&g_leader);
+        let cross_refused = matches!(
+            propose_attributed(&kg, &wg, &a1, b"cross-tenant-smuggle"),
+            Err(AgentError::NotRegistered { .. })
+        ) && cluster.borrow().committed_count_of(&g_leader) == g_before;
+        let shard001 = held_if(g_world_clean && cross_refused);
+
+        // ORCH-001/002: drop the scheduler — zero committed truth moves; a
+        // fresh scheduler re-submitting the identical plan converges entirely
+        // by dedupe (zero fresh commits).
+        cluster.borrow_mut().settle(5);
+        let truths = |cluster: &Rc<RefCell<ClusterSim>>| -> Vec<(usize, Vec<u8>, Vec<u8>)> {
+            let c = cluster.borrow();
+            c.node_ids()
+                .iter()
+                .map(|n| {
+                    (
+                        c.committed_count_of(n),
+                        c.shard_state_of(n, &a_sid),
+                        c.shard_state_of(n, &g_sid),
+                    )
+                })
+                .collect()
+        };
+        let reference = truths(&cluster);
+        drop(sched);
+        let truth_unchanged_on_drop = truths(&cluster) == reference;
+        let mut rebuilt = ClusterScheduler::new(1106, SchedulerConfig::default());
+        let world = world_at(&a_leader, &lwa);
+        for (t, (agent, effect)) in plan.iter().enumerate() {
+            let _ = submit_attributed_effect(
+                &mut rebuilt,
+                100 + t as u64,
+                &world,
+                agent,
+                CapabilityId("cap.agent".into()),
+                PolicyVerdict::Allow,
+                effect,
+                &env,
+            );
+        }
+        let mut tick = 110u64;
+        while !rebuilt.is_idle() && tick < 130 {
+            rebuilt.dispatch_tick(tick, &env);
+            tick += 1;
+        }
+        let rebuild_zero_fresh = rebuilt
+            .decisions()
+            .iter()
+            .filter(|d| matches!(d, SchedulingDecision::Committed { deduped: false, .. }))
+            .count()
+            == 0
+            && truths(&cluster) == reference;
+
+        // ORCH-003 INCLUDING ATTRIBUTION: crash-recover every node — rebuild
+        // from each node's own WAL; truth bytes, the attribution trail (who/
+        // what/offset) and the derived decisions must all reproduce.
+        let capture = |cluster: &Rc<RefCell<ClusterSim>>| -> Vec<(Vec<u8>, Vec<String>, Vec<String>)> {
+            let c = cluster.borrow();
+            c.node_ids()
+                .iter()
+                .map(|n| {
+                    let store = c.wal_store_of(n);
+                    let w = WorldView::at_head(&store, &lwa).expect("world");
+                    let trail: Vec<String> = attributed_effects(&w)
+                        .into_iter()
+                        .map(|(who, what, at)| format!("{}:{}:{}", who.hex(), hex(&what), at))
+                        .collect();
+                    let derived: Vec<String> = ["contract/msa", "plan/q4"]
+                        .iter()
+                        .filter_map(|s| decision_of(&w, s).map(|d| d.id_hex))
+                        .collect();
+                    (c.shard_state_of(n, &a_sid), trail, derived)
+                })
+                .collect()
+        };
+        let before_crash = capture(&cluster);
+        let replicas_agree = before_crash.windows(2).all(|w| w[0] == w[1]);
+        {
+            let mut c = cluster.borrow_mut();
+            for n in c.node_ids() {
+                c.crash_recover(&n);
+            }
+        }
+        let replay_with_attribution = capture(&cluster) == before_crash && replicas_agree;
+
+        // Derive the invariant/property outcomes from observed behaviour.
+        let orch001 = held_if(truth_unchanged_on_drop && ghost_refused);
+        let orch002 = held_if(rebuild_zero_fresh && truth_unchanged_on_drop);
+        let orch003 = held_if(replay_with_attribution);
+        let orch004 = held_if(
+            registry_idempotent && dedup_visible && rebuild_zero_fresh && first_pass_runs == 2,
+        );
+        let own001 = held_if(truth_unchanged_on_drop && ghost_refused);
+        let policy_fired = blocked_committed && self_blocked;
+        let safety_blocked =
+            blocked_committed && decision_admitted && conflict_arbitrated
+                && conflict_recorded_everywhere;
+
+        NodeEvidence {
+            node: PipelineNode::ControlPlane,
+            summary: format!(
+                "RCR-029/030 multi-agent surface over ClusterSim: 3 replicas, 2 tenants \
+                 (in-process deterministic simulation, no network; agents are deterministic \
+                 test actors, NOT AI models); {} agent identities as committed truth \
+                 (re-registration idempotent); scheduler-borne attributed proposals with the \
+                 duplicate collapsed visibly; unregistered identity refused pre-queue; policy \
+                 gate fired and the refusal COMMITTED, self-approval never satisfied, peer \
+                 approval admitted the decision citing it; conflict race arbitrated \
+                 first-committed-wins with the loser receiving the winner + a committed \
+                 conflict event on every replica; cross-tenant attribution refused; scheduler \
+                 drop/rebuild moved zero truth; full-cluster crash-recover reproduced truth \
+                 INCLUDING the attribution trail",
+                3
+            ),
+            correlation_id: winner.as_ref().map(|w| w.id_hex.clone()),
+            invariant_checks: vec![
+                (Invariant::Orch001ControlPlaneOwnsNoTruth, orch001),
+                (Invariant::Orch002NoPersistentStateInControlPlane, orch002),
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Orch004IdempotentAddressable, orch004),
+                (Invariant::Own001OneOwnerPerState, own001),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![
+                (Property::TenantWorkspaceIsolation, shard001),
+                (Property::PolicyGatesFired, held_if(policy_fired)),
+                (Property::SafetyGatesBlockedUnsafePlans, held_if(safety_blocked)),
+                (Property::ReplayReproducesTrace, orch003),
+            ],
+        }
+    }
+}
+
+/// Observes the **Living Cognitive World** node (design §5.3: "consistent
+/// world view per scenario"): the RCR-029 `WorldView` shared-truth surface is
+/// a pure, versioned fold of committed truth — identical across replicas and
+/// re-reads at every version, version-stable under later commits, derived and
+/// disposable (building views commits nothing), and per-shard (a tenant's
+/// world never contains the other tenant's truth). Every check outcome is
+/// derived from behaviour.
+pub struct SharedWorldLcwProbe;
+
+impl NodeProbe for SharedWorldLcwProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::LivingCognitiveWorld
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let a_sid = cluster_sid("acme", "research");
+        let g_sid = cluster_sid("globex", "research");
+        let lwa = LcwShardKey { tenant: "acme".into(), workspace: "research".into() };
+        let lwg = LcwShardKey { tenant: "globex".into(), workspace: "research".into() };
+        let mut sim = ClusterSim::new(3);
+        sim.add_shard(a_sid.clone(), 0x16_D1);
+        sim.add_shard(g_sid.clone(), 0x16_D2);
+        let a_leader = sim.elect(&a_sid);
+        let g_leader = sim.elect(&g_sid);
+        let cluster = Rc::new(RefCell::new(sim));
+        let ka = ClusterKernel::new(a_leader.clone(), cluster.clone());
+        let kg = ClusterKernel::new(g_leader, cluster.clone());
+        ka.commit(proposal(shard("acme", "research"), b"w-1", b"acme-fact-1")).expect("commit 1");
+        ka.commit(proposal(shard("acme", "research"), b"w-2", b"acme-fact-2")).expect("commit 2");
+        kg.commit(proposal(shard("globex", "research"), b"w-g", b"globex-secret")).expect("commit g");
+        cluster.borrow_mut().settle(6);
+
+        // Coherence: at EVERY version 0..=2 the view is identical on every
+        // replica and across re-reads (entries + digest) — the shared world
+        // IS the committed truth, deterministically folded (ORCH-003).
+        let counts_before: Vec<usize> = {
+            let c = cluster.borrow();
+            c.node_ids().iter().map(|n| c.committed_count_of(n)).collect()
+        };
+        let mut coherent = true;
+        for v in 0..=2u64 {
+            let mut reference: Option<(u64, usize)> = None;
+            for n in cluster.borrow().node_ids() {
+                let store = cluster.borrow().wal_store_of(&n);
+                let w1 = WorldView::at_version(&store, &lwa, v).expect("view builds");
+                let w2 = WorldView::at_version(&store, &lwa, v).expect("re-read builds");
+                coherent &= w1.world_digest() == w2.world_digest() && w1.len() == w2.len();
+                match &reference {
+                    None => reference = Some((w1.world_digest(), w1.len())),
+                    Some((d, l)) => coherent &= w1.world_digest() == *d && w1.len() == *l,
+                }
+            }
+        }
+        // Version stability: a view taken at version 2 never moves when later
+        // truth commits (the version is a coherent snapshot, not a live ref).
+        let store = cluster.borrow().wal_store_of(&a_leader);
+        let pinned = WorldView::at_version(&store, &lwa, 2).expect("pinned view");
+        let pinned_digest = pinned.world_digest();
+        ka.commit(proposal(shard("acme", "research"), b"w-3", b"acme-fact-3")).expect("commit 3");
+        cluster.borrow_mut().settle(4);
+        let repinned = WorldView::at_version(&store, &lwa, 2).expect("re-pinned view");
+        let version_stable =
+            repinned.world_digest() == pinned_digest && pinned.observed_at() == 2;
+        let orch003 = held_if(coherent && version_stable);
+
+        // Derived + disposable (OWN-001/ORCH-002 posture): all that view
+        // building committed NOTHING anywhere — the world has no write surface.
+        let counts_after: Vec<usize> = {
+            let c = cluster.borrow();
+            c.node_ids().iter().map(|n| c.committed_count_of(n)).collect()
+        };
+        // (counts moved only by our own explicit third commit)
+        let wrote_nothing = counts_after.iter().zip(&counts_before).all(|(a, b)| *a == b + 1);
+        let own001 = held_if(wrote_nothing);
+
+        // SHARD-001: the worlds are per-shard folds — acme's world never
+        // contains globex's truth (in bytes or by id) and vice versa.
+        let wa = WorldView::at_head(&store, &lwa).expect("acme world");
+        let wg = WorldView::at_head(&store, &lwg).expect("globex world");
+        let isolated = wa.iter().all(|(_, p, _)| !contains(p, b"globex-secret"))
+            && wg.iter().all(|(_, p, _)| !contains(p, b"acme-fact"))
+            && wa.len() == 3
+            && wg.len() == 1;
+        let shard001 = held_if(isolated);
+
+        NodeEvidence {
+            node: PipelineNode::LivingCognitiveWorld,
+            summary: format!(
+                "RCR-029 WorldView shared-truth surface: coherent versioned folds identical \
+                 across 3 replicas and re-reads at every version, version-stable under later \
+                 commits (pinned digest {pinned_digest:016x}), derived+disposable (view \
+                 building committed nothing), per-shard isolation held ({} acme / {} globex \
+                 entries)",
+                wa.len(),
+                wg.len()
+            ),
+            correlation_id: None,
+            invariant_checks: vec![
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Own001OneOwnerPerState, own001),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![
+                (Property::ReplayReproducesTrace, orch003),
+                (Property::TenantWorkspaceIsolation, shard001),
+            ],
+        }
+    }
+}
+
+/// Run the I5 multi-agent-coordination scenario over the real identity/flow
+/// surface (RCR-029/030) + the I4 scheduler + the cluster kernel, returning
+/// the two-node live artifact with the §5.3 multi-agent fields populated
+/// (`policy_gates`, `arbitration_choices`) — the FIRST live artifact carrying
+/// them. Honest fingerprint: deterministic test actors (NOT AI models),
+/// in-process deterministic simulation, no network transport; identity is
+/// structural, not cryptographic (v2.0 debt #8).
+pub fn run_multi_agent_coordination_scenario() -> ConformanceArtifact {
+    let scenario = multi_agent_coordination_scenario();
+    let cp = MultiAgentControlPlaneProbe::new();
+    let evidence = vec![cp.observe(&scenario), SharedWorldLcwProbe.observe(&scenario)];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L3(scoped): multi-agent \
+                        coordination under distributed deployment (I5, RCR-031); axes 11/8 \
+                        omitted honestly"
+            .into(),
+        runtime_id: "arves-control-plane agents/multi_agent (RCR-029/030) + ClusterScheduler \
+                     + arves-lcw WorldView over arves-kernel ClusterKernel + per-shard Raft \
+                     (reference; agents are deterministic test actors, NOT AI models; \
+                     structural identity, no cryptographic authN — v2.0 debt #8; in-process \
+                     deterministic simulation, no network transport)"
+            .into(),
+    };
+    let mut artifact = LiveVerdictEngine.judge(&scenario, &evidence, fingerprint);
+    // The §5.3 multi-agent artifact fields, populated for the first time.
+    artifact.policy_gates = cp.policy_gates.into_inner();
+    artifact.arbitration_choices = cp.arbitration_choices.into_inner();
+    artifact
+}
+
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
     let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
@@ -1624,6 +2221,52 @@ mod tests {
         // placement policy pending IDR-007 — never a normative claim).
         assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
         assert!(art.runtime_fingerprint.runtime_id.contains("pending IDR-007"));
+    }
+
+    /// RCR-031 (I5): the multi-agent-coordination scenario PASSES — the
+    /// Control-Plane and LCW nodes derive every required invariant/property
+    /// Held from real multi-agent behaviour (attributed proposals with
+    /// visible dedupe, policy gate fired with the refusal committed, peer
+    /// approval admitting the citing decision, first-committed-wins conflict
+    /// arbitration recorded on every replica, cross-tenant refusal, scheduler
+    /// drop/rebuild convergence, full-cluster replay INCLUDING attribution).
+    /// The FIRST live artifact carrying the §5.3 multi-agent fields
+    /// (`policy_gates` / `arbitration_choices`) and the first LCW node
+    /// evidence. Axis 9 is instantiated; the fingerprint states the honest
+    /// scope (deterministic test actors, no network, structural identity).
+    #[test]
+    fn live_multi_agent_coordination_scenario_passes() {
+        let art = run_multi_agent_coordination_scenario();
+        assert_eq!(art.scenario_id, "multi-agent-coordination-distributed");
+        assert!(art.axes.contains(&Axis::MultiAgentCoordination), "axis 9 instantiated");
+        assert_eq!(art.node_evidence.len(), 2, "ControlPlane + LivingCognitiveWorld observed");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::ControlPlane);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::LivingCognitiveWorld);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet invariant: {:?}",
+                ev.node,
+                ev.invariant_checks
+            );
+            assert!(
+                ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet property: {:?}",
+                ev.node,
+                ev.property_checks
+            );
+        }
+        assert_eq!(art.verdict, Verdict::Pass, "the multi-agent scenario must PASS");
+        // The §5.3 multi-agent fields are populated (first artifact to carry
+        // them) and every recorded policy gate held.
+        assert_eq!(art.policy_gates.len(), 2, "both policy-gate firings recorded");
+        assert!(art.policy_gates.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        assert_eq!(art.arbitration_choices.len(), 1, "the conflict arbitration recorded");
+        assert!(art.arbitration_choices[0].contains("first-committed-wins"));
+        // The fingerprint must state the honest scope out loud.
+        assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
+        assert!(art.runtime_fingerprint.runtime_id.contains("NOT AI models"));
+        assert!(art.runtime_fingerprint.runtime_id.contains("no cryptographic authN"));
     }
 
     #[test]

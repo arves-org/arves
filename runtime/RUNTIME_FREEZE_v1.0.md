@@ -461,7 +461,119 @@ While building products, if the runtime is found lacking:
 > 1 adversarial-revision proof: the policy-flip collapse pin, DR-6, plus the
 > loud-not-silent defensive dispatch arm, DR-7). I4 MILESTONE: ✅ DONE —
 > pending maintainer integration (RCR-026..028). Record: `runtime/rcr/RCR-028.md`
-> (milestone summary)).
+> (milestone summary)), **RCR-029** (I5 Stage 1 — **AGENT IDENTITY as
+> content-addressed truth + the LCW SHARED-TRUTH surface** per
+> `docs/design/I5_MultiAgent_Runtime_Design.md` §3.1.1/§3.1.2/§3.19/§3.10:
+> (a) `arves-lcw` gains its FIRST behaviour behind the frozen contracts — the
+> first `WorkingMemory`/`LiveWorkspace` implementations (single-owner rule
+> ENFORCED via the one additive `#[non_exhaustive]` variant
+> `LcwError::AlreadyOpen`) and the `WorldView` shared-truth surface: a
+> read-only, VERSIONED, coherent view of one shard's committed truth built
+> exclusively by deterministic WAL replay, whose digest shares the Kernel
+> `truth_hash` basis (equality proven); coherence proven at every commit index
+> across re-reads AND across all replicas of the I2 cluster; hydration rebuilds
+> working memory FROM truth and divergence never flows back (no write surface
+> by construction); (b) `arves-control-plane` gains the additive `agents`
+> module — agent identity = versioned ARVES-23-subset definition (owner
+> MANDATORY, Vol 2 Part 17), canonically encoded with the registration shard
+> inside the hashed body (SHARD-001: shard-bound for life), `AgentId` = ACS-001
+> content id under the existing COMMIT_CONTENT tag (no new domain tag — DR-7),
+> registration = idempotent commit through the frozen Kernel gateway (OQ-2
+> resolved truth-side for this stage, DR-6: the registry recovers with the
+> truth base, proven addressable from every replica), and ATTRIBUTION: every
+> agent-proposed effect carries its agent identity INSIDE the committed payload
+> — round-trips out of the truth trail on every replica; the structural gate
+> refuses unregistered identities against COMMITTED truth (the runtime-grade
+> elevation of the G1 in-process-map caveat); HONEST + PINNED BY TEST: agents
+> here are deterministic test actors NOT AI models, and identity is an
+> addressable registration NOT cryptographic authN (v2.0 debt #8/OQ-1 — one
+> caller lawfully wears two registered identities; kept loud); TWO new edges,
+> both downward, ranks checked first (lcw(50)→persistence(20),
+> control-plane(90)→lcw(50); lcw→query deliberately absent — upward); the
+> frozen `Orchestrator` plan-graph contract REMAINS contract-only; delegation/
+> coordination/lifecycle-beyond-registration/revocation/OQ-3 re-check NOT
+> built; LCW-001 et al. stay PROPOSED; PropertyCheck stays 7 proven / 0 pending
+> (no flip); additive, `cargo test --workspace` 213→**234/0** (233 at first
+> application + 1 adversarial-revision proof: `is_registered` gained the
+> decoded-shard == world-shard check closing the SHARD-001 smuggle hole,
+> amendment A1, pinned by `smuggled_foreign_shard_definition_is_refused_shard001`;
+> the fabricated-Who honesty claim scoped to the `propose_attributed` path,
+> amendment A2; `hydrate_into` partial-write-on-error documented, erratum E3 —
+> see the RCR's Amendments section). Record:
+> `runtime/rcr/RCR-029.md`), **RCR-030** (I5 Stage 2 — **MULTI-AGENT
+> ORCHESTRATION over ONE shared truth base** per
+> `docs/design/I5_MultiAgent_Runtime_Design.md` §3.1.2/§3.1.3/§3.8/§3.19:
+> the additive `arves-control-plane::multi_agent` module — (a) concurrent
+> agent proposals THROUGH the I4 scheduler (`submit_attributed_effect`:
+> structural registered-gate against committed truth, attribution envelope as
+> the invocation input; agents never commit — ORCH-001; the schedule stays a
+> discardable plan artifact whose rebuild converges by Kernel dedupe with zero
+> fresh commits — ORCH-002/004); (b) shared-truth concurrency: duplicates and
+> agreeing decisions converge to ONE truth (ORCH-004 across agents, both at
+> the pre-check and when raced commits land); CONFLICTING decisions on one
+> subject resolve deterministically FIRST-COMMITTED-WINS in shard log order
+> (total per shard, IDR-001/IDR-005) — the loser receives the WINNER's
+> identity and the conflict is committed compliance truth citing it (the
+> enterprise-os G1 `proposeDecision` reference semantics at runtime level);
+> the Kernel decides NOTHING (no kernel-side gate — the Control Plane
+> reconciles post-commit at the at-head world, DR-2; the full OQ-3
+> leader-side admission re-check stays a recorded IDR obligation, and the
+> policy gate reads the DECLARED basis only — pre-policy-basis honest limit
+> pinned by test); (c) cross-agent consistency reads per the I3 ladder with
+> LABELED guarantees: Linearizable sees prior committed truth from a follower,
+> a partitioned replica refuses Linearizable/BoundedStaleness honestly and
+> serves Eventual stale-but-labeled, and a stale basis can NEVER mint a second
+> derived truth; (d) decision/compliance truth flows: policy checks read
+> COMMITTED policy truths, approvals are SEPARATE committed truths
+> (proposer ≠ approver, self-approval refused), admitted decisions CITE their
+> qualifying approvals (Why precedes the decision in the one history), and
+> refusals are committed compliance events (duplicate refusals converge —
+> ORCH-004 on the audit ledger); derivation is GOVERNED-ONLY (amendment A1:
+> an unregistered-Who record smuggled through the raw gateway never derives,
+> pinned; a REGISTERED identity worn by any caller still does — v1.x
+> structural limit kept loud); ALL SIX permutations of three racing agents +
+> interleaved scheduler storms proven: one derived truth per subject, every
+> loser loud, replicas byte-identical, same schedule ⇒ byte-identical bytes;
+> HONEST: agents are deterministic test actors NOT AI models; ONE new edge,
+> downward, rank-checked first (control-plane(90)→persistence(20), promoted
+> from the RCR-029 dev-dep); flow encodings are runtime-internal, NOT `uci.*`
+> types (O-006 CCP not pre-empted); the frozen `Orchestrator` plan-graph
+> contract REMAINS contract-only; delegation/arbitration/HITL sequencing/
+> durable trace emission NOT built; additive, `cargo test --workspace`
+> 234→**246/0** (245 at first application + 1 adversarial-revision proof:
+> the governed-only derivation smuggle pin, amendment A1). Record:
+> `runtime/rcr/RCR-030.md`), **RCR-031** (I5 Stage 3 — **ADVERSARIAL
+> MULTI-AGENT PROOFS + the axis-9 live conformance scenario; I5 MILESTONE
+> SUMMARY** per `docs/design/I5_MultiAgent_Runtime_Design.md` §4/§5:
+> (a) agent storms — 3 agents × 4 proposals + injected duplicates under SEVEN
+> seeded schedule permutations ⇒ the FINAL TRUTH SET and attribution-trail
+> SET identical across ALL permutations on every replica (the
+> order-independence proof; log-order difference honestly pinned as
+> non-vacuity, same schedule ⇒ byte-identical state); (b) lawful-API misuse —
+> a replay of another agent's proposal dedupes to the ORIGINAL truth, an
+> address rebind re-attributing it is refused by RCR-005 (attribution
+> unforgeable at the content-addressing layer), a re-wrap is a DIFFERENT
+> truth under the re-wrapper's own Who, and duplicate floods across racing
+> schedulers land exactly ONE fresh commit; (c) partition mid-work —
+> minority-side proposals fail honestly (`NotReplicated`/`NotLeader`,
+> nothing committed), the majority keeps working, heal converges
+> byte-identically, no acked attributed truth lost, the refused proposal
+> retriable exactly-once; (d) full-cluster crash-recover from per-node WALs
+> reproduces identical truth AND an identical attribution trail / decision
+> derivation / compliance ledger (ORCH-003 including attribution); (e) the
+> live `multi-agent-coordination-distributed` scenario — axis 9 instantiated
+> (axes 3/10/12 joined; 11/8 omitted honestly), `Verdict::Pass`, the §5.3
+> multi-agent artifact fields (`policy_gates`/`arbitration_choices`)
+> populated for the FIRST time, first LivingCognitiveWorld node evidence
+> (`SharedWorldLcwProbe`); PropertyCheck citations widened over the I5
+> surface (coverage stays 7/7; the frozen `Orchestrator` plan-graph contract
+> explicitly NOT pre-certified — it REMAINS contract-only); HONEST: agents
+> are deterministic test actors NOT AI models, structural identity (v2.0
+> debt #8), in-process `ClusterSim` (no network); ONE new edge, downward,
+> rank-checked first (conformance(110)→lcw(50)); additive, `cargo test
+> --workspace` 246→**251/0**. **I5 MILESTONE: ✅ DONE — pending maintainer
+> integration (RCR-029..031).** Record: `runtime/rcr/RCR-031.md` (milestone
+> summary)).
 
 ## Organization (three teams, three mandates)
 

@@ -30,6 +30,37 @@
 //! (ORCH-001/002 — now executably proven at this surface, see
 //! `tests/cluster_scheduling.rs`).
 //!
+//! STATUS since RCR-029 (I5 Stage 1, per `docs/design/I5_MultiAgent_Runtime_Design.md`):
+//! the additive [`agents`] module carries AGENT IDENTITY as content-addressed,
+//! shard-bound committed truth (registration through the frozen `Kernel`
+//! gateway — the Control Plane registers and attributes, it never owns the
+//! identity truth, ORCH-001) and the ATTRIBUTION envelope by which every
+//! agent-proposed effect carries its agent identity INSIDE the committed
+//! truth trail. One NEW dependency edge, DOWNWARD (LAYER-001: control-plane 90
+//! → lcw 50; ranks checked in `property_check.rs` before adding) for reading
+//! the LCW shared-truth `WorldView`. HONEST: agent identity here is an
+//! addressable registration, NOT cryptographic authN (v2.0 debt #8 / design
+//! OQ-1 — pinned by test); the [`Orchestrator`] plan-graph contract itself
+//! REMAINS contract-only. Every frozen v1.0 type and trait signature in this
+//! file stays byte-unchanged.
+//!
+//! STATUS since RCR-030 (I5 Stage 2, per `docs/design/I5_MultiAgent_Runtime_Design.md`):
+//! the additive [`multi_agent`] module carries MULTI-AGENT ORCHESTRATION over
+//! one shared truth base — scheduler-borne agent proposals (attributed effects
+//! through the I4 dispatch pipeline; agents never commit, ORCH-001) and the
+//! decision/compliance truth flow (policy checks read COMMITTED policy truths;
+//! approvals are SEPARATE committed truths, proposer ≠ approver; conflicting
+//! decisions on one subject resolve deterministically FIRST-COMMITTED-WINS in
+//! shard log order, the loser receiving the winner's identity and the conflict
+//! recorded as committed compliance truth — the enterprise-os G1 reference
+//! semantics at runtime level). One NEW dependency edge, DOWNWARD (LAYER-001:
+//! control-plane 90 → persistence 20; ranks checked in `property_check.rs`
+//! before adding) so the flow can reconcile at the serialization point against
+//! the at-head world. HONEST: the agents are deterministic test actors, NOT AI
+//! models; identity claims stay structural (v2.0 debt #8); the [`Orchestrator`]
+//! plan-graph contract itself REMAINS contract-only. Every frozen v1.0 type and
+//! trait signature in this file stays byte-unchanged.
+//!
 //! # Position in the ARVES architecture
 //!
 //! The Control Plane *decides*; the Data Plane *carries*. This crate is the
@@ -88,6 +119,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod agents;
+pub mod multi_agent;
 pub mod scheduler;
 
 use std::collections::BTreeMap;

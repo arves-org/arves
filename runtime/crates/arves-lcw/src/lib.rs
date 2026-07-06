@@ -9,6 +9,23 @@
 //! constructors; carries no live-state management logic (deferred). Frozen
 //! specification governs; this crate implements, never changes it.
 //!
+//! STATUS since RCR-029 (I5 Stage 1, per `docs/design/I5_MultiAgent_Runtime_Design.md`):
+//! the "CONTRACT-ONLY" wording above is superseded for the SHARED-TRUTH READ
+//! surface only. The additive [`world`] module now carries the first
+//! [`WorkingMemory`]/[`LiveWorkspace`] implementations and the LCW
+//! [`world::WorldView`] — a read-only, versioned, coherent view of ONE shard's
+//! committed truth built exclusively by deterministic WAL replay (its single
+//! dependency edge is DOWNWARD: lcw 50 → persistence 20, LAYER-001; ranks
+//! checked in `arves-conformance/src/property_check.rs` before adding).
+//! Every frozen v1.0 type and trait signature in this file is byte-unchanged
+//! EXCEPT one additive variant on the `#[non_exhaustive]` [`LcwError`]
+//! ([`LcwError::AlreadyOpen`], recorded in RCR-029): the error the first
+//! `LiveWorkspace` implementation needs to ENFORCE this contract's own
+//! "at most one active live view per shard" rule (OWN-001) instead of merely
+//! documenting it. LCW still owns NO truth and persists NOTHING (ORCH-001;
+//! Persistence owns durability) — now executably proven, see
+//! `tests/shared_world.rs`.
+//!
 //! # Position in the ARVES layering
 //!
 //! The runtime layers are strictly downward-only (LAYER-001):
@@ -63,6 +80,8 @@
 //! (Theory -> Spec -> Contracts -> Behaviour -> Conformance -> Implementation).
 
 #![forbid(unsafe_code)]
+
+pub mod world;
 
 use core::fmt;
 
@@ -199,6 +218,15 @@ pub enum LcwError {
         /// Shard the caller referenced.
         actual: ShardKey,
     },
+    /// The shard already has an active live view (RCR-029, additive on this
+    /// `#[non_exhaustive]` enum): a [`LiveWorkspace`] refused a second
+    /// concurrent owner of the same live state — "a given shard has at most
+    /// one active live view" (OWN-001; LCW-001 proposed). Release the first
+    /// view via [`LiveWorkspace::discard`] before reopening.
+    AlreadyOpen {
+        /// The shard whose live view is already open.
+        shard: ShardKey,
+    },
 }
 
 impl fmt::Display for LcwError {
@@ -215,6 +243,9 @@ impl fmt::Display for LcwError {
             ),
             LcwError::WrongShard { expected, actual } => {
                 write!(f, "wrong shard: bound to {expected}, referenced {actual}")
+            }
+            LcwError::AlreadyOpen { shard } => {
+                write!(f, "shard {shard} already has an active live view (one owner per state)")
             }
         }
     }

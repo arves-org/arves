@@ -5,3 +5,17 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# RCR-029 (I5 Stage 1): the world-view fold's ONE architectural edge, downward
+# (LAYER-001; ranks checked in arves-conformance/src/property_check.rs BEFORE
+# adding: lcw(50) -> persistence(20)). NOTE: lcw -> query would be UPWARD
+# (50 < 60) and is deliberately absent — the shared-truth view folds the WAL
+# directly (RCR-029 DR-2).
+arves-persistence = { path = "../arves-persistence" }
+
+[dev-dependencies]
+# Test-only edges (excluded from the LAYER-001 gate on purpose — a test-only
+# edge is not an architectural edge): commits are produced through the frozen
+# Kernel gateway / I2 cluster sim so the view's coherence is proven against
+# REAL committed truth, never fabricated records.
+arves-kernel = { path = "../arves-kernel" }
+arves-consensus = { path = "../arves-consensus" }
