@@ -24,15 +24,21 @@ import { StubReasoner } from './reasoner.mjs';
 import { registerExampleSkills } from './example-skills.mjs';
 import { CONNECTORS, connectorByName } from './connectors.mjs';
 import { why, renderWhy } from './why.mjs';
+import { reportDay, renderReport } from './report.mjs';
+import { CONFIG_KEYS, defaultConfigPath, loadConfig, saveConfig, resolveSession, validateReasonerChoice } from './config.mjs';
 
 const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const DEFAULT_POLICY = 'spend-needs-approval';
 
 const short = (id) => (id ? `${id.slice(0, 16)}…` : '-');
 
-/** Parse `--tenant/--workspace/--wal-dir/--exe` flags; everything else is the command. */
+/** Parse `--tenant/--workspace/--wal-dir/--exe/--config` flags; everything else is the
+ *  command. Flag values are left UNSET (undefined) when not given so config-file and
+ *  built-in defaults can fill them in resolveSession() with a clear precedence. The
+ *  config-file path is returned separately (not part of the session opts). */
 export function parseArgs(argv) {
-  const opts = { tenant: 'you', workspace: 'jarvis', walDir: undefined, exe: undefined };
+  const opts = { tenant: undefined, workspace: undefined, walDir: undefined, exe: undefined };
+  let configPath;
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -40,16 +46,18 @@ export function parseArgs(argv) {
     else if (a === '--workspace') opts.workspace = argv[++i];
     else if (a === '--wal-dir') opts.walDir = argv[++i];
     else if (a === '--exe') opts.exe = argv[++i];
+    else if (a === '--config') configPath = argv[++i];
     else if (a === '-h' || a === '--help') rest.push('help');
     else rest.push(a);
   }
-  return { opts, rest };
+  return { opts, rest, configPath };
 }
 
 /** Build an assistant, attach the stub reasoner, recover memory from the WAL (if durable),
  *  register the example skill library, and seed the default spend policy on a VIRGIN shard.
  *  Returns a ready assistant — the caller MUST close() it. Exposed for tests. */
 export async function openSession(opts) {
+  validateReasonerChoice(opts.reasoner); // honest: only the in-repo StubReasoner is selectable
   const assistant = new Assistant({ tenant: opts.tenant, workspace: opts.workspace, walDir: opts.walDir, exe: opts.exe });
   assistant.useReasoner(new StubReasoner());
   try {
@@ -86,6 +94,9 @@ export async function runCommand(assistant, tokens, opts = {}) {
       case 'recall': recallCmd(assistant, rest, say); break;
       case 'ask': await askCmd(assistant, rest, say); break;
       case 'why': whyCmd(assistant, rest, say); break;
+      case 'report': reportCmd(assistant, rest, say); break;
+      case 'export': reportCmd(assistant, rest, say); break;
+      case 'config': configCmd(rest, opts, say); break;
       case 'approve': await approveCmd(assistant, rest, say); break;
       case 'policy': await policyCmd(assistant, rest, say); break;
       case 'skills': say('skills:', assistant.skills().join(', ') || '(none)'); break;
@@ -108,6 +119,8 @@ function help(say) {
     ['ask <goal>', 'think: reasoner proposal -> guardrail gate -> certified skill -> truth'],
     ['recall [entity]', 'list remembered truths (RCR-033 WAL scan on a fresh process)'],
     ['why <subject|id>', 'reconstruct a decision path from committed truth'],
+    ['report [json]', 'export the day from committed truth (text, or JSON with `report json`)'],
+    ['config [show|set|unset|path] ...', 'view/edit the persistent config (tenant/workspace/wal-dir/…)'],
     ['approve <role> <subject>', 'commit a separate approval truth (unlocks a gated action)'],
     ['policy <name> <role> <class...>', 'publish a guardrail policy as truth'],
     ['skills', 'list registered (certified + bound) skills'],
@@ -130,6 +143,7 @@ function statusCmd(a, opts, say) {
   say(`  shard:     ${opts.tenant ?? 'you'}/${opts.workspace ?? 'jarvis'}`);
   say(`  wal-dir:   ${opts.walDir ?? '(in-memory — ephemeral; pass --wal-dir <path> for durable memory)'}`);
   say(`  reasoner:  ${a.reasoner ? `${a.reasoner.name}@${a.reasoner.version}` : '(none)'}`);
+  if (opts.configPath !== undefined) say(`  config:    ${opts.configPath}`);
   say(`  truths:    ${a.truths().length}`);
   say(`  decisions: ${a.decisions().length}`);
   say(`  skills:    ${a.skills().join(', ') || '(none)'}`);
@@ -223,6 +237,48 @@ function decisionsCmd(a, say) {
   for (const d of ds) say(`  ${d.subject} -> ${d.action}  (${d.because})`);
 }
 
+function reportCmd(a, rest, say) {
+  const r = reportDay(a);
+  if (rest[0] === 'json') { for (const l of JSON.stringify(r, null, 2).split('\n')) say(l); return; }
+  for (const l of renderReport(r).split('\n')) say(l);
+}
+
+/** View or edit the persistent config. `config` / `config show` need no file (they show
+ *  the effective session); `set`/`unset`/`path` require a config path (--config or the bin). */
+function configCmd(rest, opts, say) {
+  const file = opts.configPath;
+  const [sub, key, ...restVals] = rest;
+  if (sub === undefined || sub === 'show') {
+    say(`config file: ${file ?? '(none — pass --config <path>, or run via the bin which defaults to ~/.jarvisrc.json)'}`);
+    say('effective session (CLI flag > config file > default):');
+    for (const k of CONFIG_KEYS) say(`  ${k.padEnd(10)} ${opts[k] ?? '(unset)'}`);
+    if (file !== undefined) {
+      const cfg = loadConfig(file);
+      const keys = Object.keys(cfg);
+      say(keys.length > 0 ? `config file has: ${keys.map((k) => `${k}=${cfg[k]}`).join(', ')}` : 'config file is empty (or absent)');
+    }
+    return;
+  }
+  if (file === undefined) throw new Error('config set/unset/path needs a config path — pass --config <path> (the bin defaults to ~/.jarvisrc.json)');
+  if (sub === 'path') { say(file); return; }
+  if (sub === 'set') {
+    if (!CONFIG_KEYS.includes(key)) throw new Error(`config: unknown key '${key}' — known: ${CONFIG_KEYS.join(', ')}`);
+    const value = restVals.join(' ');
+    if (value === '') throw new Error(`usage: config set <key> <value>   keys: ${CONFIG_KEYS.join(', ')}`);
+    if (key === 'reasoner') validateReasonerChoice(value); // honest: only 'stub' ships in-repo
+    const cfg = loadConfig(file); cfg[key] = value; saveConfig(file, cfg);
+    say(`set ${key} = ${value}  (${file}) — takes effect next session`);
+    return;
+  }
+  if (sub === 'unset') {
+    if (!CONFIG_KEYS.includes(key)) throw new Error(`config: unknown key '${key}' — known: ${CONFIG_KEYS.join(', ')}`);
+    const cfg = loadConfig(file); delete cfg[key]; saveConfig(file, cfg);
+    say(`unset ${key}  (${file})`);
+    return;
+  }
+  throw new Error(`config: unknown subcommand '${sub}' — try: config show | config set <key> <value> | config unset <key> | config path`);
+}
+
 // ---- entry points ---------------------------------------------------------------------
 
 async function repl(assistant, opts) {
@@ -245,21 +301,37 @@ async function repl(assistant, opts) {
 
 /** CLI entry. Returns a process exit code. */
 export async function main(argv = []) {
-  const { opts, rest } = parseArgs(argv);
+  const { opts, rest, configPath: cliConfigPath } = parseArgs(argv);
+  // Config precedence (CLI flag > config file > default). An explicit --config that is
+  // malformed fails loud; a malformed DEFAULT config only warns and is ignored, so the
+  // bin never becomes unstartable because of a stray file in the home directory.
+  const configPath = cliConfigPath ?? defaultConfigPath();
+  let cfg;
+  try { cfg = loadConfig(configPath); }
+  catch (e) {
+    if (cliConfigPath !== undefined) { console.error(`jarvis: ${e.message}`); return 1; }
+    console.error(`jarvis: ignoring ${configPath} — ${e.message}`);
+    cfg = {};
+  }
+  let session;
+  try { session = resolveSession(opts, cfg); }
+  catch (e) { console.error(`jarvis: ${e.message}`); return 1; }
+  session.configPath = configPath;
+
   let assistant;
   try {
-    assistant = await openSession(opts);
+    assistant = await openSession(session);
   } catch (e) {
     console.error(`jarvis: could not start — ${e.message}`);
     return 1;
   }
   try {
     if (rest.length > 0) {
-      const { lines, ok } = await runCommand(assistant, rest, opts);
+      const { lines, ok } = await runCommand(assistant, rest, session);
       for (const l of lines) console.log(l);
       return ok ? 0 : 1;
     }
-    return await repl(assistant, opts);
+    return await repl(assistant, session);
   } finally {
     assistant.close();
   }

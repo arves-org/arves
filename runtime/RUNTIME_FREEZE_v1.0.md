@@ -676,7 +676,29 @@ While building products, if the runtime is found lacking:
 > edge (`arves-conformance(110)→arves-engine-fabric(60)` already present), no frozen
 > type/trait touched; +2 conformance tests (`live_engine_scenario_passes`,
 > `live_l2_engine_pipeline_scenario_passes`), workspace **279/0** alongside the
-> concurrent RCR-036 lane. Record: `runtime/rcr/RCR-037.md`).
+> concurrent RCR-036 lane. Record: `runtime/rcr/RCR-037.md`),
+> **RCR-038** (CROSS-PROCESS networked transport — reduces the standing RCR-032
+> caveat one honest notch, from *loopback-in-one-process* to **cross-PROCESS
+> networked consensus**. New `NodeTransport` (a genuinely networked per-node
+> endpoint: configurable `addr:port` bind, length-framed `Envelope` exchange,
+> connect/accept/**reconnect with bounded backoff**, graceful shutdown — `std::net`
+> only) + a NEW test-support bin `arves-consensus-node` (ONE raft node per OS
+> process; filesystem-rendezvous bootstrap, then every RPC over real TCP) + a
+> NEW `tests/multiprocess.rs` that spawns THREE separate OS processes (like
+> `real_restart.rs`), elects a leader and commits a write over real sockets, and
+> asserts a quorum commits the **byte-identical outcome** the in-process run
+> commits. Determinism preserved (HARD RULE 4): the real election + reconnect
+> backoff feed only leadership/liveness; the compared `outcome_content_digest` is
+> a pure function of the proposal, never the wire or the clock — the leader varies
+> run-to-run while the committed content stays identical. HONEST SCOPE: one host,
+> real TCP, separate processes; true multi-HOST/WAN and hostile-network
+> partition/latency/loss/TLS stay recorded OQ — must NEVER be upgraded to
+> "multi-host"/"network fault-tolerant". NO new dependency edge (`arves-consensus`
+> deps stay empty, rank 30; the bin depends only on its own crate), no frozen
+> type/trait touched. Additive: +5 fast deterministic unit tests, workspace
+> **279→284/0** (+1 ignored = the cross-process proof, green on invocation via
+> `cargo test -p arves-consensus --test multiprocess -- --ignored`). Record:
+> `runtime/rcr/RCR-038.md`).
 
 ## Organization (three teams, three mandates)
 

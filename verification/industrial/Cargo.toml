@@ -1,0 +1,33 @@
+# ARVES :: verification/industrial — L4 INDUSTRIAL EVIDENCE harness.
+#
+# A STANDALONE cargo workspace (its own `[workspace]` root) that path-depends on
+# the FROZEN runtime crates as an EXTERNAL, read-only dependency (IDR-006). It
+# adds ZERO third-party crates (std-only, matching the runtime) and NEVER edits
+# `runtime/`: the frozen `runtime/Cargo.toml` and every frozen crate stay
+# byte-identical (freeze-clean — this crate is not a member of that workspace).
+#
+# Deliverables of this crate:
+#   * fault-injection at scale over the deterministic ClusterSim (safety +
+#     convergence + durability across a LARGE, reported scenario count),
+#   * replay-equivalence stress (rebuild every node from its WAL after a fault
+#     storm -> identical per-node truth_hash, over many seeds),
+#   * a performance harness over the REAL Kernel (FileWal, fsync-durable) that
+#     RECORDS measured commit throughput + replay time at increasing load.
+[workspace]
+
+[package]
+name = "arves-industrial"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# The frozen runtime, consumed as an external dependency (IDR-006). Path deps
+# resolve each crate inside ITS OWN workspace (runtime/), so freeze holds.
+arves-kernel = { path = "../../runtime/crates/arves-kernel" }
+arves-consensus = { path = "../../runtime/crates/arves-consensus" }
+arves-persistence = { path = "../../runtime/crates/arves-persistence" }
+
+[[bin]]
+name = "l4_report"
+path = "src/bin/l4_report.rs"

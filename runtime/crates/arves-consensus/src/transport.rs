@@ -65,7 +65,7 @@ use crate::raft::{Envelope, MsgBody, RaftNode};
 use crate::{ContentHash, EntryKind, LogEntry, LogIndex, Membership, NodeId, Outcome, Role, Term};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
 // ===========================================================================
@@ -298,6 +298,29 @@ pub fn decode_envelope(buf: &[u8]) -> Option<Envelope> {
         return None; // trailing garbage
     }
     Some(Envelope { from, to, body })
+}
+
+/// A **timing-independent** digest of a committed [`Outcome`]'s CONTENT (its
+/// content-address string + opaque payload bytes) — deliberately excluding the
+/// term/leader/index, which are functions of the (real-time) election and thus
+/// vary run-to-run. This is the ONLY quantity that RCR-038's cross-PROCESS run
+/// compares against the in-process run: whichever node wins the real election
+/// and whatever term it commits under, the committed outcome *content* must be
+/// byte-identical to what the client proposed. It is a pure function of the
+/// proposal — never of the network timing (HARD RULE 4: the bounded, real-time
+/// election feeds liveness/leadership, NEVER committed-truth content).
+pub fn outcome_content_digest(o: &Outcome) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a offset basis
+    let mut eat = |bytes: &[u8]| {
+        for b in bytes {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x0000_0100_0000_01B3);
+        }
+    };
+    eat(o.digest.0.as_bytes());
+    eat(&[0xff]); // domain separator between address and payload
+    eat(&o.payload);
+    h
 }
 
 // ===========================================================================
@@ -549,6 +572,208 @@ impl Transport for LoopbackTransport {
 }
 
 // ===========================================================================
+// NodeTransport (RCR-038) — a GENUINELY networked endpoint for ONE node, usable
+// ACROSS SEPARATE OS PROCESSES (and, in principle, hosts).
+//
+// The difference from LoopbackTransport: LoopbackTransport owns EVERY node's
+// socket inside ONE process and therefore knows the global sent/received frame
+// count, letting `drain` block until the whole in-flight generation has landed.
+// A node in a SEPARATE process has no such global knowledge — it owns exactly
+// one listener + its outbound connections, and can only `poll` for whatever has
+// arrived so far. So this is a distinct type (NOT a `Transport` impl): the
+// `Transport::drain` contract is a single-process convenience that does not
+// exist in true distribution. The consensus protocol itself already tolerates
+// arrival-order, partial, and retried delivery (raft retransmits via heartbeat),
+// which is exactly why the cross-process run stays correct without a global
+// order — committed OUTCOME content is a function of the proposal, never the
+// wire (HARD RULE 4).
+//
+// HONEST SCOPE: real length-framed TCP between separate processes on ONE host
+// (127.0.0.1 or any configurable addr:port). It PROVES cross-process networked
+// consensus. True multi-HOST across machines, and hostile-network partition/
+// latency/loss testing, remain recorded OQ — the sockets here deliver reliably;
+// adversarial delivery stays the `sim.rs` filter/mangle model. Reconnect/backoff
+// use real time in the DELIVERY layer only.
+// ===========================================================================
+
+/// Bounded reconnect backoff state for one peer (real-time; delivery-layer only,
+/// never influences committed truth).
+struct Backoff {
+    attempts: u32,
+    next_try: Instant,
+}
+
+/// One node's endpoint on a REAL TCP network. Binds a configurable `addr:port`,
+/// length-frames [`Envelope`]s to peers addressed by [`SocketAddr`], accepts
+/// inbound connections, tolerates partial reads, reconnects with bounded
+/// backoff, and offers a graceful shutdown. Designed to be driven by ONE process
+/// hosting ONE raft node, so N such processes form a genuine networked cluster.
+pub struct NodeTransport {
+    me: NodeId,
+    listener: TcpListener,
+    local_addr: SocketAddr,
+    peers: BTreeMap<NodeId, SocketAddr>,
+    inbound: Vec<FramedReader>,
+    outbound: BTreeMap<NodeId, TcpStream>,
+    backoff: BTreeMap<NodeId, Backoff>,
+    /// Observability: successful (re-)connections established to peers.
+    pub reconnects: u64,
+}
+
+impl NodeTransport {
+    /// Bind this node's listener at `listen` (`"127.0.0.1:0"` for an ephemeral
+    /// port, or any concrete `addr:port`) and record the peer address map. The
+    /// listener is non-blocking (accept polls, never blocks the event loop).
+    pub fn bind(
+        me: NodeId,
+        listen: &str,
+        peers: BTreeMap<NodeId, SocketAddr>,
+    ) -> std::io::Result<Self> {
+        let listener = TcpListener::bind(listen)?;
+        listener.set_nonblocking(true)?;
+        let local_addr = listener.local_addr()?;
+        Ok(Self {
+            me,
+            listener,
+            local_addr,
+            peers,
+            inbound: Vec::new(),
+            outbound: BTreeMap::new(),
+            backoff: BTreeMap::new(),
+            reconnects: 0,
+        })
+    }
+
+    /// This node's bound address (useful when it bound an ephemeral `:0` port).
+    pub fn local_addr(&self) -> SocketAddr {
+        self.local_addr
+    }
+
+    /// Install (or replace) the peer address map AFTER binding. This supports the
+    /// ephemeral-port bootstrap: bind `:0`, learn our own address, publish it,
+    /// discover the peers' addresses, then set them here — all without rebinding
+    /// (which would change our port and invalidate what we published).
+    pub fn set_peers(&mut self, peers: BTreeMap<NodeId, SocketAddr>) {
+        self.peers = peers;
+    }
+
+    /// This endpoint's node id.
+    pub fn node_id(&self) -> &NodeId {
+        &self.me
+    }
+
+    /// Ensure a live outbound connection to `to`, honoring bounded backoff. A
+    /// not-yet-reachable peer is NOT fatal (raft retransmits): returns `false`
+    /// and schedules a later retry. A real environment bind/addr error surfaces
+    /// as a failed connect (also non-fatal — retried).
+    fn ensure_conn(&mut self, to: &NodeId) -> bool {
+        if self.outbound.contains_key(to) {
+            return true;
+        }
+        if let Some(b) = self.backoff.get(to) {
+            if Instant::now() < b.next_try {
+                return false; // still backing off
+            }
+        }
+        let addr = match self.peers.get(to) {
+            Some(a) => *a,
+            None => return false, // unknown peer — never invent an address
+        };
+        match TcpStream::connect_timeout(&addr, Duration::from_millis(200)) {
+            Ok(s) => {
+                s.set_nodelay(true).ok();
+                self.outbound.insert(to.clone(), s);
+                self.reconnects += 1;
+                self.backoff.remove(to);
+                true
+            }
+            Err(_) => {
+                let b = self
+                    .backoff
+                    .entry(to.clone())
+                    .or_insert(Backoff { attempts: 0, next_try: Instant::now() });
+                b.attempts = (b.attempts + 1).min(8);
+                // Exponential, capped at 200ms — bounded so a briefly-absent peer
+                // (e.g. still starting up) is retried promptly but not hammered.
+                let delay_ms = (10u64.saturating_mul(1u64 << b.attempts)).min(200);
+                b.next_try = Instant::now() + Duration::from_millis(delay_ms);
+                false
+            }
+        }
+    }
+
+    /// Send one addressed [`Envelope`] to its target peer over real TCP. Best
+    /// effort by design (the protocol tolerates loss and retransmits): if the
+    /// peer is unreachable the frame is dropped and a heartbeat will carry the
+    /// state later. On a write failure the connection is dropped and ONE
+    /// immediate reconnect+retry is attempted.
+    pub fn send(&mut self, env: Envelope) {
+        let to = env.to.clone();
+        let payload = encode_envelope(&env);
+        let mut frame = (payload.len() as u32).to_le_bytes().to_vec();
+        frame.extend_from_slice(&payload);
+
+        if !self.ensure_conn(&to) {
+            return; // peer not reachable yet — raft heartbeat will retransmit
+        }
+        let ok = {
+            let s = self.outbound.get_mut(&to).expect("connection just ensured");
+            s.write_all(&frame).and_then(|_| s.flush()).is_ok()
+        };
+        if !ok {
+            self.outbound.remove(&to);
+            self.backoff.remove(&to); // allow an immediate reconnect attempt
+            if self.ensure_conn(&to) {
+                let s = self.outbound.get_mut(&to).expect("reconnected");
+                let _ = s.write_all(&frame).and_then(|_| s.flush());
+            }
+        }
+    }
+
+    /// Accept any pending inbound connections, then read every complete frame
+    /// currently available across all inbound sockets (non-blocking) and decode
+    /// them into envelopes. Partial frames stay buffered for a later poll; dead
+    /// readers are retired once fully drained.
+    pub fn poll(&mut self) -> Vec<Envelope> {
+        loop {
+            match self.listener.accept() {
+                Ok((stream, _)) => match FramedReader::new(stream) {
+                    Ok(r) => self.inbound.push(r),
+                    Err(_) => break,
+                },
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
+                Err(_) => break,
+            }
+        }
+        let mut out = Vec::new();
+        for r in self.inbound.iter_mut() {
+            for frame in r.poll() {
+                if let Some(env) = decode_envelope(&frame) {
+                    out.push(env);
+                }
+                // A malformed frame on a real socket is dropped (never guessed at);
+                // the strict codec already refused it. Consensus tolerates the loss.
+            }
+        }
+        self.inbound.retain(|r| !r.dead || !r.buf.is_empty());
+        out
+    }
+
+    /// Graceful shutdown: half-close every established connection (both
+    /// directions) so peers observe a clean EOF, then drop all sockets.
+    pub fn shutdown(&mut self) {
+        for s in self.outbound.values() {
+            let _ = s.shutdown(Shutdown::Both);
+        }
+        for r in self.inbound.iter() {
+            let _ = r.stream.shutdown(Shutdown::Both);
+        }
+        self.outbound.clear();
+        self.inbound.clear();
+    }
+}
+
+// ===========================================================================
 // TransportRound — the equivalence harness. Drives a small cluster over ANY
 // Transport, imposing a canonical processing order so committed truth is a pure
 // function of (seed, ticks) regardless of the delivery layer's arrival order.
@@ -641,6 +866,25 @@ impl TransportRound {
             }
         }
         h
+    }
+
+    /// The **timing-independent** digest of the first committed outcome (log
+    /// index 1) on any node that has committed it — the quantity RCR-038's
+    /// cross-process run compares against. Returns `None` if nothing is committed
+    /// yet or index 1 is not an outcome. All committed replicas agree (raft
+    /// safety), so any committed node yields the same value.
+    pub fn committed_outcome_digest(&self) -> Option<u64> {
+        for id in &self.ids {
+            let n = &self.nodes[id];
+            if n.commit_index().0 >= 1 {
+                if let Some(e) = n.log().iter().find(|e| e.index.0 == 1) {
+                    if let EntryKind::Outcome(o) = &e.kind {
+                        return Some(outcome_content_digest(o));
+                    }
+                }
+            }
+        }
+        None
     }
 
     /// Tick every node once (deterministic id order), sending any emitted
@@ -843,5 +1087,154 @@ mod tests {
             "identical committed truth despite a real connection reset"
         );
         assert!(r.commit_of(&leader) >= 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // NodeTransport (RCR-038) — per-node networked endpoint tests. These run
+    // TWO endpoints inside ONE process over real TCP (fast, no election timing),
+    // isolating the genuinely-networked send/poll/reconnect/shutdown surface.
+    // The full cross-PROCESS proof is `tests/multiprocess.rs`.
+    // -----------------------------------------------------------------------
+
+    /// Poll `nt` until it yields at least one envelope or a generous deadline
+    /// trips (loopback resolves in microseconds; the bound only turns a genuinely
+    /// stuck socket into a fast, loud failure — never influences truth).
+    fn recv_some(nt: &mut NodeTransport) -> Vec<Envelope> {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let got = nt.poll();
+            if !got.is_empty() {
+                return got;
+            }
+            assert!(Instant::now() < deadline, "recv_some stalled (no frame arrived)");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// Bind two endpoints that know each other's real addresses.
+    fn pair() -> (NodeTransport, NodeTransport) {
+        let n1 = NodeId("n1".into());
+        let n2 = NodeId("n2".into());
+        // Bind ephemeral ports first, then hand each the other's real address.
+        let a = NodeTransport::bind(n1.clone(), "127.0.0.1:0", BTreeMap::new()).expect("bind n1");
+        let b = NodeTransport::bind(n2.clone(), "127.0.0.1:0", BTreeMap::new()).expect("bind n2");
+        let (a_addr, b_addr) = (a.local_addr(), b.local_addr());
+        let mut a = a;
+        let mut b = b;
+        a.peers.insert(n2, b_addr);
+        b.peers.insert(n1, a_addr);
+        (a, b)
+    }
+
+    /// A real length-framed [`Envelope`] crosses a genuine TCP socket between two
+    /// NodeTransport endpoints and decodes byte-identically at the peer.
+    #[test]
+    fn node_transport_exchanges_framed_envelope_both_ways() {
+        let n = |s: &str| NodeId(s.into());
+        let (mut a, mut b) = pair();
+        let e1 = Envelope {
+            from: n("n1"),
+            to: n("n2"),
+            body: MsgBody::RequestVote {
+                term: Term(4),
+                last_log_index: 2,
+                last_log_term: Term(3),
+                transfer: false,
+            },
+        };
+        a.send(e1.clone());
+        assert_eq!(recv_some(&mut b), vec![e1], "n1 -> n2 over real TCP");
+
+        let e2 = Envelope {
+            from: n("n2"),
+            to: n("n1"),
+            body: MsgBody::AppendReply { term: Term(4), success: true, match_index: 2 },
+        };
+        b.send(e2.clone());
+        assert_eq!(recv_some(&mut a), vec![e2], "n2 -> n1 over real TCP");
+    }
+
+    /// Multiple frames sent back-to-back all arrive intact (framing survives
+    /// coalesced/partial TCP reads — FramedReader reassembly).
+    #[test]
+    fn node_transport_delivers_multiple_frames() {
+        let n = |s: &str| NodeId(s.into());
+        let (mut a, mut b) = pair();
+        for t in 1..=5u64 {
+            a.send(Envelope {
+                from: n("n1"),
+                to: n("n2"),
+                body: MsgBody::TimeoutNow { term: Term(t) },
+            });
+        }
+        let mut got = Vec::new();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while got.len() < 5 {
+            got.extend(b.poll());
+            assert!(Instant::now() < deadline, "only {} of 5 frames arrived", got.len());
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let terms: Vec<u64> = got
+            .iter()
+            .map(|e| match &e.body {
+                MsgBody::TimeoutNow { term } => term.0,
+                _ => panic!("unexpected body"),
+            })
+            .collect();
+        assert_eq!(terms, vec![1, 2, 3, 4, 5], "all five frames arrived in order on one stream");
+    }
+
+    /// After a graceful shutdown drops the connection, the next send transparently
+    /// reconnects (the `reconnects` counter grows) and still delivers.
+    #[test]
+    fn node_transport_reconnects_after_shutdown() {
+        let n = |s: &str| NodeId(s.into());
+        let (mut a, mut b) = pair();
+        let e1 = Envelope { from: n("n1"), to: n("n2"), body: MsgBody::TimeoutNow { term: Term(1) } };
+        a.send(e1.clone());
+        assert_eq!(recv_some(&mut b), vec![e1]);
+        let reconnects_before = a.reconnects;
+
+        // Drop every connection on both ends (a real peer reset).
+        a.shutdown();
+        b.shutdown();
+
+        let e2 = Envelope { from: n("n1"), to: n("n2"), body: MsgBody::TimeoutNow { term: Term(2) } };
+        a.send(e2.clone());
+        assert!(a.reconnects > reconnects_before, "send re-established the connection");
+        assert_eq!(recv_some(&mut b), vec![e2], "delivery resumes after reconnect");
+    }
+
+    /// The committed-outcome content digest is timing-independent: it depends
+    /// ONLY on the outcome's address + payload, never on term/index — so the
+    /// cross-process run (any leader, any term) can compare against it.
+    #[test]
+    fn outcome_content_digest_ignores_term_and_index() {
+        let o = Outcome { digest: ContentHash("h:payload".into()), payload: b"payload".to_vec() };
+        let d = outcome_content_digest(&o);
+        // Same content in entries with different terms/indexes ⇒ same digest.
+        let e_a = LogEntry { term: Term(2), index: LogIndex(1), kind: EntryKind::Outcome(o.clone()) };
+        let e_b = LogEntry { term: Term(99), index: LogIndex(7), kind: EntryKind::Outcome(o.clone()) };
+        for e in [e_a, e_b] {
+            if let EntryKind::Outcome(oo) = &e.kind {
+                assert_eq!(outcome_content_digest(oo), d);
+            }
+        }
+        // Different content ⇒ different digest (non-vacuity).
+        let other = Outcome { digest: ContentHash("h:other".into()), payload: b"other".to_vec() };
+        assert_ne!(outcome_content_digest(&other), d);
+    }
+
+    /// The in-process baseline exposes the same timing-independent committed
+    /// outcome digest that the cross-process nodes print — the comparison anchor.
+    #[test]
+    fn transport_round_exposes_committed_outcome_digest() {
+        let mut r = TransportRound::new(3, 0xC0FFEE);
+        let mut mem = InProcessTransport::new();
+        r.elect_and_commit_one(&mut mem, outcome("payload"));
+        let d = r.committed_outcome_digest().expect("committed an outcome");
+        let expected =
+            outcome_content_digest(&Outcome { digest: ContentHash("h:payload".into()), payload: b"payload".to_vec() });
+        assert_eq!(d, expected, "baseline digest == digest of the proposed outcome");
     }
 }

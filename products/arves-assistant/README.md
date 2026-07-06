@@ -18,7 +18,12 @@ node products/arves-assistant/examples/assistant-day.mjs  # stage 1 scripted day
 node products/arves-assistant/skills.test.mjs         # stage 2: 6/6 tests, exit 0
 node products/arves-assistant/examples/assistant-skills-day.mjs  # stage 2 governed day, 8/8, exit 0
 node products/arves-assistant/agents.test.mjs         # stage 3: 6/6 tests, exit 0
-node products/arves-assistant/examples/jarvis-day.mjs # THE CAPSTONE: A1–A7 in one day, 17/17, exit 0
+node products/arves-assistant/examples/jarvis-day.mjs # THE CAPSTONE: A1–A7 in one day, exit 0
+# GA-hardening (daily driver, honest scope — see the section below):
+node products/arves-assistant/connectors.test.mjs         # email/csv/jsonl + cross-format dedup + hostile inputs
+node products/arves-assistant/reasoner-adapter.test.mjs   # real-LLM adapter shape (fake client) + governed pipeline
+node products/arves-assistant/robustness.test.mjs         # hostile CLI + bridge-down + config + report
+node products/arves-assistant/examples/jarvis-hardened-day.mjs  # the hardened day, 8/8, exit 0
 ```
 
 - **A2 — one truth from many sources:** 3 deterministic offline connectors
@@ -125,6 +130,48 @@ exact body was truth before the process existed. The candidate list is an untrus
 hint; only the Kernel's answer counts. Honest side effect: an unknown candidate becomes
 newly committed truth (there is no read-only probe) — the rebuild report separates
 `recovered` from `fresh` so nothing is smuggled in silently.
+
+## GA-hardening — the daily driver (honest scope)
+
+Beyond stages 1–3, JARVIS is hardened and completed enough to be the maintainer's daily
+driver — **without** claiming the four-condition GA gate (that gate is EXTERNAL — see the
+platform boundary). Run `node examples/jarvis-hardened-day.mjs` (8/8 properties) and
+`node connectors.test.mjs && node reasoner-adapter.test.mjs && node robustness.test.mjs`.
+
+- **Hostile-input hardening (`robustness.test.mjs`, `src/connectors.mjs`):** every connector
+  reads through a guard that refuses a missing/irregular file with a CLEAN error and caps
+  file size (16 MiB default, `JARVIS_MAX_SOURCE_BYTES` override) so a giant file fails loud
+  instead of exhausting memory. Malformed journal/iCal/CSV/JSON-lines/email lines fail with
+  the offending line number. Every CLI command runs through a try/catch that returns
+  `ok:false` + a loud line — a bad command, an unknown connector, a bad instant, or a
+  **bridge-down mid-session** never crashes the REPL (all asserted).
+- **More real-source connector TEMPLATES (`src/connectors.mjs`):** `email` (`.eml` — RFC 5322
+  headers: From→entity, Subject→event, Date→UTC instant, body ignored), `csv`
+  (`iso,entity,event`), and `jsonl` (JSON Lines) join the notes/calendar/tasks/journal/ical
+  readers. Still 100% offline and deterministic (fixed instants, no clock/RNG), but they
+  parse formats a user ALREADY keeps — point them at your own files with ZERO code changes
+  (`jarvis import csv /path/to/your.csv`). The SAME dedup rule holds across formats: the
+  dentist-appointment seen by csv AND jsonl collapses to ONE committed truth whose evidence
+  set names both sources (A2) — proven across separate processes over a durable WAL.
+- **Persistent config (`src/config.mjs`, `jarvis config …`):** a `~/.jarvisrc.json` (or
+  `--config <path>`) holds session defaults (`tenant`/`workspace`/`walDir`/`exe`/`reasoner`)
+  so the maintainer stops re-typing flags. Precedence is explicit and honest — CLI flag >
+  config file > built-in default — and a malformed config fails loud (an explicit `--config`)
+  or is warned-and-ignored (the default path, so the bin stays startable). Only the in-repo
+  `stub` reasoner is selectable; anything else is refused (honest scope).
+- **Export/report the day (`src/report.mjs`, `jarvis report [json]`):** a deterministic,
+  grouped-by-entity export built PURELY from committed truth (instants rendered from the
+  committed nanoseconds — no clock), so `report json` replays byte-identically across a
+  restart, exactly like `why()`.
+- **REASONER ADAPTER example (`src/llm-reasoner.example.mjs`):** a COMPLETE,
+  interface-conformant `Reasoner` whose only missing piece is your model call, injected as a
+  `client.complete(prompt) -> string` — the file marks **`>>> PUT YOUR API CALL HERE <<<`**
+  and imports NO network SDK and NO key. It builds a prompt from the read-only truth context,
+  calls your client, and parses the reply into the governed proposal shape; a **hallucinated
+  skill** (one not in the registered, certified+bound set) is REFUSED (`action:'none'`) rather
+  than reaching the runtime, and non-JSON output degrades to `none`. It is unit-tested against
+  a fake client AND driven end-to-end through the real in-memory Kernel
+  (`reasoner-adapter.test.mjs`), proving it plugs into the SAME governed pipeline as the stub.
 
 ## Honest scope (v1.0, phase-1 stages 1–3)
 

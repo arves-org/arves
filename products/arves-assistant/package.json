@@ -13,10 +13,11 @@
   "dependencies": {},
   "bin": { "jarvis": "bin/jarvis.mjs" },
   "scripts": {
-    "test": "node assistant.test.mjs && node skills.test.mjs && node agents.test.mjs && node cli.test.mjs",
+    "test": "node assistant.test.mjs && node skills.test.mjs && node agents.test.mjs && node cli.test.mjs && node connectors.test.mjs && node reasoner-adapter.test.mjs && node robustness.test.mjs",
     "day": "node examples/assistant-day.mjs",
     "skills-day": "node examples/assistant-skills-day.mjs",
     "jarvis-day": "node examples/jarvis-day.mjs",
+    "hardened-day": "node examples/jarvis-hardened-day.mjs",
     "cli": "node bin/jarvis.mjs"
   }
 }

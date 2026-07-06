@@ -14,8 +14,12 @@ mechanically check it. The frozen `.docx` corpus is untouched (ED-001).
 | `ARVES_Cluster.tla` | TLC-checkable TLA+ module: the **I2 distributed** per-shard Raft protocol — per-term leader election, log replication, commit-on-quorum — with the Raft safety invariants. |
 | `ARVES_Cluster_MC.cfg` | TLC instance (`Server = {n1,n2,n3}`, `MaxTerm = 3`, `MaxLogLen = 3`), safety-only, no symmetry. |
 | `TLC_CLUSTER_RUN.md` | Captured cluster run: verbatim `No error has been found` over the exhaustive state space, plus two falsifiability probes (incl. the `MaxTerm = 4` Figure-8 current-term-guard teeth demo) and a non-vacuity witness. |
+| `ARVES_ClusterLive.tla` | TLC-checkable TLA+ module extending the cluster protocol **beyond safety**: **liveness** (a leader is eventually elected + a held entry is eventually committed, under fairness + partial synchrony) and **durability** (a node crashes, loses volatile state, restarts from its persistent log; committed truth survives). |
+| `ARVES_Cluster_Liveness_MC.cfg` | TLC liveness instance (`SoleCandidate = n1` partial synchrony, `MaxCrash = 0`, `FairSpec`), checks the three temporal properties. No symmetry. |
+| `ARVES_ClusterLive_MC.cfg` | TLC durability instance (full election `SoleCandidate = Nil`, `MaxCrash = 2`), exhaustive safety check of `DurableSafetyInv` across crash/restart. |
+| `TLC_CLUSTER_LIVENESS_RUN.md` | Captured liveness + durability runs: verbatim `No error has been found` for both, each with a captured falsifiability probe (full-dueling breaks liveness; non-durable log breaks durability). |
 
-## Two models, two scopes (honest)
+## Three models, three scopes (honest)
 
 - `ARVES_Kernel.tla` models the **single-shard commit gateway** *as if the log were already
   the agreed, replicated log* — the state-machine layer above consensus (OWN-001, ORCH-003/004,
@@ -24,10 +28,22 @@ mechanically check it. The frozen `.docx` corpus is untouched (ED-001).
   election, replication, and commit-on-quorum — and checks the classic Raft **safety**
   invariants (Election Safety, Log Matching, State Machine Safety, Leader Completeness) plus a
   **Linearizable-commit** invariant matching the `ClusterKernel` "ack only after quorum, apply
-  in log order on every replica" guarantee. Both are model-checks of the **protocol design**,
-  not proofs of the Rust code (`arves-consensus`, `arves-kernel::cluster`); see
-  `TLC_CLUSTER_RUN.md` for the exact scope and abstractions (message layer, joint-consensus
-  membership, liveness, and durability are out of scope of the cluster model).
+  in log order on every replica" guarantee.
+- `ARVES_ClusterLive.tla` takes the **same** distributed protocol **past safety** into the two
+  properties safety cannot express: **liveness** (a leader is `<>`-eventually elected, and a held
+  entry is `~>`-eventually committed) under weak fairness and the partial-synchrony assumption
+  Raft liveness genuinely requires — declared honestly via the `SoleCandidate` constant and
+  falsifiable-checked (full dueling elections break it, exactly as theory predicts) — and
+  **durability** (a node crashes losing volatile `{role, commitIndex, votes}` but keeps persistent
+  `{currentTerm, votedFor, log}`, restarts by replaying the durable WAL, and every committed entry
+  stays quorum-durable across up to two crash/restarts; also falsifiable-checked — a non-durable
+  log breaks it).
+
+All three are model-checks of the **protocol design**, not proofs of the Rust code
+(`arves-consensus`, `arves-kernel::cluster`); see `TLC_CLUSTER_RUN.md` and
+`TLC_CLUSTER_LIVENESS_RUN.md` for the exact scope and abstractions (message layer and
+joint-consensus membership remain out of scope of every cluster model; liveness is under partial
+synchrony, not full asynchrony — which is correct, per FLP).
 
 ## How to run TLC (reproducible recipe)
 
@@ -42,6 +58,18 @@ mechanically check it. The frozen `.docx` corpus is untouched (ED-001).
 > captured falsifiability probes (incl. the `MaxTerm = 4` Figure-8 current-term-guard teeth demo,
 > with the guarded model exhaustively clean at that same bound), and a non-vacuity witness are in
 > [`TLC_CLUSTER_RUN.md`](TLC_CLUSTER_RUN.md). Run it with `-config ARVES_Cluster_MC.cfg ARVES_Cluster.tla`.
+>
+> **Cluster liveness + durability — captured runs 2026-07-06 — `Model checking completed. No error has been found.`**
+> `ARVES_ClusterLive.tla` extends the cluster protocol past safety. **Liveness:** the three
+> temporal properties (`LeaderEventuallyElected`, `ProgressToCommit`, `EntryEventuallyCommitted`)
+> hold over the exhaustive fair state graph (642 distinct states) under partial synchrony;
+> removing the assumption (full dueling) breaks the property, as captured. **Durability:**
+> `DurableSafetyInv` (the five Raft safety invariants + `DurableOnQuorum`) holds across **up to two
+> crash/restarts** over **1,585,424 distinct states** (depth 24); a non-durable-log probe breaks
+> it, as captured. Verbatim output, environment pins, and both falsifiability probes are in
+> [`TLC_CLUSTER_LIVENESS_RUN.md`](TLC_CLUSTER_LIVENESS_RUN.md). Run the two cfgs
+> `ARVES_Cluster_Liveness_MC.cfg` (liveness) and `ARVES_ClusterLive_MC.cfg` (durability) against
+> `ARVES_ClusterLive.tla`.
 
 TLC is **not** vendored in this repo. You need Java and a TLA+ tool
 (`tla2tools.jar`, bundled with the TLA+ Toolbox or downloadable standalone).
@@ -60,13 +88,17 @@ Full details, the falsifiability demonstration, the Apalache alternative, and th
 
 ## Honest status — captured runs exist; jar/states uncommitted; CI unwired
 
-**Two TLC runs ARE now captured with verbatim tool output committed** — the kernel
+**Four TLC runs ARE now captured with verbatim tool output committed** — the kernel
 model in [`TLC_RUN.md`](TLC_RUN.md) (`SafetyInv` + `EventuallyCommitted`, exhaustive,
-`No error has been found`) and the cluster model in
+`No error has been found`); the cluster **safety** model in
 [`TLC_CLUSTER_RUN.md`](TLC_CLUSTER_RUN.md) (`SafetyInv`, exhaustive over 1,070,962
-distinct states, plus two captured falsifiability probes and a non-vacuity witness).
-Each records the TLC version, the `tla2tools.jar` sha256, the Java/OS environment, and
-a reproduce command.
+distinct states, plus two captured falsifiability probes and a non-vacuity witness); and
+the cluster **liveness** and **durability** models in
+[`TLC_CLUSTER_LIVENESS_RUN.md`](TLC_CLUSTER_LIVENESS_RUN.md) (liveness: three temporal
+properties over 642 states under partial synchrony + a full-dueling falsifiability probe;
+durability: `DurableSafetyInv` exhaustive over 1,585,424 distinct states across up to two
+crash/restarts + a non-durable-log falsifiability probe). Each records the TLC version, the
+`tla2tools.jar` sha256, the Java/OS environment, and a reproduce command.
 
 What is **still** honest to flag:
 

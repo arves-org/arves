@@ -1,0 +1,4 @@
+# events.jsonl — one JSON object per line (JSON Lines). Keys: at, entity, event.
+# The dentist-appointment line collapses to the SAME truth as the other sources (A2).
+{"at":"2026-07-06T09:00:00Z","entity":"urn:you","event":"dentist-appointment"}
+{"at":"2026-07-06T20:00:00Z","entity":"proj:arves","event":"ship-jsonl-connector"}

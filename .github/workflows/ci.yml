@@ -18,6 +18,10 @@
 #                  verification/certification/test_harness_integrity.py
 #   * evidence   — verification/evidence/evidence_probe.py
 #   * rust       — cargo test over the runtime workspace
+#   * industrial — verification/industrial L4 sweeps (fault-injection +
+#                  replay-equivalence + perf smoke), SMOKE band per push so the
+#                  L4 evidence is regression-protected; the full headline band
+#                  (512/128/256/192 seeds) runs on manual/nightly dispatch.
 # =============================================================================
 
 name: ARVES mechanical gates
@@ -27,7 +31,12 @@ name: ARVES mechanical gates
     branches: ["**"]
   pull_request:
     branches: ["**"]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      l4_full:
+        description: "Run the L4 industrial sweeps at the FULL headline band (512/128/256/192 seeds) instead of the fast smoke band."
+        type: boolean
+        default: false
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
@@ -144,3 +153,34 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cargo test (workspace)
         run: cargo test --locked --manifest-path runtime/Cargo.toml --workspace
+
+  # --------------------------------------------------------------------------
+  # INDUSTRIAL — L4 evidence sweeps (verification/industrial/, a STANDALONE
+  # cargo workspace that path-depends on the FROZEN runtime crates per IDR-006,
+  # so it is NOT a member of the runtime workspace above and would otherwise be
+  # run only by hand). Wiring it here turns "the author ran the L4 sweeps" into
+  # "the branch cannot merge if the L4 safety/replay contract regresses".
+  #
+  # Per-push we run the SMOKE band (ARVES_L4_SMOKE) so the gate is fast (~seconds)
+  # yet still adversarial (partitions + isolation + crash→WAL-replay, seeded).
+  # The FULL headline band (512/128/256/192 seeds — the documented L4_REPORT.md
+  # counts, ~2-3 min) runs on manual dispatch with `l4_full=true`, or a schedule.
+  # Determinism is unchanged: the smoke band is a prefix of the same seed stream,
+  # so anything it catches replays under the full sweep too.
+  # --------------------------------------------------------------------------
+  industrial:
+    name: L4 industrial evidence (fault-injection + replay + perf)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: L4 sweeps — SMOKE band (per-push regression gate)
+        if: ${{ github.event.inputs.l4_full != 'true' }}
+        env:
+          ARVES_L4_SMOKE: "24"
+        run: cargo test --release --locked --manifest-path verification/industrial/Cargo.toml
+      - name: L4 sweeps — FULL headline band (manual/nightly dispatch)
+        if: ${{ github.event.inputs.l4_full == 'true' }}
+        run: cargo test --release --locked --manifest-path verification/industrial/Cargo.toml

@@ -1,0 +1,6 @@
+# events.csv — a generic CSV a user might export. Columns: iso,entity,event
+# The dentist-appointment row is the SAME canonical fact as notes/calendar/ical/journal
+# (same entity+event+instant) — cross-format one-truth (A2): source is evidence, not identity.
+iso,entity,event
+2026-07-06T09:00:00Z,urn:you,dentist-appointment
+2026-07-06T18:00:00Z,proj:arves,ship-csv-connector

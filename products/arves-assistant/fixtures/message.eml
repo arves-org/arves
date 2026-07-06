@@ -1,0 +1,7 @@
+From: Dr. Alice Smith <alice@dental.example>
+To: you@example.com
+Date: Mon, 06 Jul 2026 09:00:00 +0000
+Subject: Dentist appointment confirmation
+
+Your appointment is confirmed for 9am. This body text is ignored by the
+email-file connector, which reads headers only (From/Subject/Date).

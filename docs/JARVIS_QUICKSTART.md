@@ -100,8 +100,8 @@ attributed-invoke verb lands — a recorded RCR candidate. A live session keeps 
 
 ## 2c. Point the connectors at YOUR real files
 
-`import <connector>` reads offline, deterministic fixtures by default, but the two
-real-format connectors parse formats you already keep — pass your own file:
+`import <connector>` reads offline, deterministic fixtures by default, but the real-format
+connectors parse formats you already keep — pass your own file:
 
 ```sh
 # an Obsidian / Logseq daily note (headings set the date; `- HH:MM <event> [@entity]` bullets become facts):
@@ -109,6 +109,13 @@ node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import journal /path/
 
 # a Google/Apple Calendar export (each VEVENT's SUMMARY + UTC DTSTART; optional X-ARVES-ENTITY):
 node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import ical /path/to/calendar.ics
+
+# an email message TEMPLATE (.eml — From→entity, Subject→event, Date→instant):
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import email /path/to/message.eml
+
+# a generic three-column CSV, or JSON Lines (one object per line):
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import csv   /path/to/events.csv
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import jsonl /path/to/events.jsonl
 ```
 
 The **same real-world event from different sources collapses to ONE truth** whose evidence
@@ -119,8 +126,17 @@ network — so the same file always yields the same truths. To wire a **new** re
 author a function returning `[{ source, fact: { entity, event, at } }]` (`at` = BigInt ms
 UTC) exactly like `markdownJournalConnector` / `icalConnector` in
 `products/arves-assistant/src/connectors.mjs`, and register it in that module's `CONNECTORS`
-map. Scope stays honest: the shipped connectors accept only UTC instants (ending in `Z`);
-a floating/timezone time fails loudly rather than guess.
+map. Scope stays honest, and honesty here means **failing loud rather than guessing**:
+
+- The instant-based connectors (`journal`, `ical`, `csv`, `jsonl`) accept only UTC instants
+  ending in `Z`; a floating/timezone time is rejected, not silently reinterpreted.
+- The `email` connector's RFC 5322 `Date` header **must carry an explicit zone/offset**
+  (`+0000`, `GMT`, `Z`, …). A *zoneless* date would be parsed as your machine's LOCAL time —
+  the same `.eml` would then commit a different instant on a different-timezone host — so a
+  zoneless date fails loud instead of skewing. RFC-compliant mail always carries a zone.
+- The `csv` connector tolerates ONE leading header row, but only when line 1's first cell
+  isn't itself a date-ish-but-invalid timestamp; a single-character typo in a line-1 ISO
+  instant fails loud rather than being silently dropped as a "header".
 
 ## 3. Run the assistant on YOUR OWN shard + WAL dir
 
