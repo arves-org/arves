@@ -249,6 +249,43 @@ pub trait Wal {
     /// (append-only WAL, IDR-005).
     fn append(&mut self, record: PendingRecord) -> Result<Offset, WalError>;
 
+    /// Append a GROUP of committed records under ONE durability sync — the
+    /// **group-commit** primitive (RCR-039). Returns the dense `Offset`s assigned,
+    /// in input order, and — exactly like [`Wal::append`] — returns `Ok` ONLY after
+    /// every record in the group is durable (no ack-before-durable). Coalescing N
+    /// records into a single fsync amortizes the durability cost the L4 report
+    /// measured as the fsync-per-commit throughput ceiling, WITHOUT weakening the
+    /// guarantee.
+    ///
+    /// Contract (identical semantics to N sequential [`append`](Wal::append)s except
+    /// the number of syncs):
+    /// - **Append-only / deterministic order** (IDR-005, ORCH-003): records are
+    ///   appended in the given order and assigned dense, strictly increasing offsets
+    ///   — the same committed content and order N sequential appends would produce.
+    /// - **Durability point:** every returned offset is durable before `Ok`. A crash
+    ///   mid-group (before the coalesced sync returns) leaves an *un-acked* tail:
+    ///   recovery truncates only the torn final frame (torn-tail detection); any
+    ///   fully-written frames the OS already persisted survive and are recovered
+    ///   (the caller idempotently reconciles them on retry). No acked truth is lost.
+    /// - **Per-shard** (SHARD-001): every record must target this WAL's shard; a
+    ///   foreign record is refused ([`WalError::UnknownShard`]) BEFORE anything is
+    ///   written, so a bad group leaves no half-written tail.
+    /// - **Leader-only** (IDR-001): as for [`append`](Wal::append), only the shard
+    ///   leader may append.
+    ///
+    /// DEFAULT: fall back to per-record [`append`](Wal::append) (one sync each) —
+    /// correct but NOT coalesced. A durable implementation (e.g. [`FileWal`])
+    /// overrides this to issue exactly ONE sync for the whole group; the default
+    /// keeps the primitive available for every implementor without changing the
+    /// per-record path.
+    fn append_group(&mut self, records: Vec<PendingRecord>) -> Result<Vec<Offset>, WalError> {
+        let mut offsets = Vec::with_capacity(records.len());
+        for r in records {
+            offsets.push(self.append(r)?);
+        }
+        Ok(offsets)
+    }
+
     /// Durably store a checkpoint of materialized shard state covering offsets
     /// `0..=up_to_offset`, returning its metadata (I1.6).
     ///
@@ -1041,6 +1078,67 @@ impl Wal for FileWal {
         inner.current_count += 1;
         inner.head = offset + 1;
         Ok(offset)
+    }
+
+    /// Group-commit override (RCR-039): write every frame, then issue exactly ONE
+    /// `sync_all` for the whole group instead of one per record. Durability is
+    /// preserved — offsets are returned (acked) only AFTER the coalesced fsync — so
+    /// this amortizes the fsync-per-commit cost the L4 report measured without any
+    /// ack-before-durable. The default per-record `append` path is byte-identical
+    /// and untouched.
+    fn append_group(&mut self, records: Vec<PendingRecord>) -> Result<Vec<Offset>, WalError> {
+        if records.is_empty() {
+            return Ok(Vec::new());
+        }
+        // SHARD-001: refuse any foreign record BEFORE writing a single byte, so a
+        // malformed group can never leave a half-written, un-synced tail behind.
+        for r in &records {
+            if r.shard != self.shard {
+                return Err(WalError::UnknownShard(r.shard.clone()));
+            }
+        }
+        let mut inner = self.inner.lock().expect("filewal poisoned");
+        let mut offsets = Vec::with_capacity(records.len());
+        for record in records {
+            if inner.current_count >= inner.rotate_every {
+                // A group may cross a segment boundary. The final coalesced sync
+                // below targets only the NEW (current) segment, so make the frames
+                // already written to the OUTGOING segment durable before sealing it.
+                inner
+                    .current
+                    .sync_all()
+                    .map_err(|e| WalError::Durability(format!("group pre-rotate fsync: {e}")))?;
+                FileWal::rotate(&mut inner)?;
+            }
+            let offset = inner.head;
+            let body = encode_body(
+                &self.shard,
+                offset,
+                record.term,
+                &record.kind,
+                &record.content,
+                &record.payload,
+            );
+            let mut frame = Vec::with_capacity(body.len() + 8);
+            put_u32(&mut frame, body.len() as u32);
+            frame.extend_from_slice(&body);
+            put_u32(&mut frame, crc32_ieee(&body));
+            inner
+                .current
+                .write_all(&frame)
+                .map_err(|e| WalError::Durability(format!("group append write: {e}")))?;
+            // NO per-record fsync here — coalesced into the ONE sync below.
+            inner.current_count += 1;
+            inner.head = offset + 1;
+            offsets.push(offset);
+        }
+        // DURABILITY: exactly ONE fsync makes the WHOLE group durable before Ok
+        // (group-commit; the durability point still precedes every ack).
+        inner
+            .current
+            .sync_all()
+            .map_err(|e| WalError::Durability(format!("group fsync: {e}")))?;
+        Ok(offsets)
     }
 
     fn install_snapshot(

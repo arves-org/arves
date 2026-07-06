@@ -530,3 +530,59 @@ pub fn measure_load(wal_dir: &Path, commits: u64) -> PerfPoint {
         correct: replay_hash == committed_hash,
     }
 }
+
+/// Same as [`measure_load`], but drives the writes through
+/// `FileKernel::commit_group` in batches of `group_size` — the RCR-039
+/// group-commit path, where a whole batch shares ONE `fsync` instead of one per
+/// commit. The content/payload are byte-identical to [`measure_load`], so for the
+/// same `commits` the grouped `truth_hash` MUST equal the per-commit one (the
+/// determinism gate: coalescing changes only the fsync count, never truth).
+///
+/// This is the honest, MEASURED evidence for the fsync-per-commit throughput
+/// ceiling the L4 report motivated: single host, single process, single shard.
+pub fn measure_load_grouped(wal_dir: &Path, commits: u64, group_size: u64) -> PerfPoint {
+    let shard = KShardKey::new("t1", "w1").expect("valid shard");
+    let gsize = group_size.max(1);
+
+    // --- commit phase (fsync-COALESCED: one fsync per group) ---
+    let store = FileWalStore::open_root(wal_dir).expect("open file store");
+    let kernel = FileKernel::new(store);
+    let t0 = Instant::now();
+    let mut i = 0u64;
+    while i < commits {
+        let n = gsize.min(commits - i);
+        let group: Vec<ProposedWrite> = (i..i + n)
+            .map(|j| ProposedWrite {
+                shard: shard.clone(),
+                content: ContentHash(format!("perf-c-{j}").into_bytes()),
+                payload: format!("perf-payload-{j}").into_bytes(),
+            })
+            .collect();
+        kernel.commit_group(group).expect("commit_group ok");
+        i += n;
+    }
+    let commit_secs = t0.elapsed().as_secs_f64();
+    let committed_hash = kernel.truth_hash();
+    let committed_count = kernel.committed_count() as u64;
+    assert_eq!(committed_count, commits, "every unique write became truth");
+    drop(kernel);
+
+    // --- replay phase (fresh process, deterministic WAL replay) ---
+    let store2 = FileWalStore::open_root(wal_dir).expect("reopen file store");
+    let t1 = Instant::now();
+    let recovered = FileKernel::recover(store2);
+    let replay_secs = t1.elapsed().as_secs_f64();
+    let replay_hash = recovered.truth_hash();
+    assert_eq!(replay_hash, committed_hash, "replayed truth_hash must equal committed truth_hash");
+    assert_eq!(recovered.committed_count() as u64, commits, "replay recovered every record");
+
+    PerfPoint {
+        commits,
+        commit_secs,
+        commit_throughput: if commit_secs > 0.0 { commits as f64 / commit_secs } else { f64::INFINITY },
+        replay_secs,
+        replay_throughput: if replay_secs > 0.0 { commits as f64 / replay_secs } else { f64::INFINITY },
+        truth_hash: committed_hash,
+        correct: replay_hash == committed_hash,
+    }
+}

@@ -410,6 +410,56 @@ impl ClusterSim {
             .clone()
     }
 
+    // -- model<->code conformance witnesses (RCR-040) -------------------------
+    //
+    // Read-only projections of the per-shard Raft group's OBSERVABLE state onto
+    // exactly the objects the TLA+ model `ARVES_Cluster.tla` reasons about
+    // (`log[node]` term stamps, `leaders_by_term`, the `committed` history), so
+    // a Rust test can assert the model's checked safety invariants hold on the
+    // REAL running code for a concrete scenario. These expose consensus
+    // MECHANISM metadata only (terms/indices), never Kernel truth (ORCH-001):
+    // truth is still read solely by WAL replay. They mutate nothing.
+
+    /// The term stamp of every entry in `node`'s Raft log for `shard`, in log
+    /// order — the model's `log[node]` projected to `[entry.term]`. The witness
+    /// object for the model's Log Matching and Linearizable Commit invariants.
+    pub fn log_terms_of(&self, node: &NodeId, shard: &ShardId) -> Vec<u64> {
+        self.groups
+            .get(shard)
+            .expect("log_terms_of: unregistered shard")
+            .log_of(node)
+            .iter()
+            .map(|e| e.term.0)
+            .collect()
+    }
+
+    /// The safety observer's `term -> leaders` history for `shard`'s group —
+    /// the model's `leaders_by_term`. Each term maps to at most one leader iff
+    /// Election Safety holds (IDR-004). Read-only.
+    pub fn leaders_by_term_of(&self, shard: &ShardId) -> BTreeMap<u64, Vec<NodeId>> {
+        self.groups
+            .get(shard)
+            .expect("leaders_by_term_of: unregistered shard")
+            .leaders_history()
+            .iter()
+            .map(|(t, s)| (*t, s.iter().cloned().collect()))
+            .collect()
+    }
+
+    /// The safety observer's committed history for `shard`'s group projected to
+    /// `commit_index -> entry.term` — the model's `committed` set as
+    /// `[idx |-> term]`. Single-valued per index iff State Machine Safety holds.
+    /// Read-only.
+    pub fn committed_terms_of(&self, shard: &ShardId) -> BTreeMap<u64, u64> {
+        self.groups
+            .get(shard)
+            .expect("committed_terms_of: unregistered shard")
+            .committed_history()
+            .iter()
+            .map(|(i, e)| (*i, e.term.0))
+            .collect()
+    }
+
     // -- crash / snapshot install ---------------------------------------------
 
     /// Crash one replica's Kernel (lose all in-memory truth) and recover it by

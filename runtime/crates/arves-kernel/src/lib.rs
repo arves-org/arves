@@ -1122,3 +1122,177 @@ impl<S: WalStore> RefKernel<S> {
         Ok(out)
     }
 }
+
+// =============================================================================
+// RCR-039 — group commit / batched-fsync (closes the fsync-per-commit throughput
+// ceiling the L4 report measured; deferred v1.1 debt, RUNTIME_FREEZE_v1.0.md).
+//
+// The SAME gateway admission as `commit`/`commit_batch` (ORCH-004 idempotency +
+// RCR-005 content-integrity), but the FRESH records share ONE fsync via
+// `Wal::append_group` instead of one fsync each. Truth is inserted (ACKED) only
+// AFTER the coalesced fsync returns — durability is NOT weakened (no
+// ack-before-durable). Committed-truth content AND order are identical to N
+// sequential `commit` calls, so `truth_hash` matches the non-grouped path
+// (determinism, HARD RULE 4). Additive inherent method; the frozen `Kernel`
+// trait and the single-`commit` path are byte-unchanged.
+// =============================================================================
+
+impl<S: WalStore> RefKernel<S> {
+    /// Commit several proposals to ONE shard under a SINGLE coalesced durability
+    /// fsync — the **group-commit** path (RCR-039).
+    ///
+    /// Under one state lock (no interleaving with other commits):
+    ///
+    /// 1. **Validate (no mutation)** — the identical validation class as
+    ///    [`commit_batch`](RefKernel::commit_batch): every proposal must target the
+    ///    group's shard (cross-shard intent is a saga, IDR-004 —
+    ///    [`BatchError::CrossShard`]); no proposal may fork committed truth
+    ///    (RCR-005) or bind the same address to two payloads within the group
+    ///    ([`BatchError::Refused`], nothing appended).
+    /// 2. **Partition** — split proposals into FRESH (needs a durable append) and
+    ///    already-committed (idempotent resolve, ORCH-004). Identical duplicates
+    ///    *within* the group collapse to ONE append (the first occurrence is
+    ///    `fresh: true`, the rest resolve `fresh: false`), exactly as
+    ///    [`commit_batch`] does through repeated admission.
+    /// 3. **One coalesced append** — the fresh records go to
+    ///    [`Wal::append_group`], which issues exactly ONE fsync for the whole set.
+    /// 4. **Ack** — only AFTER that fsync returns does fresh truth enter the truth
+    ///    set; a crash before the fsync leaves an un-acked tail: recovery truncates
+    ///    only the torn final frame, while any fully-written un-acked frames survive
+    ///    and are idempotently reconciled on retry (ORCH-004) — never acked-but-lost.
+    ///
+    /// Outcomes are returned in ORIGINAL proposal order. Determinism: the committed
+    /// content and order equal N sequential [`commit`](Kernel::commit) calls, so a
+    /// grouped run and a per-commit run of the same proposals yield the identical
+    /// [`truth_hash`](RefKernel::truth_hash).
+    ///
+    /// **Honest boundary** (as [`commit_batch`]): a mid-group host **I/O** failure
+    /// surfaces loudly as [`BatchError::PartialApply`] — the reference WAL has no
+    /// multi-record rollback primitive (a Raft log entry naturally carrying a batch
+    /// is I2 work). The all-or-nothing guarantee covers the *validation* class (the
+    /// failures a caller can cause), not a host-medium fault.
+    pub fn commit_group(
+        &self,
+        proposals: Vec<ProposedWrite>,
+    ) -> Result<Vec<BatchOutcome>, BatchError> {
+        if proposals.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut state = self.state.lock().expect("state poisoned");
+
+        // ---- Phase 1: validate everything before touching anything. ----
+        let shard = proposals[0].shard.clone();
+        let mut in_group: HashMap<&[u8], &[u8]> = HashMap::new();
+        for (i, p) in proposals.iter().enumerate() {
+            if p.shard != shard {
+                return Err(BatchError::CrossShard {
+                    expected: shard,
+                    found: p.shard.clone(),
+                    index: i,
+                });
+            }
+            // Intra-group fork: same address, different payload inside ONE group.
+            match in_group.get(p.content.0.as_slice()) {
+                Some(prev) if *prev != p.payload.as_slice() => {
+                    return Err(BatchError::Refused {
+                        index: i,
+                        cause: CommitError::ContentIntegrity { shard: p.shard.clone() },
+                    });
+                }
+                _ => {
+                    in_group.insert(p.content.0.as_slice(), p.payload.as_slice());
+                }
+            }
+            // Fork against already-committed truth (RCR-005) — refuse the WHOLE group.
+            let key = (p.shard.tenant.clone(), p.shard.workspace.clone(), p.content.0.clone());
+            if let Some(&pos) = state.index.get(&key) {
+                if state.committed[pos].1 != p.payload {
+                    return Err(BatchError::Refused {
+                        index: i,
+                        cause: CommitError::ContentIntegrity { shard: p.shard.clone() },
+                    });
+                }
+            }
+        }
+
+        // ---- Phase 2: partition FRESH vs already-committed; preserve order. ----
+        // `Disp::Fresh(fresh_idx, is_first)` — is_first is the ORCH-004 fresh flag.
+        enum Disp {
+            Fresh(usize, bool),
+            Existing(TruthRef),
+        }
+        let pshard = to_pshard(&shard);
+        let mut staged: HashMap<Vec<u8>, usize> = HashMap::new();
+        let mut disp: Vec<Disp> = Vec::with_capacity(proposals.len());
+        let mut fresh: Vec<PendingRecord> = Vec::new();
+        let mut fresh_meta: Vec<(Vec<u8>, Vec<u8>)> = Vec::new(); // (content, payload) in append order
+        for p in &proposals {
+            let key = (p.shard.tenant.clone(), p.shard.workspace.clone(), p.content.0.clone());
+            if let Some(&pos) = state.index.get(&key) {
+                // Already committed (payload equal — verified in phase 1).
+                disp.push(Disp::Existing(state.committed[pos].0.clone()));
+                continue;
+            }
+            if let Some(&fi) = staged.get(&p.content.0) {
+                // Identical duplicate already staged in THIS group -> resolve to it.
+                disp.push(Disp::Fresh(fi, false));
+                continue;
+            }
+            let fi = fresh.len();
+            staged.insert(p.content.0.clone(), fi);
+            fresh.push(PendingRecord {
+                shard: pshard.clone(),
+                term: 0,
+                kind: RecordKind::Outcome,
+                content: ContentId(p.content.0.clone()),
+                payload: p.payload.clone(),
+            });
+            fresh_meta.push((p.content.0.clone(), p.payload.clone()));
+            disp.push(Disp::Fresh(fi, true));
+        }
+
+        // ---- Phase 3: ONE coalesced group append (single fsync) for the fresh set. ----
+        let offsets = if fresh.is_empty() {
+            Vec::new()
+        } else {
+            let mut wal = self.store.open(&pshard).map_err(|e| BatchError::PartialApply {
+                applied: Vec::new(),
+                index: 0,
+                cause: CommitError::Rejected { reason: format!("wal open: {e:?}") },
+            })?;
+            wal.append_group(fresh).map_err(|e| BatchError::PartialApply {
+                applied: Vec::new(),
+                index: 0,
+                cause: CommitError::Rejected { reason: format!("wal append_group: {e:?}") },
+            })?
+        };
+
+        // ---- Phase 4: ACK — only now (post-fsync) does fresh truth enter state. ----
+        let mut fresh_truth: Vec<TruthRef> = Vec::with_capacity(offsets.len());
+        for (fi, offset) in offsets.iter().enumerate() {
+            let (content, payload) = &fresh_meta[fi];
+            let tr = TruthRef {
+                shard: shard.clone(),
+                content: ContentHash(content.clone()),
+                index: CommitIndex(*offset),
+            };
+            let key = (shard.tenant.clone(), shard.workspace.clone(), content.clone());
+            let pos = state.committed.len();
+            state.committed.push((tr.clone(), payload.clone()));
+            state.index.insert(key, pos);
+            fresh_truth.push(tr);
+        }
+
+        // ---- Assemble outcomes in ORIGINAL proposal order. ----
+        let mut out = Vec::with_capacity(disp.len());
+        for d in disp {
+            match d {
+                Disp::Fresh(fi, is_first) => {
+                    out.push(BatchOutcome { truth: fresh_truth[fi].clone(), fresh: is_first })
+                }
+                Disp::Existing(tr) => out.push(BatchOutcome { truth: tr, fresh: false }),
+            }
+        }
+        Ok(out)
+    }
+}

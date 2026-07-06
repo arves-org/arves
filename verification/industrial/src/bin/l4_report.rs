@@ -4,16 +4,25 @@
 //!
 //! Run: `cargo run --release --bin l4_report` from `verification/industrial/`.
 //!
-//! HONEST SCOPE: single host, one process, one commit per fsync (no batching —
-//! batch-commit is deferred v1.1 debt, `RUNTIME_FREEZE_v1.0.md`). Throughput is
-//! therefore fsync-bound and machine-specific; the report states the host. The
-//! only hard gate is the DETERMINISTIC correctness check (recovered truth_hash
-//! == committed truth_hash); timing is recorded, never gated (cannot flake).
+//! HONEST SCOPE: single host, one process, single shard. Two durability paths are
+//! measured side by side:
+//!   * **per-commit** — one `fsync` per commit (`FileKernel::commit`), the
+//!     original fsync-per-commit ceiling; and
+//!   * **group-commit (RCR-039)** — a batch of commits shares ONE `fsync`
+//!     (`FileKernel::commit_group`), closing that ceiling WITHOUT weakening
+//!     durability (truth is acked only after the coalesced fsync).
+//! Throughput is fsync-bound and machine-specific; the report states the host.
+//! The hard gate is the DETERMINISTIC correctness check (recovered truth_hash ==
+//! committed truth_hash) AND that the grouped truth_hash equals the per-commit
+//! truth_hash for the same load; timing is recorded, never gated (cannot flake).
 
-use arves_industrial::{measure_load, PerfPoint};
+use arves_industrial::{measure_load, measure_load_grouped, PerfPoint};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Group size for the coalesced-fsync path (commits per fsync).
+const GROUP_SIZE: u64 = 64;
 
 fn main() {
     // Loads chosen so total fsync count stays bounded (fsync-per-commit is slow,
@@ -32,34 +41,53 @@ fn main() {
         SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0)
     ));
 
-    let mut points: Vec<PerfPoint> = Vec::new();
+    let mut points: Vec<(PerfPoint, PerfPoint)> = Vec::new();
     for &load in &loads {
-        let dir = base.join(format!("load_{load}"));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("create wal dir");
-        eprintln!("[l4_report] measuring load={load} ...");
-        let p = measure_load(&dir, load);
-        eprintln!(
-            "[l4_report]   commit {:.0} c/s ({:.3}s), replay {:.0} rec/s ({:.3}s), correct={}",
-            p.commit_throughput, p.commit_secs, p.replay_throughput, p.replay_secs, p.correct
+        // per-commit (one fsync per commit)
+        let dir1 = base.join(format!("single_{load}"));
+        let _ = fs::remove_dir_all(&dir1);
+        fs::create_dir_all(&dir1).expect("create wal dir");
+        eprintln!("[l4_report] measuring per-commit load={load} ...");
+        let single = measure_load(&dir1, load);
+        let _ = fs::remove_dir_all(&dir1);
+
+        // group-commit (one fsync per GROUP_SIZE commits)
+        let dir2 = base.join(format!("group_{load}"));
+        let _ = fs::remove_dir_all(&dir2);
+        fs::create_dir_all(&dir2).expect("create wal dir");
+        eprintln!("[l4_report] measuring group-commit load={load} (group={GROUP_SIZE}) ...");
+        let grouped = measure_load_grouped(&dir2, load, GROUP_SIZE);
+        let _ = fs::remove_dir_all(&dir2);
+
+        // DETERMINISM gate: coalescing the fsync must not change committed truth.
+        assert_eq!(
+            single.truth_hash, grouped.truth_hash,
+            "group-commit truth_hash MUST equal the per-commit truth_hash (load={load})"
         );
-        points.push(p);
-        let _ = fs::remove_dir_all(&dir);
+
+        eprintln!(
+            "[l4_report]   per-commit {:.0} c/s | group {:.0} c/s | speedup {:.1}x | correct={}",
+            single.commit_throughput,
+            grouped.commit_throughput,
+            grouped.commit_throughput / single.commit_throughput.max(f64::MIN_POSITIVE),
+            single.correct && grouped.correct
+        );
+        points.push((single, grouped));
     }
     let _ = fs::remove_dir_all(&base);
 
     let report = render_report(&points);
-    // Write next to the crate (CWD when run via `cargo run` in the crate dir).
     let out = PathBuf::from("L4_REPORT.md");
     fs::write(&out, &report).expect("write L4_REPORT.md");
     eprintln!("[l4_report] wrote {}", out.display());
     print!("{report}");
 }
 
-fn render_report(points: &[PerfPoint]) -> String {
+fn render_report(points: &[(PerfPoint, PerfPoint)]) -> String {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
-    let all_correct = points.iter().all(|p| p.correct);
+    let all_correct = points.iter().all(|(s, g)| s.correct && g.correct);
+    let all_truth_equal = points.iter().all(|(s, g)| s.truth_hash == g.truth_hash);
 
     let mut s = String::new();
     s.push_str("# ARVES L4 Industrial Evidence — Performance Report\n\n");
@@ -73,46 +101,71 @@ fn render_report(points: &[PerfPoint]) -> String {
     s.push_str("- Build profile: `release` (recommended) — see the invoking command.\n");
     s.push_str("- Storage: the host's default temp filesystem (`std::env::temp_dir()`).\n");
     s.push_str(
-        "- Durability model: **REAL `FileWal`, fsync-before-Ok on every commit** \
-         (`File::sync_all` / `FlushFileBuffers` on Windows). **One commit = one fsync** \
-         (no batching — batch-commit is deferred v1.1 debt, `runtime/RUNTIME_FREEZE_v1.0.md`).\n",
+        "- Durability model: **REAL `FileWal`, fsync-before-Ok** \
+         (`File::sync_all` / `FlushFileBuffers` on Windows). Two paths are measured: \
+         **per-commit** = one fsync per commit (`FileKernel::commit`); \
+         **group-commit (RCR-039)** = one fsync per group of \
+         commits (`FileKernel::commit_group`, `Wal::append_group`) — truth is acked \
+         only AFTER the coalesced fsync, so durability is not weakened.\n",
     );
+    s.push_str(&format!("- Group size (commits per fsync, group path): **{GROUP_SIZE}**.\n"));
     s.push_str("- Scope: **single host, single process, single shard.** No network, no cluster here (that is the fault-injection tier).\n\n");
 
     s.push_str("## Measured results\n\n");
-    s.push_str("| Commits | Commit time (s) | Commit throughput (commits/s, fsync-bound) | Replay time (s) | Replay throughput (records/s) | truth_hash | Correct (replay == commit) |\n");
-    s.push_str("|--------:|----------------:|-------------------------------------------:|----------------:|------------------------------:|:----------:|:--------------------------:|\n");
-    for p in points {
+    s.push_str("| Commits | Per-commit throughput (c/s, 1 fsync/commit) | Group-commit throughput (c/s, 1 fsync/group) | Speedup | Group replay (rec/s) | truth_hash (both paths) | Correct |\n");
+    s.push_str("|--------:|--------------------------------------------:|---------------------------------------------:|--------:|---------------------:|:-----------------------:|:-------:|\n");
+    for (single, grouped) in points {
+        let speedup = grouped.commit_throughput / single.commit_throughput.max(f64::MIN_POSITIVE);
+        // truth_hash is identical across both paths (asserted at measure time).
         s.push_str(&format!(
-            "| {} | {:.3} | {:.0} | {:.4} | {:.0} | `{:#018x}` | {} |\n",
-            p.commits,
-            p.commit_secs,
-            p.commit_throughput,
-            p.replay_secs,
-            p.replay_throughput,
-            p.truth_hash,
-            if p.correct { "YES" } else { "**NO**" },
+            "| {} | {:.0} | {:.0} | {:.1}x | {:.0} | `{:#018x}` | {} |\n",
+            single.commits,
+            single.commit_throughput,
+            grouped.commit_throughput,
+            speedup,
+            grouped.replay_throughput,
+            single.truth_hash,
+            if single.correct && grouped.correct && single.truth_hash == grouped.truth_hash {
+                "YES"
+            } else {
+                "**NO**"
+            },
         ));
     }
     s.push('\n');
 
     s.push_str("## Reading these numbers\n\n");
     s.push_str(
-        "- **Commit throughput is fsync-bound.** Each commit calls `sync_all` before returning \
-         `Ok` — the number reflects the host's durable-write latency, not a CPU ceiling. This is \
-         the honest cost of the CP durability guarantee; a batched commit path (deferred v1.1) \
-         would raise it and is the motivation for that RCR.\n",
-    );
-    s.push_str(
-        "- **Replay is CPU/parse-bound** (no fsync) and is the path a crashed node uses to rebuild \
-         truth — records/s here bounds recovery time.\n",
+        "- **The per-commit column is the fsync-per-commit ceiling** the earlier L4 report \
+         measured: each commit calls `sync_all` before returning `Ok`, so throughput reflects \
+         the host's durable-write latency, not a CPU ceiling.\n",
     );
     s.push_str(&format!(
-        "- **Correctness gate:** every load recovered a `truth_hash` byte-identical to the committed \
-         one. all_correct = **{}**. Timing is recorded, never asserted, so this harness cannot \
-         flake.\n\n",
+        "- **The group-commit column is RCR-039**: a batch of {GROUP_SIZE} commits shares ONE \
+         fsync via `Wal::append_group`, amortizing the durability cost. The **Speedup** column \
+         is the measured ratio on this host — the concrete evidence that the deferred v1.1 \
+         group-commit debt is closed.\n",
+    ));
+    s.push_str(
+        "- **Durability is NOT weakened.** A grouped commit is acked only AFTER the coalesced \
+         fsync makes the whole group durable (no ack-before-durable); a crash mid-group leaves \
+         an un-acked tail whose torn final frame recovery truncates, while any fully-written \
+         un-acked frames survive and are idempotently reconciled on retry (ORCH-004). Proven by \
+         `runtime/crates/arves-persistence/tests/group_commit.rs` and \
+         `runtime/crates/arves-kernel/tests/group_commit.rs`.\n",
+    );
+    s.push_str(&format!(
+        "- **Determinism gate:** for every load the grouped `truth_hash` equals the per-commit \
+         `truth_hash` (coalescing changes only the fsync count, never committed truth or order). \
+         all_truth_equal = **{}**.\n",
+        if all_truth_equal { "true" } else { "FALSE" }
+    ));
+    s.push_str(&format!(
+        "- **Correctness gate:** every load (both paths) recovered a `truth_hash` byte-identical \
+         to the committed one. all_correct = **{}**. Timing is recorded, never asserted, so this \
+         harness cannot flake.\n\n",
         if all_correct { "true" } else { "FALSE" }
     ));
-    s.push_str("_Companion tiers (fault-injection, replay-equivalence) run as `cargo test` in this crate; see `README.md` and `L4_REPORT.md` header counts._\n");
+    s.push_str("_Companion tiers (fault-injection, replay-equivalence) run as `cargo test` in this crate; see `README.md`._\n");
     s
 }
