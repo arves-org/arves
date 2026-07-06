@@ -11,10 +11,12 @@
   },
   "engines": { "node": ">=18" },
   "dependencies": {},
+  "bin": { "jarvis": "bin/jarvis.mjs" },
   "scripts": {
-    "test": "node assistant.test.mjs && node skills.test.mjs && node agents.test.mjs",
+    "test": "node assistant.test.mjs && node skills.test.mjs && node agents.test.mjs && node cli.test.mjs",
     "day": "node examples/assistant-day.mjs",
     "skills-day": "node examples/assistant-skills-day.mjs",
-    "jarvis-day": "node examples/jarvis-day.mjs"
+    "jarvis-day": "node examples/jarvis-day.mjs",
+    "cli": "node bin/jarvis.mjs"
   }
 }

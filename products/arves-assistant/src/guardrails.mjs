@@ -62,6 +62,22 @@ export class Guardrails {
     return this.#policies.map((p) => ({ ...p, appliesTo: [...p.appliesTo] }));
   }
 
+  /** Rehydrate the policy projection from an ALREADY-COMMITTED policy truth (id + body),
+   *  WITHOUT re-committing. Used by Assistant.recoverFromWal() so a fresh process rebuilds
+   *  the guardrail state from the WAL — policies gate again after a restart, from truth. */
+  indexPolicy(id, body) {
+    if (this.#policies.some((p) => p.id === id)) return; // idempotent (scan yields each once)
+    this.#policies.push({ id, name: body.name, appliesTo: [...body.appliesTo], approverRole: body.approverRole });
+  }
+
+  /** Rehydrate the approval projection from an ALREADY-COMMITTED approval truth (id + body),
+   *  WITHOUT re-committing — so an approval granted in a PRIOR process still unlocks its
+   *  gated subject after a restart (the approval truth is durable; only its index was lost). */
+  indexApproval(id, body) {
+    if (!this.#approvals.has(body.subject)) this.#approvals.set(body.subject, new Map());
+    this.#approvals.get(body.subject).set(body.role, id);
+  }
+
   /** A role actor commits a SEPARATE approval truth for a subject. See the honest
    *  residual in the header: role is structural in v1.0, not authenticated. */
   async approve(role, subject) {

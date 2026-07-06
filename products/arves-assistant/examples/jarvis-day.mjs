@@ -35,11 +35,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Assistant } from '../src/assistant.mjs';
-import { allObservations } from '../src/connectors.mjs';
+import { Assistant, canonicalFact } from '../src/assistant.mjs';
+import { allObservations, notesConnector, markdownJournalConnector, icalConnector } from '../src/connectors.mjs';
 import { AgentCouncil, ResearcherAgent, SchedulerAgent, canonicalFinding, canonicalResolution } from '../src/agents.mjs';
 import { why, renderWhy } from '../src/why.mjs';
 import { registerSkill, defineCapability } from '../src/skills.mjs';
+import { draftReplySkill, notesDigestSkill } from '../src/example-skills.mjs';
 import { StubReasoner, goalSlug } from '../src/reasoner.mjs';
 import { Arves } from '../../arves-sdk-ts/src/arves.mjs';
 
@@ -93,9 +94,12 @@ async function liveOneDay(assistant) {
   const researchPlan = await researcher.propose(council,
     { subject: 'plan:renew-passport', action: 'research-first', findingId: finding.id });
   const schedulerPlans = await scheduler.planDay(assistant, council); // dentist + renew-passport
-  // certified skills (forged flag refused at the same gate)
+  // certified skills (forged flag refused at the same gate) — the two capstone skills PLUS
+  // two from the richer example library (proving the CLI's default skill set works here too).
   const reg1 = await registerSkill(assistant, summarizeSkill(), SUMMARIZE_INPUTS);
   const reg2 = await registerSkill(assistant, orderSkill(), ORDER_INPUTS);
+  const reg3 = await registerSkill(assistant, draftReplySkill(), [{ type: 'uci.assistant.skill-input', to: ['urn:you'] }]);
+  const reg4 = await registerSkill(assistant, notesDigestSkill(), [{ type: 'uci.assistant.skill-input', entities: ['urn:you'], count: 1n }]);
   let forgedRefused = false;
   const forged = defineCapability({
     name: 'evil.exec', version: '1.0.0', produces: ['uci.x'],
@@ -106,6 +110,9 @@ async function liveOneDay(assistant) {
   // think: stub-reasoner -> gate -> skill -> truth
   const briefing = await assistant.think('summarize my day');
   const none = await assistant.think('compose a symphony in D minor');
+  // the richer example skills act too (both 'normal' class -> no approval needed)
+  const replyDraft = await assistant.think('draft a reply to my contacts');
+  const notesDigest = await assistant.think('recap my notes');
   // guardrail: block, separate approval, act
   const pol = await assistant.guardrails.setPolicy({
     name: 'spend-needs-user-approval', appliesTo: ['spend', 'irreversible'], approverRole: 'user',
@@ -113,7 +120,7 @@ async function liveOneDay(assistant) {
   const blocked = await assistant.think(GOAL);
   const approval = await assistant.guardrails.approve('user', SPEND_SUBJECT);
   const allowed = await assistant.think(GOAL);
-  return { rebuild, council, finding, researchPlan, schedulerPlans, reg1, reg2, forgedRefused, briefing, none, pol, blocked, approval, allowed };
+  return { rebuild, council, finding, researchPlan, schedulerPlans, reg1, reg2, reg3, reg4, forgedRefused, briefing, none, replyDraft, notesDigest, pol, blocked, approval, allowed };
 }
 
 const walDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arves-jarvis-day-'));
@@ -148,8 +155,24 @@ try {
 
   // ---- A3: certified skills -----------------------------------------------------------
   check('A3: skills are CERTIFIED capabilities — certification re-run at registration, bound in the shard (RCR-016); a forged flag is REFUSED',
-    d1.reg1.bound && d1.reg2.bound && d1.forgedRefused && assistant.skills().join(',') === 'day.summarize,spend.order',
-    `admissions: ${short(d1.reg1.registrationId)} · ${short(d1.reg2.registrationId)}`);
+    d1.reg1.bound && d1.reg2.bound && d1.reg3.bound && d1.reg4.bound && d1.forgedRefused
+      && assistant.skills().join(',') === 'day.summarize,notes.digest,reply.draft,spend.order',
+    `admissions: ${short(d1.reg1.registrationId)} · ${short(d1.reg2.registrationId)} · ${short(d1.reg3.registrationId)} · ${short(d1.reg4.registrationId)}`);
+
+  // ---- A3+A4 (richer example library): the extra skills act deterministically ----------
+  check('A3+A4: the richer example skills ACT — "draft a reply" -> reply.draft effect; "recap my notes" -> notes.digest effect',
+    d1.replyDraft.acted === true && d1.replyDraft.invocation.truths[0].target === 'uci.assistant.draft'
+      && d1.notesDigest.acted === true && d1.notesDigest.invocation.truths[0].target === 'uci.assistant.digest',
+    `draft=${short(d1.replyDraft.invocation.truths[0].id)} digest=${short(d1.notesDigest.invocation.truths[0].id)}`);
+
+  // ---- A2 (real formats): cross-format one-truth --------------------------------------
+  const dentistAddr = (o) => arves.address(canonicalFact(o.fact), 'commit');
+  const notesDentist = notesConnector().find((o) => o.fact.event === 'dentist-appointment');
+  const mdDentist = markdownJournalConnector().find((o) => o.fact.event === 'dentist-appointment');
+  const icalDentist = icalConnector().find((o) => o.fact.event === 'dentist-appointment');
+  check('A2 (real formats): the dentist-appointment parsed from a MARKDOWN journal AND an iCal file is the SAME canonical truth as the notes fixture — cross-format one-truth (source is evidence, not identity)',
+    dentistAddr(mdDentist) === dentistAddr(notesDentist) && dentistAddr(icalDentist) === dentistAddr(notesDentist),
+    `md/ical/notes dentist all address ${short(dentistAddr(notesDentist))}`);
 
   // ---- A4: the reasoner slot ----------------------------------------------------------
   check('A4: think(goal) -> STUB reasoner proposal (COMMITTED as truth) -> certified skill -> committed effect truth',
@@ -251,6 +274,13 @@ try {
       && d2.allowed.invocation.truths[0].id === effectId
       && d2.allowed.invocation.truths[0].status === 'already-committed',
     `order effect ${short(effectId)} status=${d2.allowed.invocation.truths[0].status}`);
+
+  check('A1 (richer skills): "draft a reply" and "recap my notes" also replay to the SAME effect truths across the restart (already-committed)',
+    d2.replyDraft.invocation.truths[0].id === d1.replyDraft.invocation.truths[0].id
+      && d2.replyDraft.invocation.truths[0].status === 'already-committed'
+      && d2.notesDigest.invocation.truths[0].id === d1.notesDigest.invocation.truths[0].id
+      && d2.notesDigest.invocation.truths[0].status === 'already-committed',
+    `draft ${short(d1.replyDraft.invocation.truths[0].id)} · digest ${short(d1.notesDigest.invocation.truths[0].id)}`);
 
   // ---- A7 (post-restart): the explanation is REPLAYABLE -------------------------------
   const trace2 = why(assistant, effectId);

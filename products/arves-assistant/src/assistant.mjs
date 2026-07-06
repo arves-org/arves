@@ -321,6 +321,16 @@ export class Assistant {
             this.#decisions.set(body.subject, { id, subject: body.subject, action: body.action, because: body.because });
             report.decisions++; via = 'decision';
             break;
+          case 'uci.assistant.policy':
+            // Rebuild the guardrail projection from truth so policies gate after a restart.
+            this.#guardrails.indexPolicy(id, body);
+            report.other++; via = 'commit';
+            break;
+          case 'uci.assistant.approval':
+            // Rebuild the approval projection so a PRIOR-process approval still unlocks now.
+            this.#guardrails.indexApproval(id, body);
+            report.other++; via = 'commit';
+            break;
           default:
             report.other++; via = 'commit';
             break;

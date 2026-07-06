@@ -82,6 +82,7 @@ version = "0.0.0"
 name = "arves-kernel"
 version = "0.0.0"
 dependencies = [
+ "arves-acs",
  "arves-consensus",
  "arves-persistence",
 ]

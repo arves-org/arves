@@ -638,7 +638,45 @@ While building products, if the runtime is found lacking:
 > effect-subject test + `jarvis-day` capstone now PROVE the disclosed
 > reconstruction residual (the effect→skill edge is absent after a read-only WAL
 > recovery) by a RUNNING assertion instead of prose; `jarvis-day` 18→19 properties.
-> Record: `runtime/rcr/RCR-035.md`).
+> Record: `runtime/rcr/RCR-035.md`), **RCR-036** (AUTHENTICATED COMMIT — closes
+> the commit-path half of v2.0 security debt #8, the largest v1.0 trust caveat:
+> `Kernel::commit` had no principal/authN. `arves-kernel` gains a dependency-free
+> **HMAC-SHA256** (RFC 2104 over the runtime's own `arves-acs::sha256`, verified
+> against RFC 4231 vectors; ZERO new third-party crates) authenticated-commit
+> path: `Principal`, `RefKernel::register_principal` (shared-key provisioning —
+> key distribution OUT OF SCOPE), `commit_authenticated(proposed, principal, mac)`
+> which VERIFIES the MAC (constant-time) at the gateway BEFORE admitting through
+> the IDENTICAL `commit_inner` (ORCH-004/RCR-005 unchanged), and an
+> `authenticated_digest()` **anchor** hash-chaining each `(principal, mac,
+> content, offset)` — the principal-attributable companion to RCR-002's WAL
+> `integrity_digest` (both chains proven to move together). A forged/tampered MAC
+> is REJECTED with the new `CommitError::AuthenticationFailed`; the unauthenticated
+> `commit` path is byte-unchanged (v1.0 trusted-host mode). HONEST SCOPE: HMAC is
+> SYMMETRIC/shared-key — repudiable, NOT public-key non-repudiation (ed25519-class
+> = a separate v2.0 RCR, still open); no authZ/key-management. ONE new downward
+> edge `arves-kernel(40)→arves-acs(15)` (LAYER-001 legal). Additive, `cargo test
+> --workspace` 265→**279/0** (verified). Record: `runtime/rcr/RCR-036.md`),
+> **RCR-037** (ENGINE live-conformance node — closes the honest gap RCR-031
+> recorded: `arves-conformance::live` had a live `NodeProbe` for every pipeline
+> node EXCEPT `Engine`, so no live artifact composed an Engine claim. New
+> `EngineProbe` drives the reference `PureEngine` through `invoke_enforced`
+> (RCR-012) and derives the engine invariants from behaviour — ORCH-004 engine
+> PURITY (the FABRIC derives the content-addressed key; same input+manifest → same
+> key + inference, different input → different key), ORCH-003 DETERMINISM
+> ENFORCEMENT (a false `Deterministic` declaration is REFUSED before any effect
+> escapes; the honest engine replays bit-identically), ORCH-001/ENG-003
+> PROPOSALS-NOT-COMMITS (invoking the engine commits nothing on a real `MemKernel`;
+> only `Kernel::commit` promotes the proposed effect to truth). New end-to-end
+> `l2-information-kernel-query-engine` scenario composes the Engine node
+> (Information → Kernel → Query → **Engine**) — every data-plane pipeline node now
+> has a live probe. `conformance_live` emits `LIVE-ENGINE: PASS` beside
+> `LIVE-L1: PASS`. HONEST SCOPE: reference PureEngine, in-process; the determinism
+> check is a PROBE not a proof; ENG-001..005 stay PROPOSED and are NOT asserted
+> (every check derives from a REGISTERED invariant). Additive, NO new architectural
+> edge (`arves-conformance(110)→arves-engine-fabric(60)` already present), no frozen
+> type/trait touched; +2 conformance tests (`live_engine_scenario_passes`,
+> `live_l2_engine_pipeline_scenario_passes`), workspace **279/0** alongside the
+> concurrent RCR-036 lane. Record: `runtime/rcr/RCR-037.md`).
 
 ## Organization (three teams, three mandates)
 
@@ -708,10 +746,21 @@ as v1.1/v2.0 debt and must enter via an RCR — never a silent crate edit under 
    hash-chain digest** (`FileWal::integrity_digest`) now detects any alteration of any committed
    record — including a tamper that repairs the per-frame CRC32 (proven by a regression test:
    `rcr002_integrity`). This closes the "edit one record + fix its CRC" hole and provides the
-   chain a signature scheme will sign. STILL OPEN (v2.0): cryptographic **signatures** +
-   **authenticated commit** (principal/authN on `Kernel::commit`) + digest **anchoring** — a
-   fully hostile host that rewrites the whole trace *and* the anchor still needs signatures to
-   stop. Threat model unchanged for v1.0 (trusted single host); see `runtime/rcr/RCR-002.md`.
+   chain a signature scheme will sign.
+   **FURTHER ADDRESSED by RCR-036 (v1.1):** the **authenticated-commit** half now exists — a
+   dependency-free **HMAC-SHA256** path (`RefKernel::commit_authenticated`, principal-keyed,
+   built on the runtime's own `arves-acs::sha256`, RFC 4231-verified) VERIFIES a MAC at the sole
+   commit gateway before admitting truth and hash-chains each MAC into a principal-attributable
+   `authenticated_digest()` anchor that composes with RCR-002's WAL digest. A forged/tampered
+   commit is REJECTED (`CommitError::AuthenticationFailed`), not merely evidenced. HONEST BOUND:
+   HMAC is **symmetric/shared-key** (repudiable; key distribution out of scope) — this closes the
+   "unauthenticated commit" hole for the **trusted-key model**, NOT zero-trust.
+   STILL OPEN (v2.0): public-key **non-repudiation** (ed25519-class **signatures** — needs a
+   scoped crypto dependency), key management (distribution/rotation/revocation) + authZ, and
+   durable anchor **verification on recovery** — a fully hostile host that rewrites the whole
+   trace *and* forges without the shared key still needs public-key signatures to stop. Threat
+   model unchanged for v1.0 (trusted single host); see `runtime/rcr/RCR-002.md`,
+   `runtime/rcr/RCR-036.md`.
 
 Each enters via an RCR into v1.1 (or v2.0 for #8's breaking parts), with regression + property tests.
 

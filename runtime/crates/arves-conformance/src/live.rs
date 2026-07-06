@@ -2063,12 +2063,257 @@ pub fn run_multi_agent_coordination_scenario() -> ConformanceArtifact {
     artifact
 }
 
+// ---------------------------------------------------------------------------
+// ENGINE FABRIC node (rank 6, RCR-037): closes the honest gap RCR-031 recorded —
+// arves-conformance::live had NO Engine PipelineNode probe, so no Engine live claim
+// was composed. The EngineProbe drives the reference `PureEngine` through
+// `invoke_enforced` (RCR-012, arves-engine-fabric) and DERIVES the engine
+// invariants from behaviour (never hardcoded):
+//   - engine PURITY (ORCH-004): the FABRIC derives the content-addressed key; the
+//     same input+manifest always yields the same key and the same inference, a
+//     different input a different key;
+//   - DETERMINISM ENFORCEMENT (ORCH-003): a self-declared `Deterministic` engine
+//     whose output actually varies is REFUSED (`NondeterministicOutput`) BEFORE any
+//     Inference/effect escapes — so the recorded inference is a sound replay basis,
+//     never a silent recompute; a truly deterministic engine replays bit-identically;
+//   - PROPOSALS-NOT-COMMITS (ENG-003/ORCH-001): the engine only PROPOSES effects and
+//     commits nothing; only the Kernel (sole truth owner) commits — driven against a
+//     real `MemKernel`.
+// HONEST SCOPE: the reference `PureEngine`, in-process; the RCR-012 double-invoke
+// determinism check is a PROBE, not a proof (input-scoped or slow nondeterminism can
+// evade it — the same honesty boundary the fabric documents); ENG-001..005 stay
+// PROPOSED and are NOT asserted — every check derives from a REGISTERED invariant.
+// ---------------------------------------------------------------------------
+
+use arves_engine_fabric::{invoke_enforced, FabricViolation, PureEngine};
+
+/// A test engine that DECLARES `Deterministic` but embeds a per-invocation counter in
+/// its output — the exact false promise RCR-012 enforcement must REFUSE before any
+/// effect escapes. Used ONLY to observe the determinism-enforcement behaviour of the
+/// fabric (its varying output is a lie about its own manifest, not lawful nondeterminism).
+struct FalselyDeterministicEngine {
+    runs: Rc<Cell<u64>>,
+}
+
+impl Engine for FalselyDeterministicEngine {
+    type Input = Vec<u8>;
+    fn manifest(&self) -> EngineManifest {
+        EngineManifest {
+            name: "falsely-deterministic".into(),
+            version: "1.0.0".into(),
+            determinism: Determinism::Deterministic,
+            idempotency_key: EngineIdempotencyKey("acs-002/1".into()),
+            reads: Vec::new(),
+            produces: vec!["uci.fact".into()],
+            capabilities_required: Vec::new(),
+        }
+    }
+    fn invoke(&self, input: Vec<u8>) -> Inference {
+        let n = self.runs.get();
+        self.runs.set(n + 1);
+        let mut output = input.clone();
+        output.extend_from_slice(&n.to_be_bytes());
+        Inference {
+            key: invocation_key(&self.manifest(), &input),
+            proposed_effects: vec![ProposedEffect { target: "uci.fact".into(), payload: output.clone() }],
+            output,
+        }
+    }
+}
+
+/// The **L2 Engine node** scenario (RCR-037): the reference Engine Fabric upholds engine
+/// purity (ORCH-004), determinism enforcement (ORCH-003), and proposals-not-commits
+/// (ENG-003/ORCH-001 — the engine only proposes; the Kernel commits).
+pub fn engine_scenario() -> Scenario {
+    Scenario {
+        id: "l2-engine-fabric",
+        name: "L2 — Engine Fabric: purity, determinism enforcement, proposals-not-commits",
+        axes: vec![Axis::MultiStepPlanning, Axis::RecoveryAndReplay],
+        expected_path: vec![PipelineNode::Engine],
+        required_invariants: vec![
+            Invariant::Orch001ControlPlaneOwnsNoTruth,
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+        ],
+        required_properties: vec![Property::ReplayReproducesTrace],
+    }
+}
+
+/// Observes the **Engine** node (Part 7: "pure invocation; output is inference, NOT
+/// persisted truth") by driving the reference `PureEngine` through the RCR-012
+/// `invoke_enforced` gateway and a real `MemKernel`; every check outcome is derived from
+/// behaviour (never hardcoded).
+pub struct EngineProbe;
+
+impl NodeProbe for EngineProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Engine
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        // --- ORCH-004 engine PURITY: the FABRIC derives the key (not the engine); the
+        //     same input+manifest yields the same key + the same inference across
+        //     invocations, a different input a different key (content-addressed). ---
+        let engine = PureEngine::new("derive.fact", "uci.fact", |b: &[u8]| {
+            let mut v = b.to_vec();
+            v.extend_from_slice(b":derived");
+            v
+        });
+        let input = b"engine-input-1".to_vec();
+        let inf1 = invoke_enforced(&engine, input.clone()).expect("pure engine accepted");
+        let inf2 = invoke_enforced(&engine, input.clone()).expect("pure engine accepted again");
+        let expected_key = invocation_key(&engine.manifest(), &input);
+        let other = invoke_enforced(&engine, b"engine-input-2".to_vec()).expect("accepted");
+        let purity = inf1.key == inf2.key
+            && inf1.key == expected_key
+            && inf1.output == inf2.output
+            && inf1.proposed_effects == inf2.proposed_effects
+            && other.key != inf1.key; // different input -> different content address
+        let orch004 = held_if(purity);
+
+        // --- ORCH-003 DETERMINISM ENFORCEMENT: a self-declared Deterministic engine whose
+        //     output actually varies is REFUSED before any effect escapes (invoke_enforced
+        //     returns Err, so no ProposedEffect reaches a caller) — the recorded inference
+        //     is a sound replay basis, never a silent recompute. A truly deterministic
+        //     engine replays bit-identically. Both derived from behaviour. ---
+        let liar_runs = Rc::new(Cell::new(0u64));
+        let liar = FalselyDeterministicEngine { runs: liar_runs.clone() };
+        let refused = matches!(
+            invoke_enforced(&liar, b"x".to_vec()),
+            Err(FabricViolation::NondeterministicOutput)
+        );
+        let reproducible = inf1 == inf2; // the honest engine's inference replays identically
+        let orch003 = held_if(refused && reproducible);
+
+        // --- ORCH-001 / ENG-003 PROPOSALS-NOT-COMMITS: invoking the engine commits NOTHING;
+        //     the engine returns proposals only; ONLY when the Kernel (sole truth owner)
+        //     commits the proposed effect does truth appear. Driven against a real Kernel. ---
+        let store = MemWalStore::new();
+        let k = MemKernel::new(store.clone());
+        let before = k.committed_count();
+        let inf = invoke_enforced(&engine, b"proposal-1".to_vec()).expect("accepted");
+        let engine_commits_nothing =
+            k.committed_count() == before && !inf.proposed_effects.is_empty();
+        let effect = &inf.proposed_effects[0];
+        let cid = content_id(domain::COMMIT_CONTENT, &effect.payload);
+        k.commit(ProposedWrite {
+            shard: shard("acme", "engine"),
+            content: ContentHash(cid),
+            payload: effect.payload.clone(),
+        })
+        .expect("the Kernel commits the engine's proposed effect");
+        let kernel_commits = k.committed_count() == before + 1;
+        let orch001 = held_if(engine_commits_nothing && kernel_commits);
+
+        NodeEvidence {
+            node: PipelineNode::Engine,
+            summary: format!(
+                "PureEngine through invoke_enforced (RCR-012): fabric-derived content-addressed \
+                 key stable across invocations (purity, ORCH-004); a false Deterministic \
+                 declaration REFUSED before any effect escaped ({} enforcement invocations of \
+                 the liar; determinism enforcement, ORCH-003; the honest engine replays \
+                 bit-identically); the engine PROPOSED {} effect(s) and committed nothing — only \
+                 the Kernel committed truth (ENG-003/ORCH-001)",
+                liar_runs.get(),
+                inf.proposed_effects.len()
+            ),
+            correlation_id: Some(expected_key.0),
+            invariant_checks: vec![
+                (Invariant::Orch001ControlPlaneOwnsNoTruth, orch001),
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Orch004IdempotentAddressable, orch004),
+            ],
+            property_checks: vec![(Property::ReplayReproducesTrace, orch003)],
+        }
+    }
+}
+
+/// Run the L2 Engine-node scenario over the real engine fabric and return the live artifact.
+pub fn run_engine_scenario() -> ConformanceArtifact {
+    let scenario = engine_scenario();
+    let evidence = vec![EngineProbe.observe(&scenario)];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L2 Engine Fabric (Engine node)".into(),
+        runtime_id: "arves-engine-fabric PureEngine + invoke_enforced (RCR-012) over \
+                     arves-kernel RefKernel<MemWalStore> (reference; in-process)"
+            .into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
+/// The full **L2 Information→Kernel→Query→Engine** scenario (RCR-037): the L1 end-to-end
+/// pipeline extended with the Engine node, so the composed artifact now traverses EVERY
+/// data-plane node from canonicalization through pure inference. The Engine node is the
+/// last pipeline node to gain a live probe — RCR-031's recorded honesty gap is closed.
+pub fn l2_engine_pipeline_scenario() -> Scenario {
+    Scenario {
+        id: "l2-information-kernel-query-engine",
+        name: "L2 — Information → Kernel → Query → Engine (end-to-end with a pure engine node)",
+        axes: vec![
+            Axis::InformationIntensive,
+            Axis::RecoveryAndReplay,
+            Axis::MultiStepPlanning,
+        ],
+        expected_path: vec![
+            PipelineNode::InformationPlatform,
+            PipelineNode::Kernel,
+            PipelineNode::Query,
+            PipelineNode::Engine,
+        ],
+        required_invariants: vec![
+            Invariant::Orch001ControlPlaneOwnsNoTruth,
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::ProvenanceTrustPresent,
+            Property::ReplayReproducesTrace,
+            Property::TenantWorkspaceIsolation,
+        ],
+    }
+}
+
+/// Run the full L2 Information→Kernel→Query→Engine scenario and return the four-node live
+/// artifact — the first end-to-end artifact to compose the Engine node.
+pub fn run_l2_engine_pipeline_scenario() -> ConformanceArtifact {
+    let scenario = l2_engine_pipeline_scenario();
+    let evidence = vec![
+        InformationPlatformProbe.observe(&scenario),
+        KernelProbe.observe(&scenario),
+        QueryProbe.observe(&scenario),
+        EngineProbe.observe(&scenario),
+    ];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L2 Information→Kernel→Query→Engine"
+            .into(),
+        runtime_id: "arves-acs codec + arves-kernel + arves-persistence WAL-replay + \
+                     arves-engine-fabric invoke_enforced (RCR-012) (reference; in-process)"
+            .into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
-    let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
+    // Header level is derived from the artifact's own suite_version so a reused
+    // render() never mislabels an L2 (multi-node) artifact as L1. Honest: the
+    // label reflects exactly the suite the artifact was judged under.
+    let level = if artifact.runtime_fingerprint.suite_version.contains("L2") {
+        "L2"
+    } else if artifact.runtime_fingerprint.suite_version.contains("L1") {
+        "L1"
+    } else {
+        "core"
+    };
+    let mut s = format!("ARVES Live Conformance Artifact ({level}, real runtime)\n");
     s.push_str("==================================================\n");
     s.push_str(&format!("  scenario: {}\n", artifact.scenario_id));
     s.push_str(&format!("  runtime : {}\n", artifact.runtime_fingerprint.runtime_id));
+    s.push_str(&format!("  suite   : {}\n", artifact.runtime_fingerprint.suite_version));
     s.push_str(&format!("  spec    : {}\n", artifact.runtime_fingerprint.spec_version));
     for ev in &artifact.node_evidence {
         s.push_str(&format!("  node {:?}: {}\n", ev.node, ev.summary));
@@ -2267,6 +2512,52 @@ mod tests {
         assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
         assert!(art.runtime_fingerprint.runtime_id.contains("NOT AI models"));
         assert!(art.runtime_fingerprint.runtime_id.contains("no cryptographic authN"));
+    }
+
+    /// RCR-037: the L2 Engine-node scenario PASSES — engine purity (fabric-derived
+    /// content-addressed key stable across invocations), determinism enforcement (a
+    /// false Deterministic declaration REFUSED before any effect escapes) and
+    /// proposals-not-commits (the engine commits nothing; only the Kernel commits) all
+    /// derive Held from the real engine fabric's behaviour. Closes the RCR-031 honesty
+    /// gap: `live` now has an Engine PipelineNode probe.
+    #[test]
+    fn live_engine_scenario_passes() {
+        let art = run_engine_scenario();
+        assert_eq!(art.scenario_id, "l2-engine-fabric");
+        assert_eq!(art.node_evidence.len(), 1);
+        let ev = &art.node_evidence[0];
+        assert_eq!(ev.node, PipelineNode::Engine);
+        assert!(
+            ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+            "an Engine invariant was not Held: {:?}",
+            ev.invariant_checks
+        );
+        assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        assert_eq!(art.verdict, Verdict::Pass, "the Engine scenario must PASS");
+    }
+
+    /// RCR-037: the end-to-end L2 Information→Kernel→Query→Engine scenario PASSES — every
+    /// data-plane node now emits a live probe, the Engine node composed last. This is the
+    /// first end-to-end live artifact to traverse the Engine node.
+    #[test]
+    fn live_l2_engine_pipeline_scenario_passes() {
+        let art = run_l2_engine_pipeline_scenario();
+        assert_eq!(art.scenario_id, "l2-information-kernel-query-engine");
+        assert_eq!(art.node_evidence.len(), 4, "Information + Kernel + Query + Engine observed");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::InformationPlatform);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::Kernel);
+        assert_eq!(art.node_evidence[2].node, PipelineNode::Query);
+        assert_eq!(art.node_evidence[3].node, PipelineNode::Engine);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet invariant: {:?}",
+                ev.node,
+                ev.invariant_checks
+            );
+            assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        }
+        assert_eq!(art.verdict, Verdict::Pass);
     }
 
     #[test]

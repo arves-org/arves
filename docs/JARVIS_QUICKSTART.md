@@ -31,15 +31,96 @@ RCR-016). The product only ever talks to this; it never links runtime code (IDR-
 ```sh
 node products/arves-assistant/assistant.test.mjs        # stage 1: memory core (7/7)
 node products/arves-assistant/skills.test.mjs           # stage 2: skills/reasoner/guardrails (6/6)
-node products/arves-assistant/agents.test.mjs           # stage 3: agents/why (6/6)
-node products/arves-assistant/examples/jarvis-day.mjs   # THE CAPSTONE: A1–A7 in one day (17/17)
+node products/arves-assistant/agents.test.mjs           # stage 3: agents/why (7/7)
+node products/arves-assistant/cli.test.mjs              # the CLI/REPL, incl. cross-process durability (3/3)
+node products/arves-assistant/examples/jarvis-day.mjs   # THE CAPSTONE: A1–A7 in one day (22/22)
 ```
+
+(Or just `npm --prefix products/arves-assistant test` for the four test files.)
 
 The capstone runs a full assistant day — 3-source observe → two sub-agents (with a
 first-committed-wins conflict) → stub-reasoner think → guardrail block → separate
 approval → certified skills act → **kill the Kernel, restart over the same WAL** →
 memory intact → `why()` explains the spend decision end to end, byte-identically to the
 pre-restart explanation.
+
+## 2b. Drive it from the CLI (interactive REPL or scripted)
+
+The fastest way to *use* JARVIS is the CLI. It runs every command over a real
+`KernelBridge` on your own shard + WAL directory — one-shot or as an interactive REPL:
+
+```sh
+JW=./my-jarvis-wal                                        # your durable memory (any dir you own)
+
+# one-shot commands:
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import ical
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW recall
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW ask summarize my day
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW status
+
+# …or an interactive REPL (also scriptable via piped stdin):
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW
+```
+
+Commands: `observe <source> <entity> <event> <iso-utc>` · `import <connector> [file]` ·
+`ask <goal>` · `recall [entity]` · `why <subject|id>` · `approve <role> <subject>` ·
+`policy <name> <role> <class…>` · `skills` · `decisions` · `status` · `help`. Flags:
+`--tenant` / `--workspace` (your shard, RCR-014) · `--wal-dir` (durable memory, RCR-015).
+
+A scripted **govern-a-spend** session (pipe it straight into the REPL):
+
+```sh
+printf '%s\n' \
+  'import ical' \
+  'ask order flowers' \
+  'approve user spend:order-flowers' \
+  'ask order flowers' \
+  'why spend:order-flowers' \
+  'exit' | node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW
+```
+
+You will see the spend **BLOCKED** (a committed compliance truth), the separate `approve`
+truth, then the action **ACTED** citing that approval, and finally `why()` reconstructing
+the whole path — every station a checkable ContentId.
+
+**Durability is real and cross-process.** Because each fresh CLI process rebuilds its
+memory read-only from the WAL (the RCR-033 `scan` verb, `Assistant.recoverFromWal()`), a
+*brand-new* process explains a decision an earlier one made:
+
+```sh
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW recall                 # sees prior truth
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW why spend:order-flowers # explains it
+```
+
+The approval you granted earlier is rehydrated from the WAL too, so the gate stays open
+across restarts — durable governance, not session state. (Honest residual, same as the
+capstone: a *fresh-scan* `why` on an effect-bearing subject rebuilds every self-describing
+station but not the effect→skill edge, which is process metadata until a native
+attributed-invoke verb lands — a recorded RCR candidate. A live session keeps that edge.)
+
+## 2c. Point the connectors at YOUR real files
+
+`import <connector>` reads offline, deterministic fixtures by default, but the two
+real-format connectors parse formats you already keep — pass your own file:
+
+```sh
+# an Obsidian / Logseq daily note (headings set the date; `- HH:MM <event> [@entity]` bullets become facts):
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import journal /path/to/2026-07-06.md
+
+# a Google/Apple Calendar export (each VEVENT's SUMMARY + UTC DTSTART; optional X-ARVES-ENTITY):
+node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW import ical /path/to/calendar.ics
+```
+
+The **same real-world event from different sources collapses to ONE truth** whose evidence
+set names every source that saw it (A2) — the dentist appointment in your markdown journal,
+your `.ics`, and a hand-typed `observe` all address to the *same* ContentId; the source name
+is evidence, never identity. Connectors are pure functions of their file — no clock, no
+network — so the same file always yields the same truths. To wire a **new** real source,
+author a function returning `[{ source, fact: { entity, event, at } }]` (`at` = BigInt ms
+UTC) exactly like `markdownJournalConnector` / `icalConnector` in
+`products/arves-assistant/src/connectors.mjs`, and register it in that module's `CONNECTORS`
+map. Scope stays honest: the shipped connectors accept only UTC instants (ending in `Z`);
+a floating/timezone time fails loudly rather than guess.
 
 ## 3. Run the assistant on YOUR OWN shard + WAL dir
 
@@ -82,11 +163,15 @@ try {
 }
 ```
 
-Restart the script tomorrow with the SAME `walDir`: the fresh process honestly remembers
-nothing until you re-run your deterministic day (`assistant.rebuild({...})` or the same
-script) — then every body answers `already-committed`, which IS the Kernel's proof your
-memory survived. (The bridge has no WAL-scan verb yet; that is a recorded RCR candidate,
-see `products/arves-assistant/README.md`.)
+Restart the script tomorrow with the SAME `walDir`: a fresh process rebuilds its memory
+**read-only from the WAL** — `await assistant.recoverFromWal()` enumerates the shard's
+committed truth via the RCR-033 bridge `scan` verb (the Kernel replays its WAL through the
+Query layer) and rebuilds the memory + decision journal with **zero re-commits**. (The
+older `assistant.rebuild({…})` membership-proof path — re-deriving candidate bodies and
+reading every `already-committed` answer as proof — is retained too; it also re-establishes
+the one thing a pure scan cannot, the effect→skill journal edge. Both are documented in
+`products/arves-assistant/src/assistant.mjs`.) The CLI (§2b) uses `recoverFromWal()` on
+every command, which is why a fresh `recall`/`why` process just works.
 
 ## 4. Plug YOUR LLM into the Reasoner slot (the only line that changes)
 
@@ -164,9 +249,10 @@ assistant.useReasoner(new LlmReasoner());
 
 - **Stub vs real LLM:** the repo's reasoner and agents are deterministic rule tables so
   tests replay byte-identically. Intelligence = your model, your key, your machine.
-- **Attribution is product-level:** agent/reasoner tags live IN the committed bodies.
-  The runtime's Rust I5 attribution is not yet exposed over the bridge (recorded RCR
-  candidate) — and with no authN in v1.0, tags are structural, not cryptographic.
+- **Attribution is product-level:** agent/reasoner tags live IN the committed bodies. The
+  runtime's I5 attribution IS reachable over the bridge (the `commit-as` verb, RCR-034), but
+  this product still uses product-level in-body tags; either way, with no authN in v1.0, a
+  tag is structural, not cryptographic — any local caller could wear any tag.
 - **Single host, no authN, no TLS:** this is a personal assistant on your machine, not
   a deployed service. GA remains gated on the four conditions (IDR-006) — this is a
   **G1 preview** and says so.

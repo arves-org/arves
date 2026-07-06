@@ -268,7 +268,12 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (agent_storm_truth_set_identical_across_all_seeded_schedule_permutations — \
                            the order-independence proof: one truth set across ALL permutations; \
                            replay_rebind_and_rewrap_cannot_forge_attribution_and_floods_never_double_commit); \
-                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes); \
+                           ENGINE purity (Engine node, RCR-037): arves-engine-fabric::rcr012_fabric_enforcement_tests \
+                           (invocation_key_is_content_addressable, enforced_refuses_a_mis_keyed_engine — the FABRIC \
+                           derives/verifies the content-addressed key, not the engine); \
+                           arves-conformance::live (live_engine_scenario_passes, \
+                           live_l2_engine_pipeline_scenario_passes — same input+manifest → same key, derived live)",
             },
         },
         // ORCH-003 — replay from the recorded trace reproduces identical truth. Under
@@ -304,7 +309,15 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (full_cluster_replay_from_wal_rebuilds_identical_truth_and_attribution_trail — \
                            every node rebuilt from its own WAL reproduces identical truth AND an \
                            identical attribution trail / decision derivation / compliance ledger); \
-                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes); \
+                           ENGINE determinism enforcement (Engine node, RCR-037): \
+                           arves-engine-fabric::rcr012_fabric_enforcement_tests \
+                           (enforced_refuses_a_false_determinism_declaration — a self-declared Deterministic \
+                           engine whose output varies is REFUSED before any effect escapes, so the recorded \
+                           inference is a sound replay basis, never a silent recompute; \
+                           enforced_allows_declared_nondeterminism_but_still_verifies_the_key); \
+                           arves-conformance::live (live_engine_scenario_passes, \
+                           live_l2_engine_pipeline_scenario_passes)",
             },
         },
         // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
@@ -380,7 +393,12 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            arves-control-plane::tests::multi_agent_adversarial \
                            (partition_minority_proposals_fail_honestly_and_heal_loses_no_attributed_truth — \
                            a minority-side proposal commits NOTHING, never a fork); \
-                           arves-conformance::live (live_multi_agent_coordination_scenario_passes)",
+                           arves-conformance::live (live_multi_agent_coordination_scenario_passes); \
+                           ENGINE proposals-not-commits (Engine node, ENG-003/ORCH-001, RCR-037 — the engine \
+                           only PROPOSES, the Kernel is the sole truth owner that commits): \
+                           arves-engine-fabric::pure_engine_tests (pure_engine_proposes_its_transform_output); \
+                           arves-conformance::live (live_engine_scenario_passes — invoking the engine commits \
+                           nothing on a real Kernel; only Kernel::commit promotes the proposed effect to truth)",
             },
         },
         PropertyCheck {

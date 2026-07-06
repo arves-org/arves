@@ -61,6 +61,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod auth;
 pub mod cluster;
 
 use core::fmt;
@@ -172,6 +173,22 @@ impl ShardKey {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ContentHash(pub Vec<u8>);
 
+/// The identity of a commit authority: the holder of a shared HMAC key
+/// (RCR-036, authenticated commit).
+///
+/// Governing: OWN-001, ORCH-001 (context). A `Principal` names *who* a key-holder
+/// claims to be; the claim is only credible once [`RefKernel::commit_authenticated`]
+/// verifies an HMAC-SHA256 MAC against the key provisioned for it
+/// ([`RefKernel::register_principal`]). It is deliberately opaque (an identifier
+/// string): the runtime attributes authenticated truth to it, but assigns it no
+/// authorization meaning — authZ is out of scope (v2.0 debt #8).
+///
+/// HONEST SCOPE: HMAC is symmetric, so attribution is to *a holder of this
+/// principal's key*, which is repudiable and NOT public-key non-repudiation. See
+/// [`crate::auth`] for the full crypto scope.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Principal(pub String);
+
 /// A monotonically increasing position in a shard's committed log.
 ///
 /// Governing: IDR-004/IDR-005 (Raft log = WAL = decision trace; append-only).
@@ -275,6 +292,21 @@ pub enum CommitError {
     /// was durably established (IDR-001, truth is CP under CAP). The write may be
     /// retried; it must remain idempotent (ORCH-004).
     NotReplicated,
+    /// **Authenticated-commit MAC verification failed (RCR-036):** the proposal
+    /// was offered via [`RefKernel::commit_authenticated`] but the presented
+    /// HMAC-SHA256 MAC did not verify against the key provisioned for the claimed
+    /// [`Principal`] — either the principal has no registered key, or the MAC is a
+    /// forgery / covers different bytes than the proposal. No truth is committed
+    /// and the authenticated-commit anchor is unchanged. This is the cryptographic
+    /// refusal that closes the "unauthenticated commit" hole for the trusted-key
+    /// model (v2.0 debt #8); it is a symmetric-key (shared-secret) check, NOT
+    /// public-key non-repudiation — see [`crate::auth`].
+    AuthenticationFailed {
+        /// The shard the unauthenticated proposal targeted (SHARD-001).
+        shard: ShardKey,
+        /// The principal whose authentication was claimed but not proven.
+        principal: Principal,
+    },
 }
 
 impl fmt::Display for CommitError {
@@ -297,6 +329,11 @@ impl fmt::Display for CommitError {
                 shard.tenant, shard.workspace
             ),
             CommitError::NotReplicated => write!(f, "commit did not reach quorum"),
+            CommitError::AuthenticationFailed { shard, principal } => write!(
+                f,
+                "authenticated commit rejected on shard {}/{}: MAC did not verify for principal {}",
+                shard.tenant, shard.workspace, principal.0
+            ),
         }
     }
 }
@@ -461,6 +498,14 @@ pub(crate) fn decode_shard_blob(b: &[u8]) -> Option<Vec<(u64, Vec<u8>, Vec<u8>)>
 struct KernelState {
     committed: Vec<(TruthRef, Vec<u8>)>,
     index: HashMap<(String, String, Vec<u8>), usize>,
+    /// RCR-036: shared HMAC keys provisioned per [`Principal`] (trusted-key model;
+    /// key distribution is out of scope). Never persisted.
+    keys: HashMap<Principal, Vec<u8>>,
+    /// RCR-036: the authenticated-commit anchor — a hash-chain (like RCR-002's WAL
+    /// `integrity_digest`) folding each authenticated record's `(principal, mac,
+    /// content, offset)`, so the authenticated trail is principal-attributable and
+    /// tamper-evident. Advances iff an authenticated commit lands.
+    auth_anchor: [u8; 32],
 }
 
 /// Why recovery could not faithfully reconstruct committed truth (I1.7).
@@ -577,6 +622,8 @@ impl<S: WalStore> RefKernel<S> {
             state: Mutex::new(KernelState {
                 committed: Vec::new(),
                 index: HashMap::new(),
+                keys: HashMap::new(),
+                auth_anchor: auth::genesis_anchor(),
             }),
         }
     }
@@ -850,6 +897,105 @@ impl<S: WalStore> RefKernel<S> {
         let pos = state.committed.len();
         state.committed.push((tr.clone(), proposed.payload));
         state.index.insert(key, pos);
+        Ok(tr)
+    }
+}
+
+// =============================================================================
+// RCR-036 — authenticated commit (closes the open half of v2.0 security debt #8).
+//
+// An ADDITIVE authenticated write path over the SAME sole commit gateway
+// (`commit_inner`): a key-holder presents an HMAC-SHA256 MAC over the proposal;
+// the Kernel verifies it against the principal's provisioned shared key BEFORE
+// admitting, then folds the MAC into a principal-attributable anchor. The frozen
+// `Kernel` trait is untouched (unauthenticated `commit` still works — v1.0
+// trusted-host mode); this is an inherent method on `RefKernel`.
+//
+// HONEST SCOPE (see `auth.rs`): HMAC is symmetric/shared-key — repudiable, key
+// distribution out of scope, NOT public-key non-repudiation.
+// =============================================================================
+
+impl<S: WalStore> RefKernel<S> {
+    /// Provision (or replace) the shared HMAC key for a [`Principal`] (RCR-036).
+    ///
+    /// This is the trusted-key model's key-distribution seam: the operator
+    /// installs each principal's shared secret into the Kernel out of band. The
+    /// key is held in memory only and never persisted. Returns nothing; a later
+    /// [`commit_authenticated`](RefKernel::commit_authenticated) verifies against
+    /// whatever key is currently registered.
+    pub fn register_principal(&self, principal: Principal, key: impl Into<Vec<u8>>) {
+        let mut state = self.state.lock().expect("state poisoned");
+        state.keys.insert(principal, key.into());
+    }
+
+    /// The current authenticated-commit **anchor** (RCR-036): a hash-chain over
+    /// every authenticated commit's `(principal, mac, content, offset)`. Equal iff
+    /// two Kernels have the identical authenticated trail; advances iff a new
+    /// authenticated commit lands (a rejected or unauthenticated commit leaves it
+    /// unchanged). This is the principal-attributable companion to RCR-002's WAL
+    /// `integrity_digest`, computed with the same dependency-free SHA-256.
+    pub fn authenticated_digest(&self) -> [u8; 32] {
+        self.state.lock().expect("state poisoned").auth_anchor
+    }
+
+    /// Commit a proposal **authenticated** by a [`Principal`]'s HMAC-SHA256 MAC
+    /// (RCR-036). The `mac` MUST equal [`auth::commit_mac`] over `(key, principal,
+    /// proposed)` for the key provisioned via [`register_principal`](RefKernel::register_principal).
+    ///
+    /// Flow, under the single state lock (no interleaving):
+    /// 1. **Verify** — recompute the MAC from the registered key and
+    ///    constant-time compare. An unknown principal or a mismatched MAC yields
+    ///    [`CommitError::AuthenticationFailed`]; **nothing is committed** and the
+    ///    anchor is unchanged. A forged record without the key cannot pass.
+    /// 2. **Admit + commit** — run the IDENTICAL sole gateway (`commit_inner`), so
+    ///    ORCH-004 idempotency and RCR-005 content-integrity apply exactly as for
+    ///    the unauthenticated path. (An idempotent re-proposal surfaces
+    ///    [`CommitError::AlreadyCommitted`] and does NOT re-fold the anchor — no
+    ///    new record entered the trail.)
+    /// 3. **Anchor** — fold `(principal, mac, content, offset)` into the
+    ///    authenticated-commit anchor so the trail is principal-attributable and
+    ///    tamper-evident.
+    ///
+    /// HONEST SCOPE: this proves the commit came from a holder of the principal's
+    /// shared key and that the bound fields were not tampered — a real MAC. It is
+    /// symmetric-key (repudiable) and gives NO public-key non-repudiation; key
+    /// distribution is out of scope (trusted-key model). See [`crate::auth`].
+    pub fn commit_authenticated(
+        &self,
+        proposed: ProposedWrite,
+        principal: Principal,
+        mac: [u8; 32],
+    ) -> Result<TruthRef, CommitError> {
+        let mut state = self.state.lock().expect("state poisoned");
+        // ---- 1. Verify the MAC against the provisioned key (cryptographic). ----
+        // Timing-uniform: an unknown principal is verified against a fixed dummy
+        // key so the authenticate path always computes exactly ONE HMAC and ONE
+        // constant-time compare regardless of whether the principal exists. This
+        // keeps principal *existence* off the timing side channel — without it, the
+        // unknown-principal branch would return before any MAC work, letting an
+        // attacker distinguish "unknown principal" from "known principal + wrong
+        // MAC" by response timing. Both cases now yield `AuthenticationFailed`
+        // indistinguishably. (This bounds timing to principal existence; it is not
+        // a defense against a co-resident attacker measuring the hash itself.)
+        const DUMMY_KEY: [u8; 32] = [0u8; 32];
+        let (known, key) = match state.keys.get(&principal) {
+            Some(k) => (true, k.clone()),
+            None => (false, DUMMY_KEY.to_vec()),
+        };
+        let expected = auth::commit_mac(&key, &principal, &proposed);
+        let mac_ok = auth::ct_eq(&expected, &mac);
+        if !known || !mac_ok {
+            return Err(CommitError::AuthenticationFailed {
+                shard: proposed.shard.clone(),
+                principal,
+            });
+        }
+        // ---- 2. Admit + commit through the IDENTICAL sole gateway. ----
+        let content = proposed.content.0.clone();
+        let tr = Self::commit_inner(&mut state, &self.store, proposed)?;
+        // ---- 3. Fold the authenticated record into the anchor. ----
+        state.auth_anchor =
+            auth::fold_anchor(&state.auth_anchor, &principal, &mac, &content, tr.index.0);
         Ok(tr)
     }
 }

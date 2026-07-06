@@ -86,6 +86,42 @@ export const DEFAULT_RULES = [
     subject: (ctx) => `spend:${goalSlug(ctx.goal)}`,
     input: (ctx) => ({ type: 'uci.assistant.order-request', request: ctx.goal }),
   },
+  // ---- rules added for the richer example-skill library (src/example-skills.mjs) ------
+  // Appended AFTER the two rules above so the original goals still map exactly as before
+  // (table order IS the priority). Keywords are chosen not to collide with existing goals.
+  {
+    keywords: ['draft', 'reply', 'respond'],
+    skill: 'reply.draft',
+    actionClass: 'normal',
+    subject: (ctx) => `draft:${goalSlug(ctx.goal)}`,
+    // Recipients derived from the truth base: the unique entities the assistant knows.
+    input: (ctx) => ({
+      type: 'uci.assistant.skill-input',
+      to: [...new Set(ctx.truths.map((t) => t.fact.entity))].sort(),
+    }),
+  },
+  {
+    keywords: ['schedule', 'reschedule', 'book time', 'block time'],
+    skill: 'schedule.block',
+    actionClass: 'normal',
+    subject: (ctx) => `schedule:${goalSlug(ctx.goal)}`,
+    // Schedulable events: appointments, renewals, meetings (a rule, not understanding).
+    input: (ctx) => ({
+      type: 'uci.assistant.skill-input',
+      events: ctx.truths.map((t) => t.fact.event).filter((e) => /appointment|^renew-|meeting/.test(e)).sort(),
+    }),
+  },
+  {
+    keywords: ['recap', 'notes', 'catch me up'],
+    skill: 'notes.digest',
+    actionClass: 'normal',
+    subject: (ctx) => `digest:${goalSlug(ctx.goal)}`,
+    input: (ctx) => ({
+      type: 'uci.assistant.skill-input',
+      entities: [...new Set(ctx.truths.map((t) => t.fact.entity))].sort(),
+      count: BigInt(ctx.truths.length),
+    }),
+  },
 ];
 
 /** StubReasoner — the ONLY reasoner in this repo, and it is NOT AI.

@@ -10,3 +10,7 @@ arves-persistence = { path = "../arves-persistence" }
 # the per-shard Raft substrate. Downward-only edge (LAYER-001): arves-kernel
 # rank 40 -> arves-consensus rank 30 (arves-conformance::property_check::layer_rank).
 arves-consensus = { path = "../arves-consensus" }
+# RCR-036 (authenticated commit): HMAC-SHA256 is built on the runtime's OWN
+# dependency-free SHA-256 (arves-acs). Downward-only edge (LAYER-001):
+# arves-kernel rank 40 -> arves-acs rank 15. ZERO new third-party crates.
+arves-acs = { path = "../arves-acs" }
