@@ -67,6 +67,7 @@ the constitution's own instrument for an engineering decision (not a silent edit
 | **P6.5** | **Ecosystem SDK & Authoring Kit** ✅ | third parties author/certify/sign/publish capabilities that run on the frozen runtime — *no runtime change* | Runtime v1.0 API |
 | **P7** | **Marketplace** ✅ | distribute certified/signed capabilities — publish once, install anywhere; refuses uncertified/tampered/duplicate | P6.5 |
 | P8 | Cloud Platform 🟢 *preview* | hosted ARVES — **preview shipped** (`arves-cloud-preview`): local multi-tenant HTTP gateway over the real Kernel (process-per-tenant isolation, one-world ids over the wire, per-tenant idempotency); no authN (v2.0 debt #8), no TLS, not a deployed SaaS | P0–P7 |
+| **I6** | **Assistant — "JARVIS" phase 1** 🟢 *G1 preview* (`arves-assistant`, the maintainer's product per Ruling 002) | A1–A7 proven end to end on the frozen Runtime v1.0: durable restart-surviving memory · multi-source one-truth · certified skills (forged flags refused) · pluggable reasoner slot (deterministic NOT-AI stub in repo; maintainer's LLM outside) · deterministic sub-agents with in-body attribution + first-committed-wins · policy-as-truth guardrails · `why()` decision-path reconstruction, byte-identical across restarts. **HONEST: G1 preview — the four-condition GA gate (Independent Runtime · External Team G2 · Certification · Formal) is UNMET by definition**; runtime gaps recorded as RCR candidates (WAL-scan verb, attributed-commit verb), never product-side edits | P0–P7, Runtime v1.0, `docs/PRODUCT_BRIEF_JARVIS.md` |
 | P9 | Industry Solutions | Healthcare · Manufacturing · Government · Finance | P0–P8 |
 | **P8** | **Foundation** 🟢 | governance + maintainer-independent certification; **2 runtimes certified under one conformance** — see `FOUNDATION.md` | Standard + Certification |
 | P9 | Certified Vendors · P10 Independent Runtime Alliance · P11 Academic · P12 Registry · P13 Cloud · P14 Ecosystem | the self-sustaining ecosystem (external parties) | P8 |
@@ -115,6 +116,7 @@ products/
   arves-enterprise-os/            P5 — Enterprise Cognitive OS ✅ (2nd customer, no runtime change)
   arves-ecosystem-sdk/            P6.5 — Ecosystem SDK & Authoring Kit ✅ (third-party capabilities; arves CLI)
   arves-marketplace/              P7 — Marketplace ✅ (publish once, install anywhere)
+  arves-assistant/                I6 — Assistant "JARVIS" phase 1 🟢 G1 preview (A1–A7; GA gate honestly UNMET)
 runtime/crates/arves-bridge/      P2 — Runtime Bridge (PLATFORM): Capability→Engine→Kernel, ACS-addressed
 runtime/crates/arves-engine-fabric/     concrete reference Engine (PureEngine)
 runtime/crates/arves-capability-fabric/ concrete reference CapabilityRegistry (MemRegistry)

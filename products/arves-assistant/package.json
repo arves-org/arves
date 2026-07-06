@@ -1,0 +1,20 @@
+{
+  "name": "@arves/assistant",
+  "version": "0.1.0-preview",
+  "private": true,
+  "type": "module",
+  "description": "ARVES Assistant (JARVIS phase 1, stages 1-3) — the assistant memory core (multi-source one-truth, durable decisions, restart-surviving memory), the governed think→act pipeline (certified skills with cert re-run at registration + RCR-016 bind, a pluggable reasoner slot shipping ONLY a deterministic NOT-AI stub, policy-as-truth guardrails with separate approval truths), deterministic sub-agents over one shared truth base (in-body product-level attribution, first-committed-wins conflict resolution), and why() decision-path reconstruction from committed truths. Built on the frozen ARVES Runtime v1.0. G1 preview — the four-condition GA gate is honestly UNMET.",
+  "platform": {
+    "consumes": "ARVES Runtime v1.0 (tag runtime-v1.0; TS SDK codec + Kernel Bridge line protocol incl. RCR-011 id=, RCR-014 shard=, RCR-015 --wal-dir, RCR-016 bind) — FROZEN",
+    "modifiesRuntime": false,
+    "proves": ["A1 durable memory across restarts", "A2 multi-source one-truth with evidence sets", "A3 certified skills (forged flags refused; bind->invoke->committed effect truth)", "A4 pluggable reasoner slot (deterministic stub; proposals committed as truth)", "A5 sub-agents over one shared truth base (in-body attribution; first-committed-wins; loser references winner)", "A6 guardrails (policy-as-truth; separate approval truths; compliance events)", "A7 why() decision-path reconstruction (byte-identical across restarts)", "committed decisions", "contradiction-with-prior-decision after restart"]
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "scripts": {
+    "test": "node assistant.test.mjs && node skills.test.mjs && node agents.test.mjs",
+    "day": "node examples/assistant-day.mjs",
+    "skills-day": "node examples/assistant-skills-day.mjs",
+    "jarvis-day": "node examples/jarvis-day.mjs"
+  }
+}

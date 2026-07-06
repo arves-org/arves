@@ -51,6 +51,11 @@ The I6 reference product ("assistant skeleton") MUST prove, end-to-end and hones
   separate approval truth") demonstrably blocking + auditing.
 - **A7 — Explain-yourself:** a `why(truthId)` flow that reconstructs the decision path from the
   WAL (what was observed, which agent proposed, which policy checked, what committed).
+  *v1.0 mechanism note (honest):* the frozen bridge line protocol has no WAL-scan verb, so
+  `why()` feeds on the assistant's **decision journal** — a product-side projection whose every
+  entry is re-provable against the WAL via the idempotent `already-committed` membership proof;
+  the reconstruction is total only after re-running the deterministic day, and a native bridge
+  WAL-scan/replay verb remains RCR candidate #1 (`products/arves-assistant/README.md`).
 - **A8 — Maintainer test path:** a QUICKSTART for the maintainer to run the assistant locally
   (`--wal-dir` + their own shard), attach their LLM key OUTSIDE the repo, and exercise A1-A7.
 

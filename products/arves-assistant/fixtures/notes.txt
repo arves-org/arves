@@ -1,0 +1,5 @@
+# notes-file fixture — the user's personal notes, one noted event per line.
+# Format: <ISO-8601 UTC instant> | <entity> | <event>
+2026-07-06T09:00:00Z | urn:you | dentist-appointment
+2026-07-06T08:00:00Z | urn:you | idea-write-arves-post
+2026-07-06T10:30:00Z | invest:acme-fund | price-up-20pct

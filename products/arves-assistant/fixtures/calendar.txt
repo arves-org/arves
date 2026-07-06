@@ -1,0 +1,6 @@
+# calendar-file fixture — the user's calendar, one event per line.
+# Format: <ISO-8601 UTC instant> | <entity> | <event>
+# The dentist appointment ALSO appears in notes.txt: the same real-world event seen by
+# two systems MUST collapse to ONE truth with both sources in evidence (A2).
+2026-07-06T09:00:00Z | urn:you | dentist-appointment
+2026-07-06T14:00:00Z | urn:you | q3-review-meeting

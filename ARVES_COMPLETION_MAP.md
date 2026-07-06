@@ -25,7 +25,7 @@ adversarial completeness critic reviewed the 5-chapter map as **sound**, so five
 | **1** | **Specification** — author & freeze the Standard | ✅ **DONE** | maintainer | The corpus is COMPLETE / FROZEN and permanently immutable; later change only via CCP / Amendment / IDR / next major. |
 | **2** | **Implementation** — build the reference implementation that proves the spec (Build Program, **SEALED**) | ✅ **DONE** | internal | Reference impl exists and the Build Program is SEALED (16-pillar adversarial audit → CLOSE), Runtime v1.0 FROZEN. All graded **G1**. |
 | **3** | **Standard Validation** — *prove ARVES wrong*; the G2 third-party runtime is the exit gate | 🟡 **CURRENT** | **external** | A genuinely unrelated party builds a runtime from `standard/` alone (no help, no reference access) and earns full-surface `SOUND-CERTIFIED` — the first real **G2**. |
-| **4** | **Industrialization** — run ARVES at scale (I2..I6) | 🟢 **UN-GATED — in build** *(superseded by Ruling 002, 2026-07-05, `docs/MAINTAINER_RULINGS.md`)* | mixed | I2..I6 built and each passes its full Success Criteria; distributed runtime at scale; I6 → GA under the four-condition gate. ~~May not begin until Ch3's G2 fires~~ *(superseded by Ruling 002: build proceeds now from the `docs/design/` packages via RCR; Ch3 continues in parallel)*. |
+| **4** | **Industrialization** — run ARVES at scale (I2..I6) | 🟢 **I2–I6 BUILT — pending maintainer integration** *(Ruling 002; I2–I5 via RCR-019..031 in-process/`ClusterSim` honest scope; I6 = the JARVIS phase-1 assistant `products/arves-assistant/`, A1–A7 proven, **G1 preview**)* | mixed | I2..I6 built and each passes its full Success Criteria; distributed runtime at scale; I6 → GA under the four-condition gate. ~~May not begin until Ch3's G2 fires~~ *(superseded by Ruling 002: build proceeds now from the `docs/design/` packages via RCR; Ch3 continues in parallel)*. **Honest residue: the four-condition GA gate (Independent Runtime · External Team G2 · Certification · Formal) and Ch3's G2 remain EXTERNAL and unmet — building I2–I6 lifted nothing past G1.** |
 | **5** | **Growth / Foundation** — prove *why* ARVES matters; survive its makers | 🟡 **in-progress** | **external** | All ten Long-Term Objectives hold **and** the North Star is real: a stranger downloads → builds → publishes → gets paid with no maker contact. |
 
 ## Where we are — the honest split
@@ -36,7 +36,10 @@ adversarial completeness critic reviewed the 5-chapter map as **sound**, so five
     fault-injection/replay/performance evidence) is fully **internal-buildable** — ~~*but it is
     hard-gated* and must not begin until Ch3's external event fires~~ *(superseded by Ruling 002,
     2026-07-05: I2..I6 is un-gated and in build; Ch3's external event remains the only thing that
-    lifts independence past G1)*.
+    lifts independence past G1)*. **Status 2026-07-06: I2–I6 are BUILT (pending maintainer
+    integration)** — I2–I5 in the runtime via RCR-019..031 (honest in-process scope), I6 as the
+    maintainer's JARVIS phase-1 assistant (`products/arves-assistant/`, A1–A7 proven, shipped as a
+    **G1 preview**; the four-condition GA gate + G2 stay external and unmet).
   - **Ch3** and **Ch5** close **only on external events that cannot be manufactured internally**:
     Ch3 on a stranger's **G2** certification, Ch5 on real external **adoption** (the North Star).
 - Therefore **no freeze-clean or maintainer-gated (CCP/RCR) work advances independence past G1.**
