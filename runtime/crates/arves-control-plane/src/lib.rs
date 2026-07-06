@@ -10,6 +10,26 @@
 //! placeholders so the contract compiles. Frozen specification governs; this
 //! crate implements, never changes it.
 //!
+//! STATUS since RCR-027 (I4 Stage 2, per `docs/design/I4_Capability_Scheduling_Design.md`):
+//! the "CONTRACT-ONLY" wording above — and the "depends on nothing in this
+//! workspace: it is a pure contract surface (std-only)" clause of the Layering
+//! paragraph below — are superseded for the SCHEDULING surface only. This crate
+//! now ALSO carries the I4 cluster capability scheduler ([`scheduler`]): placement
+//! (shard-leader affinity for commit-bearing invocations, deterministic
+//! compute-anywhere spread for `Pure` ones — IDR-001), per-shard admission
+//! control/backpressure and failure isolation (SHARD-001), idempotent dispatch
+//! under the fabric-derived ORCH-004 key (RCR-012) — shard-partitioned and
+//! capability-qualified at the scheduling surface (RCR-027 DR-13; the frozen
+//! [`InvocationKey`] contract below is untouched) — and commit routing exclusively
+//! through the shard leader's Kernel gateway (`arves-kernel::cluster`, RCR-021).
+//! Its five dependency edges are all DOWNWARD (LAYER-001: control-plane 90 →
+//! capability 70 / engine 60 / kernel 40 / consensus 30 / acs 15; architecture
+//! gate green). Every frozen v1.0 type and trait signature in this file is
+//! byte-unchanged; the [`Orchestrator`] plan-graph contract remains contract-only
+//! (I5), and the scheduler still owns no truth and no persistent state
+//! (ORCH-001/002 — now executably proven at this surface, see
+//! `tests/cluster_scheduling.rs`).
+//!
 //! # Position in the ARVES architecture
 //!
 //! The Control Plane *decides*; the Data Plane *carries*. This crate is the
@@ -67,6 +87,8 @@
 //! artefact, replayable from the trace but never itself authoritative.
 
 #![forbid(unsafe_code)]
+
+pub mod scheduler;
 
 use std::collections::BTreeMap;
 use std::fmt;

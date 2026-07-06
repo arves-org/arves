@@ -9,8 +9,13 @@
 //! architecture-gate test into this lib so both use one implementation). The runtime-behaviour
 //! invariants (ORCH-003/004, SHARD-001) are **cited** to their biting tests in the owning
 //! crate — the catalog records where each executable proof lives. The Control-Plane invariants
-//! (ORCH-001/002) are **pending**: their owning crates are contract-only (I2+), so no runtime
-//! proof exists yet, and the catalog says so rather than faking coverage.
+//! (ORCH-001/002) were **pending** while their owning crate was contract-only; since RCR-027
+//! (I4 Stage 2 — the cluster capability scheduler, the first Control-Plane behaviour) they are
+//! **cited** to the scheduler's crash-rebuild / commit-provenance proofs (scoped to that
+//! surface; the I5 Orchestrator adds its own obligations when it lands). RCR-028 (I4 Stage 3)
+//! widened the cited proofs across the ADVERSARIAL scheduling surface (schedule storms,
+//! node/scheduler death, poison storms, leadership change) and the live
+//! `capability-scheduling-distributed` conformance artifact.
 //!
 //! `run_suite()` executes every in-process proof; the accompanying test asserts they all hold
 //! and that the coverage map matches reality (no silent "pending → proven" drift).
@@ -239,7 +244,14 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            READ-path idempotency (I3, RCR-023/025): arves-query::tests::query_core \
                            (read_only_reads_change_no_state_and_are_idempotent); \
                            arves-query::tests::distributed_query \
-                           (cluster_wide_isolation_on_every_replica_and_tier_and_reads_write_nothing)",
+                           (cluster_wide_isolation_on_every_replica_and_tier_and_reads_write_nothing); \
+                           SCHEDULING layer (I4, RCR-027/028): arves-control-plane::tests::cluster_scheduling \
+                           (duplicate_submission_and_racing_schedulers_never_fork_truth_orch004); \
+                           arves-control-plane::tests::adversarial_scheduling \
+                           (storm_duplicate_and_reordered_schedules_never_double_execute_orch004, \
+                           node_death_mid_invocation_replaces_and_never_duplicates_commit, \
+                           leadership_change_mid_schedule_lands_each_invocation_exactly_once); \
+                           arves-conformance::live (live_capability_scheduling_scenario_passes)",
             },
         },
         // ORCH-003 — replay from the recorded trace reproduces identical truth. Under
@@ -259,7 +271,12 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            (replay_equivalence_rebuilt_from_wal_equals_live_projection_on_every_replica, \
                            torn_read_impossibility_batches_all_or_none_on_every_reachable_observation, \
                            query_results_deterministic_and_replicas_converge_under_message_storms); \
-                           arves-conformance::live (live_distributed_query_scenario_passes)",
+                           arves-conformance::live (live_distributed_query_scenario_passes); \
+                           SCHEDULING layer (I4, RCR-027/028): arves-control-plane::tests::cluster_scheduling \
+                           (leader_loss_mid_dispatch_replays_from_record_and_commits_exactly_once — \
+                           the retry replays from the RECORDED inference, engine never re-invoked); \
+                           arves-control-plane::tests::adversarial_scheduling \
+                           (node_death_mid_invocation_replaces_and_never_duplicates_commit)",
             },
         },
         // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
@@ -283,21 +300,58 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            arves-query::tests::distributed_query \
                            (cluster_wide_isolation_on_every_replica_and_tier_and_reads_write_nothing, \
                            gather_routes_on_typed_shard_identity_never_reparsed_text); \
-                           arves-conformance::live (live_distributed_query_scenario_passes)",
+                           arves-conformance::live (live_distributed_query_scenario_passes); \
+                           SCHEDULING layer (I4, RCR-027/028): arves-control-plane::tests::cluster_scheduling \
+                           (backpressure_bounds_one_shard_and_the_other_tenants_transcript_is_untouched, \
+                           same_capability_provider_and_input_in_two_shards_both_commit_their_own_truth); \
+                           arves-control-plane::tests::adversarial_scheduling \
+                           (poison_capability_storm_cannot_block_shard_or_cluster, \
+                           overcapacity_refusals_are_explicit_accounted_and_retriable_never_silent)",
             },
         },
-        // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Owning crate is
-        // contract-only until I2; no runtime proof yet (honest gap).
+        // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Pending until RCR-027
+        // (I4 Stage 2), which landed the first Control-Plane BEHAVIOUR (the cluster
+        // capability scheduler in arves-control-plane) together with the design's §4
+        // executable proofs: the scheduler's only path to truth is routing ProposedWrites
+        // through the shard leader's frozen Kernel gateway (no other write surface exists;
+        // ORCH-001), and every queue/ledger/decision it holds is discardable mid-run and
+        // reconstructible from the plan with Kernel-deduped convergence (ORCH-002).
+        // HONEST SCOPE: proven at the I4 SCHEDULING surface; the I5 Orchestrator
+        // (plan-graph execution) remains contract-only and adds its own obligations when
+        // it lands — this row does not pre-certify it.
         PropertyCheck {
             invariant: Orch001ControlPlaneOwnsNoTruth,
-            proof: ProofKind::Pending {
-                reason: "arves-control-plane is contract-only (I2+); no executable runtime proof yet",
+            proof: ProofKind::CitedTest {
+                location: "arves-control-plane::tests::cluster_scheduling (RCR-027): \
+                           scheduler_crash_rebuild_from_plan_converges_to_identical_truth_orch001_orch002 \
+                           (dropping the scheduler loses zero committed truth; all truth carries \
+                           Kernel commit provenance via the shard leader), \
+                           full_distributed_chain_gate_engine_leader_commit_replicas_converge \
+                           (effects leave the gate as PROPOSALS; only ClusterKernel::commit \
+                           promotes them; Pure work commits nothing); \
+                           adversarial scope (I4 Stage 3, RCR-028): \
+                           arves-control-plane::tests::adversarial_scheduling \
+                           (poison_capability_storm_cannot_block_shard_or_cluster — a poisoned \
+                           capability contributes ZERO truth); \
+                           arves-conformance::live (live_capability_scheduling_scenario_passes — \
+                           dropping the scheduler moves zero committed truth, derived live)",
             },
         },
         PropertyCheck {
             invariant: Orch002NoPersistentStateInControlPlane,
-            proof: ProofKind::Pending {
-                reason: "arves-control-plane is contract-only (I2+); no executable runtime proof yet",
+            proof: ProofKind::CitedTest {
+                location: "arves-control-plane::tests::cluster_scheduling (RCR-027): \
+                           scheduler_crash_rebuild_from_plan_converges_to_identical_truth_orch001_orch002 \
+                           (kill mid-run, rebuild from plan, identical committed truth set — \
+                           schedules/placements are discardable plan artifacts); \
+                           leader_loss_mid_dispatch_replays_from_record_and_commits_exactly_once \
+                           (in-flight work discarded and re-queued under the same key, IDR-004); \
+                           adversarial scope (I4 Stage 3, RCR-028): \
+                           arves-control-plane::tests::adversarial_scheduling \
+                           (node_death_mid_invocation_replaces_and_never_duplicates_commit — the \
+                           content-addressed key carries across scheduler death; a fresh scheduler \
+                           rebuilt from the plan re-commits idempotently, zero duplicates); \
+                           arves-conformance::live (live_capability_scheduling_scenario_passes)",
             },
         },
     ]
@@ -326,10 +380,15 @@ mod tests {
     fn property_check_suite_holds() {
         let (in_process_ok, proven, total) = run_suite();
         assert!(in_process_ok, "an in-process structural proof failed");
-        // 7 registered implemented invariants; 5 proven (2 in-process + 3 cited),
-        // 2 pending (ORCH-001/002, Control-Plane, contract-only).
+        // 7 registered implemented invariants; 7 proven (2 in-process + 5 cited).
+        // ORCH-001/002 flipped Pending → CitedTest by RCR-027 (I4 Stage 2, the first
+        // Control-Plane behaviour + its §4 executable proofs) — an EXPLICIT, recorded
+        // flip (runtime/rcr/RCR-027.md), not silent drift; this assertion is the guard.
         assert_eq!(total, 7, "catalog covers the 7 registered invariants");
-        assert_eq!(proven, 5, "5 proven (LAYER/OWN in-process + ORCH-003/004 + SHARD-001 cited)");
+        assert_eq!(
+            proven, 7,
+            "7 proven (LAYER/OWN in-process + ORCH-001/002/003/004 + SHARD-001 cited)"
+        );
 
         // Every in-process entry must carry a live detail string (not empty).
         for c in catalog() {

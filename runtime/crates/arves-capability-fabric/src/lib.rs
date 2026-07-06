@@ -30,6 +30,20 @@
 //! therefore cites only the registered-normative invariants it actually upholds and does not
 //! reproduce the proposed CAP-00n statements.
 //!
+//! STATUS since RCR-026 (I4 Stage 1, per `docs/design/I4_Capability_Scheduling_Design.md`):
+//! the "CONTRACT-ONLY" wording above — and the "depends on no sibling crate (std-only
+//! skeleton)" clause of the Layer paragraph — are superseded. This crate now ALSO carries
+//! the I4 capability-fabric core (additive, the RCR-019/023 pattern): [`lifecycle`]
+//! (the [`LifecycleRegistry`](lifecycle::LifecycleRegistry) — append-only binding
+//! lifecycle with supersession history, revocation tombstones and pinned replay
+//! resolution) and [`gate`] (the capability authorization gate + EffectClass validation,
+//! wiring invocation through `arves-engine-fabric::invoke_enforced`, RCR-012 — ONE new
+//! downward dependency edge, capability(70) → engine(60), LAYER-001). Every frozen v1.0
+//! type and trait signature in this file is byte-unchanged, and the REGISTRY surface
+//! still never invokes, selects, commits or plans. Selection, placement, admission
+//! control/backpressure and decision-trace emission remain FUTURE I4 stages
+//! (placement/backpressure additionally gated on the design's §6 IDR-007 instrument).
+//!
 //! # What this crate owns (and, emphatically, does not)
 //!
 //! - **Owns**: the set of [`CapabilityBinding`]s -- the declarative map from a
@@ -61,6 +75,9 @@
 //!   content-addressable invocations; it performs none itself.
 
 #![forbid(unsafe_code)]
+
+pub mod gate;
+pub mod lifecycle;
 
 // =============================================================================
 // Identity & partitioning

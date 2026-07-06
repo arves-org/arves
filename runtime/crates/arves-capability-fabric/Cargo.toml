@@ -5,3 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# RCR-026 (I4 Stage 1): the ONE new architectural edge — capability(70) → engine(60),
+# downward-only (LAYER-001; architecture gate green). The gate module invokes engines
+# exclusively through arves-engine-fabric::invoke_enforced (RCR-012).
+arves-engine-fabric = { path = "../arves-engine-fabric" }

@@ -5,3 +5,12 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# RCR-027 (I4 Stage 2): the cluster capability scheduler's downward-only edges
+# (LAYER-001; ranks checked in arves-conformance/src/property_check.rs BEFORE adding:
+# control-plane(90) -> capability-fabric(70) / engine-fabric(60) / kernel(40) /
+# consensus(30) / acs(15); architecture gate green).
+arves-capability-fabric = { path = "../arves-capability-fabric" }
+arves-engine-fabric = { path = "../arves-engine-fabric" }
+arves-kernel = { path = "../arves-kernel" }
+arves-consensus = { path = "../arves-consensus" }
+arves-acs = { path = "../arves-acs" }

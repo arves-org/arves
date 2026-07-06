@@ -20,13 +20,19 @@ dependencies = [
 [[package]]
 name = "arves-capability-fabric"
 version = "0.0.0"
+dependencies = [
+ "arves-engine-fabric",
+]
 
 [[package]]
 name = "arves-conformance"
 version = "0.0.0"
 dependencies = [
  "arves-acs",
+ "arves-capability-fabric",
  "arves-consensus",
+ "arves-control-plane",
+ "arves-engine-fabric",
  "arves-kernel",
  "arves-persistence",
  "arves-query",
@@ -39,6 +45,13 @@ version = "0.0.0"
 [[package]]
 name = "arves-control-plane"
 version = "0.0.0"
+dependencies = [
+ "arves-acs",
+ "arves-capability-fabric",
+ "arves-consensus",
+ "arves-engine-fabric",
+ "arves-kernel",
+]
 
 [[package]]
 name = "arves-engine-fabric"

@@ -932,6 +932,540 @@ pub fn run_distributed_query_scenario() -> ConformanceArtifact {
     LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
 }
 
+// ---------------------------------------------------------------------------
+// CAPABILITY SCHEDULING scenario (RCR-028, I4 Stage 3): the I4 design's
+// conformance plan — §5.1 instantiates axes 4 (Multi-step Planning: capability
+// selected per plan node), 7 (Safety-critical: the policy gate MUST block),
+// 8 (High-volume: per-shard backpressure + tenant isolation — the isolation
+// clause; no volume/throughput claim is made in-process), 10 (Policy-heavy:
+// the fired gate is auditable in the decision log) and 12 (Recovery & Replay:
+// replay-from-record retries, discardable scheduler). §5.2 requires "a new
+// distributed scheduling scenario (leader failover mid-dispatch; duplicate
+// dispatch; shard flood)" — driven here live. §5.3 names the node probes:
+// **Capability** ("Capability selected and bound per plan"), **Execution**
+// ("Idempotent, addressable action with correlation_id"), **Control Plane**
+// ("ORCH-001..004 upheld; no truth produced"). HONEST SCOPE: in-process
+// deterministic simulation over the I2 `ClusterSim` (scripted faults, logical
+// ticks) — NO network exists; placement is the RCR-027 REFERENCE policy,
+// non-normative pending the design's IDR-007 instrument; the RCR-012
+// determinism probe remains a probe; CAP-001..009 stay PROPOSED and are NOT
+// asserted — every check below derives from a registered invariant or a
+// framework property.
+// ---------------------------------------------------------------------------
+
+use arves_capability_fabric::gate::{self, PolicyVerdict};
+use arves_capability_fabric::lifecycle::LifecycleRegistry;
+use arves_capability_fabric::{
+    BindingVersion, CapabilityBinding, CapabilityId, CapabilityRegistry, EffectClass,
+    InvocationContract, ProviderId, ShardKey as FabricShardKey,
+};
+use arves_consensus::NodeId;
+use arves_control_plane::scheduler::{
+    ClusterScheduler, DispatchEnv, EngineHost, InvocationSpec, SchedulerConfig,
+    SchedulingDecision, SubmitOutcome, WorkState,
+};
+use arves_engine_fabric::{
+    invocation_key, Determinism, Engine, EngineManifest, IdempotencyKey as EngineIdempotencyKey,
+    Inference, ProposedEffect,
+};
+use std::cell::Cell;
+use std::collections::BTreeSet;
+
+/// The **I4 capability-scheduling under distribution** scenario (design §5).
+pub fn capability_scheduling_scenario() -> Scenario {
+    Scenario {
+        id: "capability-scheduling-distributed",
+        name: "I4 — Cluster capability scheduling: selection/binding per plan, idempotent \
+                addressable dispatch, per-shard backpressure + isolation, policy gate blocks, \
+                leader failover mid-dispatch, discardable scheduler",
+        axes: vec![
+            Axis::MultiStepPlanning,
+            Axis::SafetyCritical,
+            Axis::HighVolumeStreaming,
+            Axis::PolicyHeavyGovernance,
+            Axis::RecoveryAndReplay,
+        ],
+        expected_path: vec![
+            PipelineNode::ControlPlane,
+            PipelineNode::Capability,
+            PipelineNode::Execution,
+        ],
+        required_invariants: vec![
+            Invariant::Orch001ControlPlaneOwnsNoTruth,
+            Invariant::Orch002NoPersistentStateInControlPlane,
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::TenantWorkspaceIsolation,
+            Property::SafetyGatesBlockedUnsafePlans,
+            Property::PolicyGatesFired,
+            Property::ReplayReproducesTrace,
+        ],
+    }
+}
+
+/// A reference probe engine: pure function of its input (declared `Seeded` —
+/// a lawful, conservative promise for a reproducible engine), one proposed
+/// effect embedding the input, invocation-counted.
+struct SchedProbeEngine {
+    name: String,
+    effects: usize,
+    runs: Rc<Cell<u64>>,
+}
+
+impl Engine for SchedProbeEngine {
+    type Input = Vec<u8>;
+    fn manifest(&self) -> EngineManifest {
+        EngineManifest {
+            name: self.name.clone(),
+            version: "1.0.0".into(),
+            determinism: Determinism::Seeded,
+            idempotency_key: EngineIdempotencyKey("acs-002/1".into()),
+            reads: Vec::new(),
+            produces: vec!["uci.fact".into()],
+            capabilities_required: Vec::new(),
+        }
+    }
+    fn invoke(&self, input: Vec<u8>) -> Inference {
+        self.runs.set(self.runs.get() + 1);
+        let key = invocation_key(&self.manifest(), &input);
+        let proposed_effects = (0..self.effects)
+            .map(|i| ProposedEffect {
+                target: "uci.fact".into(),
+                payload: {
+                    let mut p = input.clone();
+                    p.push(i as u8);
+                    p
+                },
+            })
+            .collect();
+        Inference { key, output: input, proposed_effects }
+    }
+}
+
+fn fabric_shard(tenant: &str, workspace: &str) -> FabricShardKey {
+    FabricShardKey::new(tenant, workspace).expect("valid probe shard")
+}
+
+/// Observes the **Capability** node (design §5.3: "Capability selected and
+/// bound per plan"): the RCR-026 lifecycle registry carries the binding a
+/// plan's selection names — bind → authoritative resolve, supersession
+/// serves only the latest, the version that actually ran stays PINNED and
+/// replay-readable (ORCH-003 basis), and resolution is shard-scoped
+/// (SHARD-001: the same capability in another tenant's shard is a hard
+/// `Unbound`). Every outcome is derived from registry behaviour.
+pub struct CapabilityBindingProbe;
+
+impl NodeProbe for CapabilityBindingProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Capability
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let sa = fabric_shard("acme", "research");
+        let sb = fabric_shard("globex", "research");
+        let cap = CapabilityId("cap.answer".into());
+        let mut reg = LifecycleRegistry::new();
+        reg.register(&sa, cap.clone()).expect("register");
+        let binding_at = |v: u64, provider: &str| CapabilityBinding {
+            capability: cap.clone(),
+            shard: sa.clone(),
+            version: BindingVersion(v),
+            provider: ProviderId(provider.into()),
+            contract: InvocationContract {
+                input_schema: "acs:bytes".into(),
+                output_schema: "acs:bytes".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        };
+        reg.bind(binding_at(1, "engine:answer@1.0.0")).expect("bind v1");
+        let v1 = reg.resolve(&sa, &cap).expect("v1 active");
+
+        // Supersession: the plan's NEXT selection resolves v2; v1 is never
+        // served as active again but stays pinned-readable for replay.
+        reg.bind(binding_at(2, "engine:answer@2.0.0")).expect("bind v2");
+        let active = reg.resolve(&sa, &cap).expect("v2 active");
+        let pinned = reg.resolve_pinned(&sa, &cap, BindingVersion(1));
+        let selected_and_bound = v1.version == BindingVersion(1)
+            && active.version == BindingVersion(2)
+            && active.provider != v1.provider;
+        let orch003 = held_if(
+            selected_and_bound
+                && matches!(&pinned, Ok(b) if b.version == BindingVersion(1)
+                    && b.provider == v1.provider),
+        );
+
+        // SHARD-001: the binding exists ONLY in its shard — the other
+        // tenant's shard resolves a hard Unbound with an empty history.
+        let cross_isolated =
+            reg.resolve(&sb, &cap).is_err() && reg.history(&sb, &cap).is_empty();
+        let shard001 = held_if(cross_isolated);
+
+        NodeEvidence {
+            node: PipelineNode::Capability,
+            summary: format!(
+                "LifecycleRegistry: capability selected per plan and bound (v1→v2 append-only \
+                 supersession; active resolve serves v{}, v1 stays pinned-readable for replay); \
+                 cross-shard resolve is a hard Unbound",
+                active.version.0
+            ),
+            correlation_id: None,
+            invariant_checks: vec![
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![(Property::TenantWorkspaceIsolation, shard001)],
+        }
+    }
+}
+
+/// Observes the **Execution** node (design §5.3: "Idempotent, addressable
+/// action with correlation_id"): a gated invocation through the Stage-1 gate
+/// (RCR-026) + RCR-012 enforcement carries a fabric-DERIVED content-addressed
+/// key — the same input always yields the same key (idempotent + addressable,
+/// ORCH-004), the key doubles as the correlation surface, the binding version
+/// that ran is PINNED on the proof token, and effects leave as PROPOSALS only.
+pub struct ExecutionActionProbe;
+
+impl NodeProbe for ExecutionActionProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Execution
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let sa = fabric_shard("acme", "research");
+        let cap = CapabilityId("cap.act".into());
+        let runs = Rc::new(Cell::new(0));
+        let engine =
+            SchedProbeEngine { name: "act".into(), effects: 1, runs: runs.clone() };
+        let mut reg = LifecycleRegistry::new();
+        reg.register(&sa, cap.clone()).expect("register");
+        reg.bind(CapabilityBinding {
+            capability: cap.clone(),
+            shard: sa.clone(),
+            version: BindingVersion(1),
+            provider: gate::engine_provider_id(&engine.manifest()),
+            contract: InvocationContract {
+                input_schema: "acs:bytes".into(),
+                output_schema: "acs:bytes".into(),
+                effect: EffectClass::ProposesWrite,
+            },
+        })
+        .expect("bind");
+
+        let g1 = gate::invoke_gated(&reg, &sa, &cap, PolicyVerdict::Allow, &engine, b"act-1".to_vec());
+        let g2 = gate::invoke_gated(&reg, &sa, &cap, PolicyVerdict::Allow, &engine, b"act-1".to_vec());
+        let (idempotent_addressable, pinned, proposals_only, key) = match (&g1, &g2) {
+            (Ok(a), Ok(b)) => (
+                a.inference.key == b.inference.key
+                    && a.inference.key == invocation_key(&engine.manifest(), b"act-1"),
+                a.authorization.pinned_version == BindingVersion(1),
+                a.inference.proposed_effects.len() == 1
+                    && contains(&a.inference.proposed_effects[0].payload, b"act-1"),
+                a.inference.key.0.clone(),
+            ),
+            _ => (false, false, false, String::new()),
+        };
+        let orch004 = held_if(idempotent_addressable && pinned && proposals_only);
+
+        NodeEvidence {
+            node: PipelineNode::Execution,
+            summary: format!(
+                "gated invocation (gate → invoke_enforced): fabric-derived content-addressed \
+                 key stable across invocations ({} runs, proposals only, binding version \
+                 pinned) — the key is the correlation surface",
+                runs.get()
+            ),
+            correlation_id: Some(key),
+            invariant_checks: vec![(Invariant::Orch004IdempotentAddressable, orch004)],
+            property_checks: vec![],
+        }
+    }
+}
+
+/// Observes the **Control Plane** node (design §5.3: "ORCH-001..004 upheld;
+/// no truth produced") by driving the RCR-027 `ClusterScheduler` over a real
+/// 3-replica, 2-tenant `ClusterSim` through the design-§5.2 distributed
+/// scheduling scenario: a shard FLOOD past the admission bound (denials
+/// visible, the other tenant untouched), a Governance `Deny` invocation (the
+/// gate BLOCKS before execution — axis 7 — and the fired gate is auditable in
+/// the decision log — axis 10), DUPLICATE dispatch (collapses on the ORCH-004
+/// key), a LEADER FAILOVER mid-dispatch (retriable verdict, replay-from-
+/// record, engine never re-invoked), and a scheduler CRASH-REBUILD (zero
+/// truth lost, plan re-submission converges idempotently). Every check
+/// outcome is derived from behaviour (never hardcoded).
+pub struct SchedulingControlPlaneProbe;
+
+impl NodeProbe for SchedulingControlPlaneProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::ControlPlane
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let a_sid = cluster_sid("acme", "research");
+        let b_sid = cluster_sid("globex", "research");
+        let mut sim = ClusterSim::new(3);
+        sim.add_shard(a_sid.clone(), 0x14_D1);
+        sim.add_shard(b_sid.clone(), 0x14_D2);
+        let a_leader = sim.elect(&a_sid);
+        sim.elect(&b_sid);
+        let cluster = Rc::new(RefCell::new(sim));
+
+        // The hosted artifact set + per-shard bindings (fabric core).
+        let mut reg = LifecycleRegistry::new();
+        let mut host = EngineHost::new();
+        let flow_runs = Rc::new(Cell::new(0));
+        let flow = host.host(Box::new(SchedProbeEngine {
+            name: "flow".into(),
+            effects: 1,
+            runs: flow_runs.clone(),
+        }));
+        let gated_runs = Rc::new(Cell::new(0));
+        let gated_pid = host.host(Box::new(SchedProbeEngine {
+            name: "gated".into(),
+            effects: 1,
+            runs: gated_runs.clone(),
+        }));
+        let b_runs = Rc::new(Cell::new(0));
+        let b_pid = host.host(Box::new(SchedProbeEngine {
+            name: "bwork".into(),
+            effects: 1,
+            runs: b_runs.clone(),
+        }));
+        let mut bind = |shard: &FabricShardKey, cap: &str, pid: &ProviderId| {
+            reg.register(shard, CapabilityId(cap.into())).expect("register");
+            reg.bind(CapabilityBinding {
+                capability: CapabilityId(cap.into()),
+                shard: shard.clone(),
+                version: BindingVersion(1),
+                provider: pid.clone(),
+                contract: InvocationContract {
+                    input_schema: "acs:bytes".into(),
+                    output_schema: "acs:bytes".into(),
+                    effect: EffectClass::ProposesWrite,
+                },
+            })
+            .expect("bind");
+        };
+        let fa = fabric_shard("acme", "research");
+        let fb = fabric_shard("globex", "research");
+        bind(&fa, "cap.flow", &flow);
+        bind(&fb, "cap.gated", &gated_pid);
+        bind(&fb, "cap.b", &b_pid);
+
+        let down: BTreeSet<NodeId> = BTreeSet::new();
+        let env = DispatchEnv { cluster: &cluster, registry: &reg, host: &host, down: &down };
+        let mut sched = ClusterScheduler::new(
+            1104,
+            SchedulerConfig { shard_capacity: 2, retry_budget: 3, dispatch_per_tick: 1 },
+        );
+        let spec = |shard: &arves_consensus::ShardId, cap: &str, policy, input: &[u8]| {
+            InvocationSpec {
+                shard: shard.clone(),
+                capability: CapabilityId(cap.into()),
+                policy,
+                input: input.to_vec(),
+            }
+        };
+
+        // SHARD FLOOD past the admission bound (capacity 2, 4 submissions):
+        // overflow is a VISIBLE denial, never a silent drop.
+        let mut admitted = 0usize;
+        let mut denied = 0usize;
+        for i in 0..4u8 {
+            match sched.submit(
+                1,
+                spec(&a_sid, "cap.flow", PolicyVerdict::Allow, format!("flow-{i}").as_bytes()),
+                &env,
+            ) {
+                SubmitOutcome::Admitted { .. } => admitted += 1,
+                SubmitOutcome::AdmissionDenied { .. } => denied += 1,
+                _ => {}
+            }
+        }
+        // DUPLICATE dispatch: the same invocation collapses on its key.
+        let dedup_seen = matches!(
+            sched.submit(1, spec(&a_sid, "cap.flow", PolicyVerdict::Allow, b"flow-0"), &env),
+            SubmitOutcome::Deduplicated { .. }
+        );
+        // Tenant B: healthy work + a Governance-DENIED invocation.
+        let _ = sched.submit(1, spec(&b_sid, "cap.b", PolicyVerdict::Allow, b"globex-healthy"), &env);
+        let _ = sched.submit(1, spec(&b_sid, "cap.gated", PolicyVerdict::Deny, b"needs-deny"), &env);
+
+        // LEADER FAILOVER MID-DISPATCH: shard A's leader is cut between
+        // placement and quorum; the survivors elect, the old leader rejoins.
+        cluster.borrow_mut().isolate(&a_sid, &a_leader);
+        sched.dispatch_tick(2, &env);
+        let retriable_surfaced = sched
+            .decisions()
+            .iter()
+            .any(|d| matches!(d, SchedulingDecision::CommitUnavailable { .. }));
+        cluster.borrow_mut().settle(60);
+        let successor = cluster.borrow().leader_of(&a_sid);
+        cluster.borrow_mut().heal(&a_sid);
+        cluster.borrow_mut().settle(80);
+
+        let mut tick = 3u64;
+        while !sched.is_idle() && tick < 24 {
+            sched.dispatch_tick(tick, &env);
+            tick += 1;
+        }
+        let replayed_from_record = sched
+            .decisions()
+            .iter()
+            .any(|d| matches!(d, SchedulingDecision::ReplayedFromRecord { .. }));
+        let gate_denied_logged = sched
+            .decisions()
+            .iter()
+            .any(|d| matches!(d, SchedulingDecision::GateDenied { denial, .. }
+                if denial.contains("PolicyBlocked")));
+        let flow_runs_first_pass = flow_runs.get();
+
+        // Committed truth so far (the reference the crash-rebuild must match).
+        cluster.borrow_mut().settle(5);
+        let truths = |cluster: &Rc<RefCell<ClusterSim>>| -> Vec<(usize, Vec<u8>, Vec<u8>)> {
+            let c = cluster.borrow();
+            c.node_ids()
+                .iter()
+                .map(|n| {
+                    (
+                        c.committed_count_of(n),
+                        c.shard_state_of(n, &a_sid),
+                        c.shard_state_of(n, &b_sid),
+                    )
+                })
+                .collect()
+        };
+        let reference = truths(&cluster);
+
+        // SCHEDULER CRASH: drop every queue/ledger/decision. Zero committed
+        // truth may move (ORCH-001 — nothing scheduler-local was truth).
+        drop(sched);
+        let truth_unchanged_on_drop = truths(&cluster) == reference;
+
+        // REBUILD from the plan alone: re-submission re-derives the same keys,
+        // recomputes (lawful at-least-once) and every re-commit resolves
+        // idempotently — the truth set converges, never forks (ORCH-002/004).
+        let mut rebuilt = ClusterScheduler::new(
+            1105,
+            SchedulerConfig { shard_capacity: 4, retry_budget: 3, dispatch_per_tick: 1 },
+        );
+        let f0 = match rebuilt.submit(
+            30,
+            spec(&a_sid, "cap.flow", PolicyVerdict::Allow, b"flow-0"),
+            &env,
+        ) {
+            SubmitOutcome::Admitted { key } => Some(key),
+            _ => None,
+        };
+        let _ = rebuilt.submit(30, spec(&a_sid, "cap.flow", PolicyVerdict::Allow, b"flow-1"), &env);
+        let _ = rebuilt.submit(30, spec(&b_sid, "cap.b", PolicyVerdict::Allow, b"globex-healthy"), &env);
+        let _ = rebuilt.submit(30, spec(&b_sid, "cap.gated", PolicyVerdict::Deny, b"needs-deny"), &env);
+        let mut tick = 31u64;
+        while !rebuilt.is_idle() && tick < 48 {
+            rebuilt.dispatch_tick(tick, &env);
+            cluster.borrow_mut().settle(1);
+            tick += 1;
+        }
+        cluster.borrow_mut().settle(5);
+        let after = truths(&cluster);
+        let rebuild_converged = after == reference;
+        let rebuild_all_deduped = rebuilt
+            .decisions()
+            .iter()
+            .filter_map(|d| match d {
+                SchedulingDecision::Committed { deduped, .. } => Some(*deduped),
+                _ => None,
+            })
+            .all(|deduped| deduped)
+            && f0.as_ref().map_or(false, |k| {
+                matches!(rebuilt.state_of(&a_sid, k), Some(WorkState::Done { .. }))
+            });
+
+        // Derive the invariant/property outcomes from the observed behaviour.
+        let backpressure_visible = admitted == 2 && denied == 2;
+        let expected_counts = reference.iter().all(|(count, sa, sb)| {
+            *count == 3 // 2 flood truths + 1 tenant-B truth, per replica
+                && contains(sa, b"flow-0")
+                && contains(sa, b"flow-1")
+                && contains(sb, b"globex-healthy")
+                && !contains(sa, b"globex-healthy")
+                && !contains(sb, b"flow-0")
+                && !contains(sb, b"needs-deny") // the denied invocation left NO truth
+        });
+        let policy_blocked = gate_denied_logged && gated_runs.get() == 0;
+        let orch001 = held_if(truth_unchanged_on_drop && expected_counts);
+        let orch002 = held_if(rebuild_converged && truth_unchanged_on_drop);
+        let orch003 = held_if(
+            replayed_from_record && retriable_surfaced && flow_runs_first_pass == 2,
+        );
+        let orch004 = held_if(dedup_seen && rebuild_all_deduped && rebuild_converged);
+        let own001 = held_if(truth_unchanged_on_drop);
+        let shard001 = held_if(backpressure_visible && expected_counts);
+
+        NodeEvidence {
+            node: PipelineNode::ControlPlane,
+            summary: format!(
+                "ClusterScheduler over ClusterSim: 3 replicas, 2 tenants (in-process \
+                 deterministic simulation, no network); shard flood — {admitted} admitted / \
+                 {denied} VISIBLY denied (capacity 2), other tenant untouched; Governance \
+                 Deny BLOCKED before execution (0 runs) and auditable in the decision log; \
+                 duplicate dispatch collapsed on the ORCH-004 key; leader failover \
+                 mid-dispatch ({:?} → {:?}) retried from the RECORD (engine runs stayed \
+                 {flow_runs_first_pass}); scheduler crash-rebuild converged to the identical \
+                 committed truth set, all re-commits idempotent",
+                a_leader, successor
+            ),
+            correlation_id: None,
+            invariant_checks: vec![
+                (Invariant::Orch001ControlPlaneOwnsNoTruth, orch001),
+                (Invariant::Orch002NoPersistentStateInControlPlane, orch002),
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Orch004IdempotentAddressable, orch004),
+                (Invariant::Own001OneOwnerPerState, own001),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![
+                (Property::TenantWorkspaceIsolation, shard001),
+                (Property::SafetyGatesBlockedUnsafePlans, held_if(policy_blocked)),
+                (Property::PolicyGatesFired, held_if(gate_denied_logged)),
+                (Property::ReplayReproducesTrace, orch003),
+            ],
+        }
+    }
+}
+
+/// Run the I4 capability-scheduling scenario over the real scheduling stack
+/// (fabric core + gate + enforced engine invocation + cluster scheduler +
+/// cluster kernel) and return the three-node live artifact. Honest
+/// fingerprint: in-process deterministic simulation, no network transport;
+/// the placement/backpressure policy is the RCR-027 REFERENCE policy,
+/// non-normative pending IDR-007.
+pub fn run_capability_scheduling_scenario() -> ConformanceArtifact {
+    let scenario = capability_scheduling_scenario();
+    let evidence = vec![
+        SchedulingControlPlaneProbe.observe(&scenario),
+        CapabilityBindingProbe.observe(&scenario),
+        ExecutionActionProbe.observe(&scenario),
+    ];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L3(scoped): capability \
+                        scheduling under distributed deployment (I4, RCR-028)"
+            .into(),
+        runtime_id: "arves-control-plane ClusterScheduler + arves-capability-fabric \
+                     gate/lifecycle + arves-engine-fabric invoke_enforced over arves-kernel \
+                     ClusterKernel + per-shard Raft (reference; in-process deterministic \
+                     simulation, no network transport; placement policy non-normative \
+                     pending IDR-007)"
+            .into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
     let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
@@ -1054,6 +1588,42 @@ mod tests {
         assert_eq!(art.verdict, Verdict::Pass, "the distributed query scenario must PASS");
         // The fingerprint must state the honest scope (simulation, not network).
         assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
+    }
+
+    /// RCR-028 (I4): the capability-scheduling-under-distribution scenario
+    /// PASSES — the Control-Plane, Capability and Execution nodes derive every
+    /// required invariant/property Held from real scheduling behaviour (shard
+    /// flood visibly bounded with tenant isolation, policy gate BLOCKS and is
+    /// audited, duplicate dispatch collapses, leader failover retries from
+    /// the record, scheduler crash-rebuild converges). The first live
+    /// artifact touching the ControlPlane/Capability/Execution pipeline nodes.
+    #[test]
+    fn live_capability_scheduling_scenario_passes() {
+        let art = run_capability_scheduling_scenario();
+        assert_eq!(art.scenario_id, "capability-scheduling-distributed");
+        assert_eq!(art.node_evidence.len(), 3, "ControlPlane + Capability + Execution observed");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::ControlPlane);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::Capability);
+        assert_eq!(art.node_evidence[2].node, PipelineNode::Execution);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet invariant: {:?}",
+                ev.node,
+                ev.invariant_checks
+            );
+            assert!(
+                ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet property: {:?}",
+                ev.node,
+                ev.property_checks
+            );
+        }
+        assert_eq!(art.verdict, Verdict::Pass, "the scheduling scenario must PASS");
+        // The fingerprint must state the honest scope (simulation; reference
+        // placement policy pending IDR-007 — never a normative claim).
+        assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
+        assert!(art.runtime_fingerprint.runtime_id.contains("pending IDR-007"));
     }
 
     #[test]

@@ -356,7 +356,112 @@ While building products, if the runtime is found lacking:
 > IDR, networked read-index, protocol snapshot bootstrap, LCW views OQ-8, authN/authZ
 > OQ-1, typed shard key, distributed batch, query reads across membership change (DR-7),
 > QUERY-001 CCP) lives in
-> `runtime/rcr/RCR-025.md` (v1.2, amended per adversarial review)).
+> `runtime/rcr/RCR-025.md` (v1.2, amended per adversarial review)), **RCR-026** (I4
+> Stage 1 — the **CAPABILITY FABRIC CORE** inside `arves-capability-fabric` per
+> `docs/design/I4_Capability_Scheduling_Design.md` §3.1.1/§3.1.2/§3.1.4/§3.5:
+> `lifecycle::LifecycleRegistry` — a second implementation of the frozen
+> `CapabilityRegistry` trait with **append-only supersession history** per
+> `(shard, capability)` plus additive `revoke` (tombstone at a strictly-higher version,
+> never a deletion — RCR-026 DR-3; resolve → hard `Unbound`; a stale pre-revoke version
+> can never rebind), `resolve_pinned` (exact historical version for replay — ORCH-003
+> basis; superseded/revoked-era bindings stay readable forever, never served as active)
+> and `history` (ordered audit chain); `gate` — the AUTHORIZATION GATE formalizing
+> fabric-side the exact semantics the bridge exercises: active-binding hard deny
+> (F-UNBOUND), engine-IDENTITY match `engine:{name}@{version}` (Vol 9 Part 3 basis;
+> CAP-002 stays PROPOSED), every manifest `capabilities_required` resolved in the SAME
+> shard (Engine Graph Parts 3/10), caller-supplied Governance `PolicyVerdict`
+> enforced-not-owned (`Deny`/`ApprovalRequired` BLOCK before invocation — no HITL
+> surface exists yet, DR-5), the declared-`EffectClass` gate (`Pure` must propose
+> NOTHING), and `invoke_gated` wiring **`arves-engine-fabric::invoke_enforced`
+> (RCR-012)** so every gated invocation gets the fabric-derived ORCH-004 key check +
+> determinism probe, returning the **pinned `BindingVersion`** (design §3.8) and
+> effects as PROPOSALS ONLY (no kernel edge exists in the crate — commit structurally
+> impossible, ORCH-001); ONE new downward edge capability(70)→engine(60) (LAYER-001
+> gate green); the bridge is UNTOUCHED (unification onto the fabric gate is a named
+> follow-up, DR-7); NOT built and NOT claimed: placement/backpressure (IDR-007-gated),
+> selection, trace emission (OQ-10), policy engine, distributed
+> registry/revocation/cancellation (OQ-6), disk-durable bindings, authN/authZ;
+> CAP-001..009 stay PROPOSED; no frozen signature changed; additive, `cargo test
+> --workspace` 181→**193/0**. Record: `runtime/rcr/RCR-026.md`), **RCR-027** (I4
+> Stage 2 — **CLUSTER SCHEDULING** inside `arves-control-plane` per
+> `docs/design/I4_Capability_Scheduling_Design.md` §3.1.3/§3.1.5/§3.1.6/§3.5/§3.7:
+> `scheduler::ClusterScheduler` — capability invocations scheduled across the I2/I3
+> cluster with (a) **placement**: shard-leader AFFINITY for commit-bearing
+> invocations + seeded deterministic compute-anywhere spread for `Pure` ones
+> (IDR-001 "engines run anywhere, commit only via shard leader"; reference policy,
+> explicitly NON-NORMATIVE pending the design's IDR-007 instrument — DR-2); (b) a
+> **deterministic scheduler**: per-shard FIFO queues, per-shard bounded admission
+> (backpressure = visible retriable `AdmissionDenied`, never a silent drop or global
+> limiter — DR-3) and quarantine-based failure isolation (poison/policy denials
+> terminal, never a wedged queue; deferral ≠ retry — DR-4/5); decisions are a pure
+> function of (recorded state, seed, tick) — two identically-scripted runs produce
+> BIT-IDENTICAL transcripts; (c) **idempotent dispatch**: the fabric-derived ORCH-004
+> key (RCR-012) is the unit of identity — duplicate submission collapses (one
+> execution), racing independent schedulers converge to EXACTLY one committed truth
+> (at-least-once compute / at-most-once truth, design §6.1, honest), and a retry
+> after leader/quorum loss replays FROM THE RECORDED INFERENCE, never re-invoking the
+> engine (ORCH-003 — DR-6); the scheduling-surface dedupe identity is the fabric key
+> QUALIFIED by capability id and PARTITIONED by shard (DR-13, adversarial revision —
+> cross-shard/cross-capability collapse refuted by negative tests; retriable-class
+> quarantine re-admits with a fresh budget, DR-4 revised); (d) **the full
+> distributed chain**: scheduled invocation
+> → Stage-1 gate (`invoke_gated`, RCR-026) → RCR-012 `invoke_enforced` → proposed
+> effects → shard-leader `ClusterKernel::commit` (RCR-021) → quorum → byte-identical
+> truth on every replica; ORCH-002 proven by kill-mid-run + rebuild-from-plan with an
+> identical committed truth set; PropertyCheck ORCH-001/ORCH-002 rows flipped
+> Pending→CitedTest (EXPLICIT recorded flip, scoped to the scheduling surface; the
+> I5 Orchestrator stays contract-only — DR-11), coverage now 7 proven / 0 pending;
+> FIVE new downward edges control-plane(90)→capability(70)/engine(60)/kernel(40)/
+> consensus(30)/acs(15) (LAYER-001 gate green); the frozen `Orchestrator` contract is
+> byte-unchanged; NOT built and NOT claimed: network/remote execution (in-process
+> `ClusterSim`; placement is a recorded node label), plan-DAG ordering/arbitration
+> (I5), sagas (OQ-4), HITL sequencing, distributed cancellation/timeouts (OQ-6),
+> durable decision-trace emission (OQ-10), Failure-Policy degrade/escalate, cluster
+> batch commit (v1.1 debt #3), authN/authZ; CAP-001..009 stay PROPOSED; additive,
+> `cargo test --workspace` 193→**206/0** (203 at first application + 3
+> adversarial-revision proofs). Record: `runtime/rcr/RCR-027.md`), **RCR-028** (I4
+> Stage 3 — **ADVERSARIAL SCHEDULING PROOFS + I4 MILESTONE CLOSE** per the design's
+> §4 proof table and §5 conformance plan; additive tests + conformance extension
+> ONLY, no frozen signature touched: (a) **storm/duplicate/reorder schedules** —
+> two RACING schedulers submit 4 unique invocations 11× in two orderings; every
+> duplicate collapses visibly, compute is honestly at-least-once (8 recorded
+> executions), and each unique key lands as FRESH truth EXACTLY once across both
+> decision logs (ORCH-004 at the scheduling layer); (b) **node death
+> mid-invocation** — the placed leader dies between placement and quorum: retriable
+> verdict, re-placement onto the elected successor, retry replays FROM THE RECORD
+> (engine count pinned, ORCH-003), then SCHEDULER death on top — a fresh scheduler
+> re-derives the identical content-addressed key from the plan alone and every
+> re-commit resolves `deduped` (zero duplicate commits); the rejoined dead node
+> converges byte-identically; (c) **backpressure honesty** — the accounting
+> equation: 12 submit calls ≡ 6 Admitted + 6 AdmissionDenied decisions logged 1:1
+> with returned outcomes, denials leave NO ledger half-state (stateless ⇒
+> retriable), refused work re-admits after drain and completes — a silent drop is
+> impossible by accounting; (d) **failure isolation** — a 3-invocation POISON storm
+> interleaved ahead of healthy work quarantines terminally (probe double-invoke
+> only, zero retries, zero truth) while same-shard, other-tenant AND post-storm new
+> work all complete bounded; (e) **leadership change mid-schedule** — old leader
+> survives/steps down/rejoins; a racing re-run under the new leader resolves to the
+> old-era truth; fresh-commit key set across both schedulers is exactly one per
+> invocation; (f) the live **`capability-scheduling-distributed`** conformance
+> artifact (design §5.2 scenario; §5.3 node probes — the FIRST live artifact for
+> the ControlPlane/Capability/Execution pipeline nodes): axes 4/7/8/10/12, every
+> required invariant + property (TenantWorkspaceIsolation,
+> SafetyGatesBlockedUnsafePlans, PolicyGatesFired, ReplayReproducesTrace) derived
+> Held from behaviour, `Verdict::Pass`, honest fingerprint ("no network transport";
+> placement "non-normative pending IDR-007"); PropertyCheck rows WIDENED with
+> scheduling-layer citations (coverage stays 7 proven / 0 pending — no flip);
+> THREE new downward edges conformance(110)→control-plane(90)/capability(70)/
+> engine(60) (LAYER-001 gate green); L3 claimed ONLY as scoped
+> ("under distributed deployment, in-process simulation" — the RCR-022/025
+> language); I5 inheritance recorded (Orchestrator plan-graph + its own
+> ORCH-001/002 obligations · HITL sequencing · durable trace emission OQ-10 ·
+> sagas OQ-4 · distributed cancellation OQ-6 · IDR-007 ratification · CAP-00n
+> CCP sponsorship OQ-5 · bridge-gate unification); CAP-001..009 stay PROPOSED;
+> additive, `cargo test --workspace` 206→**213/0** (212 at first application +
+> 1 adversarial-revision proof: the policy-flip collapse pin, DR-6, plus the
+> loud-not-silent defensive dispatch arm, DR-7). I4 MILESTONE: ✅ DONE —
+> pending maintainer integration (RCR-026..028). Record: `runtime/rcr/RCR-028.md`
+> (milestone summary)).
 
 ## Organization (three teams, three mandates)
 

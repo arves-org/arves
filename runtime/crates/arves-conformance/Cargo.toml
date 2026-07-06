@@ -21,3 +21,12 @@ arves-consensus = { path = "../arves-consensus" }
 # substrate. LAYER-001: conformance (rank 110) -> query (60) is a DOWNWARD edge (legal);
 # the architecture gate confirms this.
 arves-query = { path = "../arves-query" }
+# RCR-028 (I4 Stage 3): the live CAPABILITY-SCHEDULING scenario (I4 design §5.1 axes
+# 4/7/8/10/12, §5.2 "a new distributed scheduling scenario", §5.3 Capability/Execution/
+# Control-Plane node probes) drives the RCR-026 fabric core + gate, the RCR-012 enforced
+# engine invocation and the RCR-027 ClusterScheduler over the cluster substrate.
+# LAYER-001: conformance (rank 110) -> control-plane (90) / capability-fabric (70) /
+# engine-fabric (60) are DOWNWARD edges (legal); the architecture gate confirms this.
+arves-control-plane = { path = "../arves-control-plane" }
+arves-capability-fabric = { path = "../arves-capability-fabric" }
+arves-engine-fabric = { path = "../arves-engine-fabric" }

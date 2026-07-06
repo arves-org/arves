@@ -68,8 +68,10 @@ pub mod semantic;
 /// PropertyCheck / Suite (RCR-006): the invariant-id → executable-proof catalog. Binds each
 /// registered invariant to its proof (LAYER-001/OWN-001 executed in-process over the real
 /// Cargo graph; ORCH-003/004/SHARD-001 cited to their biting Kernel tests; ORCH-001/002
-/// honestly Pending until the Control Plane is implemented). Also the home of the shared
-/// architecture-gate checkers used by `tests/architecture_gate.rs`.
+/// cited since RCR-027 to the I4 scheduler's crash-rebuild/commit-provenance proofs in
+/// `arves-control-plane` — scoped to that surface, the I5 Orchestrator remains
+/// contract-only). Also the home of the shared architecture-gate checkers used by
+/// `tests/architecture_gate.rs`.
 pub mod property_check;
 
 /// Live L1 conformance (RCR-008): the first executable `ConformanceArtifact`, emitted by driving
