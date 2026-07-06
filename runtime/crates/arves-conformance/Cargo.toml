@@ -15,3 +15,9 @@ arves-persistence = { path = "../arves-persistence" }
 # ClusterKernel over the per-shard Raft substrate. LAYER-001: conformance (rank 110) ->
 # consensus (30) is a DOWNWARD edge (legal); the architecture gate confirms this.
 arves-consensus = { path = "../arves-consensus" }
+# RCR-025 (I3 Stage 3): the live DISTRIBUTED QUERY scenario (I3 design §5.1 "Enterprise
+# Knowledge Query" / §5.2 evidence ladder) drives the `arves-query` implementation
+# (WAL-replay projections behind the frozen Query trait, RCR-023/024) over the cluster
+# substrate. LAYER-001: conformance (rank 110) -> query (60) is a DOWNWARD edge (legal);
+# the architecture gate confirms this.
+arves-query = { path = "../arves-query" }

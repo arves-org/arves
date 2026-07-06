@@ -662,6 +662,276 @@ pub fn run_cluster_distributed_scenario() -> ConformanceArtifact {
     LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
 }
 
+// ---------------------------------------------------------------------------
+// DISTRIBUTED QUERY scenario (RCR-025, I3 Stage 3): the I3 design's conformance
+// plan instantiates the frozen framework's "Enterprise Knowledge Query"
+// reference scenario (design §5.1: axes 1 + 8 + the mandatory axis 12; axis 9
+// participates in the design only as CONCURRENT-READER LOAD, which does not
+// exist in this in-process deterministic harness — omitted honestly, multi-
+// agent semantics are I5; axis 8 (HighVolumeStreaming) participates via its
+// TENANT-ISOLATION clause only — the workload is a handful of commits, so no
+// volume, throughput or backpressure is exercised in-process (no performance
+// claim; RCR-025 DR-3)). The Query node now rides the arves-query
+// implementation delivered behind the frozen contract by RCR-023/024
+// (ClusterQuery routing + ShardProjection WAL-replay folds); RCR-010's
+// QueryProjection/QueryProbe stay UNMODIFIED as the single-node reference
+// (design §2), so the existing L1 Information→Kernel→Query artifact is
+// untouched and still green. HONEST SCOPE: the cluster is the in-process
+// deterministic simulation (scripted faults, logical ticks) — NO network
+// exists; this artifact attests distributed READ semantics (tenant-scoped
+// isolation on every replica × tier, CP/AP tier honesty at read time,
+// replay-equivalent projections), not network fault-tolerance.
+// ---------------------------------------------------------------------------
+
+use arves_persistence::{ContentId, ShardKey as WalShardKey};
+use arves_query::distributed::ClusterQuery;
+use arves_query::projection::{projection_id_for, ShardProjection};
+use arves_query::{Query as _, QueryError, ReadScope, ReadTier, StalenessBound};
+
+/// The **Enterprise Knowledge Query under distribution** scenario (I3 design
+/// §5.1/§5.2): canonicalized enterprise knowledge is committed through the
+/// replicated Kernel and read back tenant-scoped on every replica and tier,
+/// with a fault-injected CP/AP slice and replay-equivalence proofs.
+pub fn distributed_query_scenario() -> Scenario {
+    Scenario {
+        id: "enterprise-knowledge-query-distributed",
+        name: "Enterprise Knowledge Query under distribution — tenant-scoped WAL-replay \
+                reads on every replica and tier, CP/AP honesty, replayable projections",
+        axes: vec![
+            Axis::InformationIntensive,
+            Axis::HighVolumeStreaming,
+            Axis::RecoveryAndReplay,
+        ],
+        expected_path: vec![
+            PipelineNode::InformationPlatform,
+            PipelineNode::Kernel,
+            PipelineNode::Query,
+        ],
+        required_invariants: vec![
+            Invariant::Orch003ReplayableFromTrace,
+            Invariant::Orch004IdempotentAddressable,
+            Invariant::Own001OneOwnerPerState,
+            Invariant::Shard001TenantWorkspacePartition,
+        ],
+        required_properties: vec![
+            Property::ReplayReproducesTrace,
+            Property::TenantWorkspaceIsolation,
+        ],
+    }
+}
+
+/// Observes the **Query** node under distribution by driving the RCR-023/024
+/// `arves-query` implementation over a real 3-replica, 2-tenant `ClusterSim`:
+/// canonicalized knowledge (the same reference `Connector`) is committed via
+/// each shard's leader, then read back on EVERY replica at EVERY tier; a
+/// scripted follower isolation proves the CP/AP tier split at read time
+/// (labeled stale AP service, zero fabrication, strong-tier refusal); every
+/// replica's projection is independently rebuilt from its own WAL and
+/// compared; a full-cluster crash/recover must change nothing. Every check
+/// outcome is derived from behaviour (never hardcoded).
+pub struct DistributedQueryProbe;
+
+impl NodeProbe for DistributedQueryProbe {
+    fn node(&self) -> PipelineNode {
+        PipelineNode::Query
+    }
+
+    fn observe(&self, _scenario: &Scenario) -> NodeEvidence {
+        let acme_sid = cluster_sid("acme", "research");
+        let globex_sid = cluster_sid("globex", "research");
+        let mut sim = ClusterSim::new(3);
+        sim.add_shard(acme_sid.clone(), 0x13_D1);
+        sim.add_shard(globex_sid.clone(), 0x13_D2);
+        let acme_leader = sim.elect(&acme_sid);
+        let globex_leader = sim.elect(&globex_sid);
+        let cluster = Rc::new(RefCell::new(sim));
+
+        // Information node canonicalizes; the Kernel node commits through each
+        // shard's leader (OWN-001 — the only write door).
+        let mk = |tenant: &str, claim: &str, source: &str| Source {
+            tenant: tenant.into(),
+            workspace: "research".into(),
+            claim: claim.into(),
+            source_name: source.into(),
+            confidence: 0.9,
+            observed_at: 1_730_000_000_000_000_000,
+        };
+        let acme_pw = Connector.canonicalize(&mk("acme", "acme-quarterly-findings-v1", "analyst-7"));
+        let globex_pw = Connector.canonicalize(&mk("globex", "globex-competitive-secret", "analyst-9"));
+        let acme_id = projection_id_for(&ContentId(acme_pw.content.0.clone()));
+        let globex_id = projection_id_for(&ContentId(globex_pw.content.0.clone()));
+        // ORCH-004 shape: the projection id IS the content address (hex of the
+        // 34-byte ACS-001 SHA-256 multihash: "1220" ‖ 64 hex digits).
+        let addressed = acme_id.len() == 68 && acme_id.starts_with("1220");
+        ClusterKernel::new(acme_leader.clone(), cluster.clone())
+            .commit(acme_pw)
+            .expect("acme commit through its shard leader");
+        ClusterKernel::new(globex_leader, cluster.clone())
+            .commit(globex_pw)
+            .expect("globex commit through its shard leader");
+        cluster.borrow_mut().settle(6);
+
+        // --- SHARD-001 + ORCH-004 read barrage: EVERY replica × EVERY tier.
+        //     Acme's knowledge is served (never globex's, in bytes or by id);
+        //     the served tier is never stronger than requested; identical
+        //     reads return identical projections; the barrage commits nothing.
+        let counts_before: Vec<usize> = {
+            let c = cluster.borrow();
+            c.node_ids().iter().map(|n| c.committed_count_of(n)).collect()
+        };
+        let scopes = [
+            ReadScope::linearizable("acme/research".into()),
+            ReadScope::bounded("acme/research".into(), StalenessBound::new(0)),
+            ReadScope::eventual("acme/research".into()),
+        ];
+        let mut isolated = true;
+        let mut idempotent = true;
+        for node in cluster.borrow().node_ids() {
+            let q = ClusterQuery::new(node.clone(), cluster.clone());
+            for scope in &scopes {
+                let first = q.read(scope, &acme_id);
+                idempotent &= first == q.read(scope, &acme_id);
+                match &first {
+                    Ok(p) => {
+                        isolated &= contains(&p.value, b"acme-quarterly-findings-v1")
+                            && !contains(&p.value, b"globex-competitive-secret")
+                            && p.served_tier == scope.tier;
+                    }
+                    Err(_) => isolated = false,
+                }
+                isolated &= q.exists(scope, &globex_id) == Ok(false);
+            }
+        }
+        let counts_after: Vec<usize> = {
+            let c = cluster.borrow();
+            c.node_ids().iter().map(|n| c.committed_count_of(n)).collect()
+        };
+        let writes_nothing = counts_before == counts_after;
+        let orch004 = held_if(idempotent && addressed && writes_nothing);
+        let shard001 = held_if(isolated);
+
+        // --- Fault slice (design §5.2 Stage 3): isolate a follower, commit an
+        //     update on the majority. The minority replica keeps serving the
+        //     AP tier LABELED (old observed_at, Eventual), fabricates nothing
+        //     (the update honestly does not exist there), and refuses both
+        //     strong tiers — the IDR-001/IDR-005 CP/AP split at read time.
+        let follower = cluster
+            .borrow()
+            .node_ids()
+            .into_iter()
+            .find(|n| *n != acme_leader)
+            .expect("a follower exists");
+        cluster.borrow_mut().isolate(&acme_sid, &follower);
+        let update_pw =
+            Connector.canonicalize(&mk("acme", "acme-quarterly-findings-v2", "analyst-7"));
+        let update_id = projection_id_for(&ContentId(update_pw.content.0.clone()));
+        ClusterKernel::new(acme_leader.clone(), cluster.clone())
+            .commit(update_pw)
+            .expect("majority update commit");
+        cluster.borrow_mut().settle(4);
+        let qf = ClusterQuery::new(follower.clone(), cluster.clone());
+        let ev = ReadScope::eventual("acme/research".into());
+        let lin = ReadScope::linearizable("acme/research".into());
+        let bs = ReadScope::bounded("acme/research".into(), StalenessBound::new(0));
+        let cp_ap_honest = matches!(
+            qf.read(&ev, &acme_id),
+            Ok(p) if p.served_tier == ReadTier::Eventual && p.observed_at == 1
+        ) && qf.exists(&ev, &update_id) == Ok(false)
+            && qf.read(&lin, &update_id) == Err(QueryError::LeaderUnavailable)
+            && matches!(qf.read(&bs, &update_id), Err(QueryError::StalenessBoundExceeded { .. }));
+        cluster.borrow_mut().heal(&acme_sid);
+        cluster.borrow_mut().settle(60);
+
+        // --- ORCH-003: every replica's INDEPENDENT rebuild from its own WAL
+        //     is equal across nodes (replica equality) and reaches the healed
+        //     position; a full-cluster crash/recover changes nothing (replay,
+        //     never recompute); the live read agrees with the rebuild.
+        let wshard_acme = WalShardKey { tenant: "acme".into(), workspace: "research".into() };
+        let rebuilds = |cluster: &Rc<RefCell<ClusterSim>>| -> Vec<ShardProjection> {
+            let c = cluster.borrow();
+            c.node_ids()
+                .iter()
+                .map(|n| {
+                    let store = c.wal_store_of(n);
+                    ShardProjection::at_head(&store, &wshard_acme).expect("rebuild")
+                })
+                .collect()
+        };
+        let before = rebuilds(&cluster);
+        let converged = before.windows(2).all(|w| w[0] == w[1]) && before[0].applied() == 2;
+        {
+            let mut c = cluster.borrow_mut();
+            for n in c.node_ids() {
+                c.crash_recover(&n);
+            }
+        }
+        let after = rebuilds(&cluster);
+        let crash_stable = before == after;
+        // Live-vs-rebuild agreement at the healed replica (post-recovery).
+        let q0 = ClusterQuery::new(follower, cluster.clone());
+        let live_agrees = matches!(
+            q0.read(&ev, &update_id),
+            Ok(p) if Some(p.value.as_slice()) == after[0].get(&update_id).map(|(v, _)| v)
+                && p.observed_at == after[0].applied()
+        );
+        let orch003 = held_if(cp_ap_honest && converged && crash_stable && live_agrees);
+
+        // --- OWN-001: structural — the query fabric holds no commit path and
+        //     no non-derived durable state (the architecture gate / property
+        //     catalog proves the structure; behaviourally, writes_nothing
+        //     above bit on every replica).
+        let own001 = held_if(writes_nothing);
+
+        NodeEvidence {
+            node: PipelineNode::Query,
+            summary: format!(
+                "arves-query over ClusterSim: 3 replicas, 2 tenants (in-process deterministic \
+                 simulation, no network); tenant-scoped WAL-replay reads on every replica × \
+                 tier (never stronger than requested), labeled-stale AP service + strong-tier \
+                 refusal under follower isolation with zero fabrication, replica rebuilds \
+                 equal at position {} and crash-stable, read barrage committed nothing",
+                after[0].applied()
+            ),
+            correlation_id: Some(acme_id),
+            invariant_checks: vec![
+                (Invariant::Orch003ReplayableFromTrace, orch003),
+                (Invariant::Orch004IdempotentAddressable, orch004),
+                (Invariant::Own001OneOwnerPerState, own001),
+                (Invariant::Shard001TenantWorkspacePartition, shard001),
+            ],
+            property_checks: vec![
+                (Property::ReplayReproducesTrace, orch003),
+                (Property::TenantWorkspaceIsolation, shard001),
+            ],
+        }
+    }
+}
+
+/// Run the Enterprise-Knowledge-Query-under-distribution scenario over the
+/// real cluster substrate and the RCR-023/024 query fabric, returning the
+/// three-node live artifact. Honest fingerprint: in-process deterministic
+/// simulation, no network transport — the claim is distributed READ semantics
+/// preserved, never blanket L3.
+pub fn run_distributed_query_scenario() -> ConformanceArtifact {
+    let scenario = distributed_query_scenario();
+    let evidence = vec![
+        InformationPlatformProbe.observe(&scenario),
+        ClusterKernelProbe.observe(&scenario),
+        DistributedQueryProbe.observe(&scenario),
+    ];
+    let fingerprint = RuntimeFingerprint {
+        spec_version: "ARVES v1.0 FROZEN (tag runtime-v1.0)".into(),
+        suite_version: "Scenario Conformance Framework v1.0 — L3(scoped): Enterprise \
+                        Knowledge Query under distributed deployment (I3, RCR-025)"
+            .into(),
+        runtime_id: "arves-query ClusterQuery/ShardProjection (WAL-replay reads) over \
+                     arves-kernel ClusterKernel + per-shard Raft (reference; in-process \
+                     deterministic simulation, no network transport)"
+            .into(),
+    };
+    LiveVerdictEngine.judge(&scenario, &evidence, fingerprint)
+}
+
 /// A human/CI-readable render of a live artifact.
 pub fn render(artifact: &ConformanceArtifact) -> String {
     let mut s = String::from("ARVES Live Conformance Artifact (L1, real runtime)\n");
@@ -752,6 +1022,36 @@ mod tests {
         );
         assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
         assert_eq!(art.verdict, Verdict::Pass, "the distributed scenario must PASS");
+        // The fingerprint must state the honest scope (simulation, not network).
+        assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
+    }
+
+    /// RCR-025 (I3): the Enterprise-Knowledge-Query-under-distribution
+    /// scenario PASSES — Information canonicalization, replicated Kernel
+    /// truth, and the arves-query read fabric all derive every required
+    /// invariant/property Held from real behaviour (tenant isolation on every
+    /// replica × tier, CP/AP honesty under a scripted follower isolation,
+    /// replica rebuild equality + crash stability). The single-node L1
+    /// Information→Kernel→Query artifact (RCR-010 reference) stays untouched
+    /// and green alongside.
+    #[test]
+    fn live_distributed_query_scenario_passes() {
+        let art = run_distributed_query_scenario();
+        assert_eq!(art.scenario_id, "enterprise-knowledge-query-distributed");
+        assert_eq!(art.node_evidence.len(), 3, "Information + Kernel + Query observed");
+        assert_eq!(art.node_evidence[0].node, PipelineNode::InformationPlatform);
+        assert_eq!(art.node_evidence[1].node, PipelineNode::Kernel);
+        assert_eq!(art.node_evidence[2].node, PipelineNode::Query);
+        for ev in &art.node_evidence {
+            assert!(
+                ev.invariant_checks.iter().all(|(_, o)| *o == CheckOutcome::Held),
+                "{:?} unmet invariant under distribution: {:?}",
+                ev.node,
+                ev.invariant_checks
+            );
+            assert!(ev.property_checks.iter().all(|(_, o)| *o == CheckOutcome::Held));
+        }
+        assert_eq!(art.verdict, Verdict::Pass, "the distributed query scenario must PASS");
         // The fingerprint must state the honest scope (simulation, not network).
         assert!(art.runtime_fingerprint.runtime_id.contains("no network transport"));
     }

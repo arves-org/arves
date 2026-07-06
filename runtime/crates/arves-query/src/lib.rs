@@ -4,10 +4,28 @@
 //! Governing: QUERY-001 (proposed); read tiers from IDR-001.
 //! Layer: Data Plane
 //!
-//! STATUS: CONTRACT-ONLY (by design). Defines the read-only projection/query
-//! interfaces and types; the distributed query engine is deferred to I3. Any
-//! `fn` bodies present are trivial placeholders so the contract compiles. Frozen
-//! specification governs; this crate implements, never changes it.
+//! STATUS at v1.0 freeze: CONTRACT-ONLY (by design). Defines the read-only
+//! projection/query interfaces and types; the distributed query engine is
+//! deferred to I3. Any `fn` bodies present are trivial placeholders so the
+//! contract compiles. Frozen specification governs; this crate implements,
+//! never changes it.
+//!
+//! STATUS since RCR-023 (I3 Stage 1, per `docs/design/I3_Distributed_Query_Design.md`):
+//! the "CONTRACT-ONLY" wording above is superseded — this crate now ALSO
+//! carries the single-node QUERY CORE in [`projection`] (a WAL-replay
+//! read path implementing the [`Query`] trait; additive, the RCR-008/019
+//! pattern). Every frozen v1.0 type and trait signature in this file is
+//! byte-unchanged. The DISTRIBUTED query fabric (routing, replica sets,
+//! real read-index, scatter-gather) remains future I3 stages.
+//!
+//! STATUS since RCR-024 (I3 Stage 2, same design): [`distributed`] adds
+//! DISTRIBUTED READS over the I2 cluster substrate — shard-aware routing,
+//! the IDR-001 consistency ladder in honest in-process-simulated form
+//! (leader-consistent read-index vs labeled follower/AP staleness), bounded
+//! tenant-internal scatter-gather (additive types; the frozen single-shard
+//! `Query` trait cannot carry a merged result — design §3.3/§6.2), and a
+//! read-your-writes floor (additive carrier, design OQ-5). Every frozen v1.0
+//! type and trait signature in this file remains byte-unchanged.
 //!
 //! # Position in the layer chain
 //!
@@ -73,6 +91,9 @@
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+
+pub mod distributed;
+pub mod projection;
 
 // ---------------------------------------------------------------------------
 // Type aliases

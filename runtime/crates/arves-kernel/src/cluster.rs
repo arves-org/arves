@@ -357,6 +357,59 @@ impl ClusterSim {
         self.replicas[node].applied.get(shard).copied().unwrap_or(0)
     }
 
+    // -- read-side routing inputs (RCR-024, I3 Stage 2) -----------------------
+    //
+    // These three accessors are the READ-ONLY routing/attestation inputs the
+    // distributed Query fabric consumes (design §3.4 rows 2/4: Query →
+    // Consensus / Query → "I2 Cluster Kernel shard directory", both downward
+    // edges). None of them exposes Kernel truth: truth is read ONLY by WAL
+    // replay of a replica's durable store (ORCH-001 — no Kernel read hook).
+
+    /// The shard directory listing: every registered per-shard Raft group, in
+    /// deterministic order (IDR-003 membership as a read-only routing input).
+    pub fn shards(&self) -> Vec<ShardId> {
+        self.groups.keys().cloned().collect()
+    }
+
+    /// Raft commit index of `shard`'s group as known AT `node` — consensus
+    /// mechanism metadata (never truth), consumed by the read-index
+    /// attestation of the Query fabric (IDR-001 "Through leader (read-index)").
+    pub fn commit_index_of(&self, node: &NodeId, shard: &ShardId) -> u64 {
+        self.groups
+            .get(shard)
+            .expect("commit_index_of: unregistered shard")
+            .commit_of(node)
+    }
+
+    /// Read-index PRECONDITION (Raft §6.4, RCR-024 revision / DR-8): whether
+    /// `node`'s replica of `shard`'s group has a committed entry of its
+    /// CURRENT term. A freshly elected leader whose committed prefix still
+    /// ends in a PRIOR term may not yet count prior-term quorum-committed
+    /// entries into its commit index (the §5.4.2 term guard; RCR-019 DR-2
+    /// appends no election no-op), so its commit index is NOT a valid
+    /// read-index until this predicate holds. Consensus mechanism metadata,
+    /// never truth; read-only.
+    pub fn has_committed_in_current_term(&self, node: &NodeId, shard: &ShardId) -> bool {
+        self.groups
+            .get(shard)
+            .expect("has_committed_in_current_term: unregistered shard")
+            .has_committed_in_current_term(node)
+    }
+
+    /// Arc-shared handle to `node`'s durable WAL store — the Persistence
+    /// substrate a projection replica replays (IDR-005), NOT a Kernel read
+    /// hook. HONEST NOTE: `MemWalStore` clones share the log and carry the
+    /// write surface too (v1.0 trusted-single-host model); the Query layer
+    /// consumes the handle strictly behind `&` (the RCR-023 type-level
+    /// read-only argument), and this accessor itself mutates nothing.
+    pub fn wal_store_of(&self, node: &NodeId) -> MemWalStore {
+        self.replicas
+            .get(node)
+            .expect("wal_store_of: unknown replica")
+            .store
+            .clone()
+    }
+
     // -- crash / snapshot install ---------------------------------------------
 
     /// Crash one replica's Kernel (lose all in-memory truth) and recover it by

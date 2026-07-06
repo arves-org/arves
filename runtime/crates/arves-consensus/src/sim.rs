@@ -346,6 +346,25 @@ impl SimCluster {
         self.nodes[id].log()
     }
 
+    /// Read-index PRECONDITION input (Raft §6.4 / §8, RCR-024 revision): does
+    /// `id`'s replica have a COMMITTED entry of its CURRENT term? Until a
+    /// freshly elected leader commits one entry of its own term, its commit
+    /// index may EXCLUDE prior-term quorum-committed entries — the §5.4.2
+    /// term guard in `advance_commit` refuses to count them, and RCR-019
+    /// DR-2 deliberately appends NO no-op entry on election — so that commit
+    /// index is NOT yet a valid read-index. The empty log is trivially
+    /// current: nothing was ever proposed, so commit index 0 covers all
+    /// committed truth (the Raft election restriction guarantees a leader's
+    /// log contains every committed entry). Read-only introspection.
+    pub fn has_committed_in_current_term(&self, id: &NodeId) -> bool {
+        let node = &self.nodes[id];
+        if node.log().is_empty() {
+            return true;
+        }
+        let committed = node.commit_index().0;
+        committed > 0 && node.log()[committed as usize - 1].term == node.current_term()
+    }
+
     /// The safety-observer's committed history: index -> first committed entry.
     pub fn committed_history(&self) -> BTreeMap<u64, LogEntry> {
         self.committed.iter().map(|(i, (e, _))| (*i, e.clone())).collect()

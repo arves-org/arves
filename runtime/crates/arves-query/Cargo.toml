@@ -5,3 +5,17 @@ edition = "2021"
 publish = false
 
 [dependencies]
+# RCR-023 (I3 Stage 1): the single-node QUERY CORE builds read projections by replaying the
+# persistence WAL (IDR-005; design §3.4 row 1). LAYER-001: query (rank 60) -> persistence (20)
+# is a DOWNWARD edge (legal); the architecture gate confirms this. Deliberately NO edge to
+# arves-kernel (no Kernel read hook — ORCH-001, design §6.1 #2) and none to consensus/LCW yet
+# (Stage 1 has no distributed surface; LCW read-view semantics are OQ-8, untouched).
+arves-persistence = { path = "../arves-persistence" }
+# RCR-024 (I3 Stage 2): the DISTRIBUTED read fabric routes over the I2 cluster substrate.
+# LAYER-001 downward edges only (gate green): query (60) -> kernel (40) for the ClusterSim
+# shard directory / replica WAL-store handles (design §3.4 row 4 — routing inputs, NOT a
+# Kernel truth read hook: ORCH-001 is preserved, reads stay WAL replay), and
+# query (60) -> consensus (30) for the NodeId/ShardId routing vocabulary and read-index
+# attestation metadata (design §3.4 row 2). Still NO edge to LCW (OQ-8 untouched).
+arves-kernel = { path = "../arves-kernel" }
+arves-consensus = { path = "../arves-consensus" }

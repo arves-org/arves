@@ -235,7 +235,11 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            cluster scope (RCR-022): arves-kernel::tests::cluster_adversarial \
                            (adversarial_duplicate_reordered_delivery_truth_exactly_once); \
                            arves-consensus::tests::raft_adversarial \
-                           (adversarial_dup_reorder_storm_commits_each_entry_exactly_once)",
+                           (adversarial_dup_reorder_storm_commits_each_entry_exactly_once); \
+                           READ-path idempotency (I3, RCR-023/025): arves-query::tests::query_core \
+                           (read_only_reads_change_no_state_and_are_idempotent); \
+                           arves-query::tests::distributed_query \
+                           (cluster_wide_isolation_on_every_replica_and_tier_and_reads_write_nothing)",
             },
         },
         // ORCH-003 — replay from the recorded trace reproduces identical truth. Under
@@ -247,7 +251,15 @@ pub fn catalog() -> Vec<PropertyCheck> {
                 location: "arves-kernel::tests::walking_skeleton \
                            (behaviour_3_replay_same_truth, behaviour_4_crash_restart_replay_identical); \
                            cluster scope (RCR-022): arves-kernel::tests::cluster_adversarial \
-                           (adversarial_full_cluster_replay_from_wal_rebuilds_identical_truth)",
+                           (adversarial_full_cluster_replay_from_wal_rebuilds_identical_truth); \
+                           READ path (I3, RCR-023/024/025): arves-query::tests::query_core \
+                           (orch003_fold_digest_equals_kernel_truth_hash_basis, \
+                           orch003_snapshot_at_index_deterministic_and_suffix_equivalent); \
+                           arves-query::tests::adversarial_reads \
+                           (replay_equivalence_rebuilt_from_wal_equals_live_projection_on_every_replica, \
+                           torn_read_impossibility_batches_all_or_none_on_every_reachable_observation, \
+                           query_results_deterministic_and_replicas_converge_under_message_storms); \
+                           arves-conformance::live (live_distributed_query_scenario_passes)",
             },
         },
         // SHARD-001 — a shard MUST NOT contain cross-tenant data. Proven by a two-tenant
@@ -265,7 +277,13 @@ pub fn catalog() -> Vec<PropertyCheck> {
                            cluster scope (RCR-022): arves-conformance::live \
                            (live_cluster_distributed_scenario_passes — replicated two-tenant \
                            isolation + per-shard leadership); \
-                           arves-consensus::tests::shard_map (RCR-020 blast-radius isolation)",
+                           arves-consensus::tests::shard_map (RCR-020 blast-radius isolation); \
+                           distributed READ isolation (I3, RCR-023/024/025): \
+                           arves-query::tests::query_core (shard001_tenant_a_never_sees_tenant_b_on_any_tier); \
+                           arves-query::tests::distributed_query \
+                           (cluster_wide_isolation_on_every_replica_and_tier_and_reads_write_nothing, \
+                           gather_routes_on_typed_shard_identity_never_reparsed_text); \
+                           arves-conformance::live (live_distributed_query_scenario_passes)",
             },
         },
         // ORCH-001 / ORCH-002 — Control-Plane truth/state ownership. Owning crate is

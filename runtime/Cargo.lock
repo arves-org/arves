@@ -29,6 +29,7 @@ dependencies = [
  "arves-consensus",
  "arves-kernel",
  "arves-persistence",
+ "arves-query",
 ]
 
 [[package]]
@@ -81,6 +82,11 @@ version = "0.0.0"
 [[package]]
 name = "arves-query"
 version = "0.0.0"
+dependencies = [
+ "arves-consensus",
+ "arves-kernel",
+ "arves-persistence",
+]
 
 [[package]]
 name = "arves-runtime"

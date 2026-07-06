@@ -7,7 +7,7 @@ ACS-003/004/005 semantic rejection (envelope/instance/language)	Differential+Ind
 ACS-003/004/005 semantic differential (Rust native vs Python)	Differential+Independent	L3	G1	PASS	62/62 cases agree, 0 hard divergences	python verification/differential/acs_semantic_differential.py
 3-way differential (Rust / Python / TypeScript, encode+decode)	Differential+Independent	L3	G1	PASS	13807 inputs, 0 hard divergences (302 all-reject reason-code differs, interop-safe)	python verification/differential/acs002_differential_fuzz.py
 Independent TypeScript reproduces vectors (cold)	Independent	L3	G1	PASS	positive 12/12 + 16 core+nfc	node verification/independent/typescript/src/conformance.mjs
-Rust workspace tests (I1 runtime + gates + ACS)	Behaviour+Formal	L2	G0	PASS	155 tests passed	cargo test --manifest-path runtime/Cargo.toml --workspace
+Rust workspace tests (I1 runtime + gates + ACS)	Behaviour+Formal	L2	G0	PASS	181 tests passed	cargo test --manifest-path runtime/Cargo.toml --workspace
 Live L1 conformance (Information->Kernel->Query, end-to-end, real runtime)	Behaviour	L1	G1	PASS	VERDICT Pass; 3-node end-to-end pipeline (Information->Kernel->Query), 7 invariant-checks Held	cargo run -p arves-conformance --bin conformance_live
 Sound runtime verification (non-gameable, full ACS-001..005 surface)	Certification+Integrity	L2	G1	PASS	published 12/12, fresh 3/3, core 16/16, accept 3/3, semantic env 7/7 inst 8/8 lang 4/4 -> SOUND-CERTIFIED (full surface)	python verification/certification/verify_runtime_sound.py
 Capstone: full organization day on the real Kernel, reproducible end-to-end	Behaviour+Reproducibility+Audit	L2	G1	PASS	10 properties held incl. byte-identical re-run + WAL-replay (RCR-010)	node products/organization-day.capstone.mjs

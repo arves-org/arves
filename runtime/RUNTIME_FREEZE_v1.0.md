@@ -243,7 +243,120 @@ While building products, if the runtime is found lacking:
 > `ShardConsensus` rewiring (RCR-021 DR-14), protocol snapshots/compaction (OQ-1),
 > placement (OQ-8/I4), threat model (OQ-7); no frozen signature changed; additive,
 > `cargo test --workspace` 147→**155/0** — I2 series total 110→155. Record:
-> `runtime/rcr/RCR-022.md`).
+> `runtime/rcr/RCR-022.md`), **RCR-023** (I3 Stage 1 — the **single-node QUERY CORE**
+> inside `arves-query` per `docs/design/I3_Distributed_Query_Design.md`: `ShardProjection`
+> (read-only disposable per-shard fold `Proj(shard,v)=fold(apply,∅,WAL[0..v))` — IDR-005 /
+> ORCH-003; deterministic snapshot-at-index builds, suffix catch-up, fold digest sharing the
+> Kernel `truth_hash` tuple basis) + `WalQuery` — the FIRST implementation of the frozen
+> `Query` trait (`read`/`exists`/`latest_version`), scope validation before I/O, SHARD-001
+> tenant/workspace scoping, IDR-001 tiers in **single-node degenerate** form (Linearizable/
+> Bounded catch up to the local head — the sole replica's committed log IS the commit index;
+> Eventual serves the standing fold, observably stale, never wrong for its `observed_at`;
+> `StalenessBoundExceeded` unreachable in this core — OQ-2 attestation IDR pending); reads by
+> WAL replay ONLY, NO Kernel read hook (ORCH-001/OWN-001); executable proofs: two-tenant
+> isolation on every tier + structural fold isolation, projection digest == kernel
+> `truth_hash` incl. across recover, pinned-build equality + checkpoint⊕suffix ≡ full
+> replay, reads-change-nothing (WAL head + truth_hash invariant) + idempotent identical
+> results, MalformedScope-before-routing; ONE new downward edge query(60)→persistence(20)
+> (LAYER-001, gate green; kernel is dev-dep only), OQ-7 resolved to raw payload bytes +
+> hex-of-`ContentId` ids; HONEST SCOPE: single process, single replica — no routing fabric,
+> no follower reads, no real read-index, no scatter-gather, no LCW views (OQ-8), no network;
+> RCR-010's conformance `QueryProjection`/probe stays UNMODIFIED (design §2); QUERY-001
+> still PROPOSED (enforced via the registered A-003 row + trait shape); no frozen signature
+> changed; additive, `cargo test --workspace` 155→**166/0**. Record: `runtime/rcr/RCR-023.md`),
+> **RCR-024** (I3 Stage 2 — **DISTRIBUTED READS** over the I2 cluster substrate per
+> `docs/design/I3_Distributed_Query_Design.md`: `arves-query::distributed::ClusterQuery`, a
+> per-replica read handle over `ClusterSim` implementing the frozen `Query` trait with
+> shard-aware routing (SHARD-001 directory resolution) and the IDR-001 ladder served
+> HONESTLY — Linearizable = in-process read-index (highest-term leader's commit index,
+> VALID only under the Raft §6.4 precondition: the leader has a committed entry of its
+> CURRENT term — DR-8, revision closing the RCR-019 DR-2 interaction where a fresh
+> leader's commit index excludes prior-term acked entries; serve only at a replica
+> applied ≥ a valid read-index, else `LeaderUnavailable`; CP, refuses under partition,
+> at a deposed minority leader, and at a new leader without a current-term commit),
+> BoundedStaleness = admitted ONLY on
+> provably-ZERO lag against a valid read-index (applied ≥ leader commit ⇒ 0ms ≤ any
+> bound, clock-free; same DR-8 gate), else refused
+> with the `LAG_UNATTESTABLE` sentinel (OQ-2 time↔index IDR still pending — nothing
+> fabricated), Eventual = the replica's local WAL fold, always available, staleness
+> LABELED (`served_tier`/`observed_at` — AP observability, IDR-005 CP/AP split); plus
+> additive surfaces per design §3.3/§6.2/OQ-5 (frozen trait untouched): `gather_read` →
+> `GatheredRead` tenant-internal scatter-gather (non-atomic union, per-shard version
+> vector, NO global version, deterministic ascending merge, fail-WHOLE on any sub-read
+> failure — OQ-4 resolved without widening the frozen error enum; single-tenant fan-out
+> with sub-reads routed on the TYPED `ShardId`, never re-parsed `"tenant/workspace"`
+> text — DR-9, revision closing the RCR-023 DR-2 `/`-in-part ambiguity on the gather
+> surface) and `read_at_least`/`floor_of`/`FloorReadError` read-your-writes
+> floor (checked BEFORE presence: a lagging replica answers `BelowFloor`, never a false
+> `NotFound`); reads stay WAL replay ONLY (RCR-023 `ShardProjection` reused; ORCH-001 — the
+> four new read-only `ClusterSim` accessors `shards`/`commit_index_of`/`wal_store_of`/
+> `has_committed_in_current_term` (+ the `SimCluster` introspection it delegates to)
+> expose routing metadata + the Persistence substrate, never Kernel truth; queries take
+> only immutable sim borrows — structurally write-free); executable proofs: read-index at
+> leader AND current followers with identical projections (ORCH-003 across nodes),
+> partitioned follower serves LABELED stale Eventual + refuses both strong tiers while the
+> majority leader serves quorum truth then converges on heal, deposed-minority-leader
+> refusal, read-your-writes floor at current vs lagging replicas, scatter-gather bit-equal
+> across independent runs + fail-whole under lag, cluster-wide two-tenant isolation on
+> every replica × tier with zero truth change, PLUS the two revision regressions (acked
+> write never silently missed after a leader change — strong tiers refuse until a
+> current-term commit; `/`-bearing-tenant gather serves only its own typed shard); TWO
+> new downward edges query(60)→kernel(40)
+> + query(60)→consensus(30) (LAYER-001 gate green; design §3.4 rows 2/4; still no LCW
+> edge — OQ-8); HONEST SCOPE: in-process `ClusterSim` vehicle — no network, no read-index
+> heartbeat round (omniscient directory closes the stale-leader hazard; the §6.4
+> current-term-commit precondition — the hazard the directory does NOT close — is
+> enforced by DR-8's refusal), no real ms lag
+> attestation, sequential deterministic fan-out, no authN/authZ (OQ-1), QUERY-001 still
+> PROPOSED; no frozen signature changed; additive, `cargo test --workspace` 166→**176/0**.
+> Record: `runtime/rcr/RCR-024.md`), **RCR-025** (I3 Stage 3 — **ADVERSARIAL READ PROOFS
+> + the I3 milestone record** per `docs/design/I3_Distributed_Query_Design.md` §4/§5:
+> `arves-query/tests/adversarial_reads.rs` proves (a) **torn-read impossibility** — a
+> query never observes a partially-applied RCR-013 batch: every reader-reachable
+> observation point sits on a batch boundary, each batch is visible all-or-none on every
+> tier, every served `observed_at` is provably a boundary, refused batches change nothing
+> bit-identically (honest limits stated: `at_version` CAN pin the per-record trace
+> mid-batch — audit surface only; `PartialApply` host-I/O and the CLUSTER batch form stay
+> the RCR-013/021 deferred boundaries); (b) **replay equivalence** — on every replica the
+> rebuilt-from-own-WAL fold equals the live-served read (position + bytes), rebuilds are
+> equal across replicas, full-cluster crash/recover changes nothing, every served read is
+> reproducible by a pinned rebuild at its `observed_at`; (c) **partition reads** — 5-node
+> 2/3 minority: AP reads stay BIT-IDENTICAL to the pre-partition capture (labeled, old
+> position), fabricate NOTHING (majority-only truth absent in every read form; the
+> visible universe is exactly the old prefix), strong tiers refuse; heal converges all
+> five projections to equality (post-heal marker commit validates the read-index per the
+> RCR-024 DR-8 precondition — refusal, never silent staleness); (d) **query determinism
+> under message storms** — with duplicate/reorder mangling ACTIVE and provably biting on
+> both shard buses, two identically-scripted runs produce bit-identical query transcripts
+> (mid-storm AND converged) and replicas converge to identical folds; PLUS the live
+> conformance raise: `arves-conformance::live` gains the **Enterprise Knowledge Query
+> under distribution** artifact (`enterprise-knowledge-query-distributed` — the design
+> §5.1 frozen reference scenario; axes 1+8+12, axis 9 honestly omitted: no concurrent
+> readers exist in-process; axis 8 via its tenant-isolation clause ONLY — no
+> volume/throughput/backpressure exercised in-process, RCR-025 DR-3) riding the
+> RCR-023/024 `arves-query` fabric over the cluster
+> substrate with every check derived from behaviour (`Verdict::Pass`; fingerprint states
+> "no network transport"); RCR-010's single-node `QueryProjection`/probe stays
+> byte-unmodified and its L1 artifact green (design §2); the PropertyCheck catalog
+> (RCR-006) cites all I3 proofs on the SHARD-001/ORCH-003/ORCH-004 rows CITATION-ONLY —
+> coverage honestly unchanged at 5 proven / 2 pending (ORCH-001/002 stay Pending,
+> Control Plane contract-only); ONE new downward edge conformance(110)→query(60)
+> (LAYER-001 gate green); QUERY-001 still PROPOSED (its §5.4 CCP-GATE scenario now EXISTS
+> as a live artifact; ratification stays maintainer-gated); no frozen signature changed;
+> additive, `cargo test --workspace` 176→**181/0** — I3 series total 155→181. §5.2
+> Stage-3 is discharged EXCEPT "membership change under load (IDR-003)": the kernel-layer
+> `ClusterSim` exposes no membership API (partition/heal/crash only), so NO query read
+> crosses a membership transition in I3 — that item's evidence maps to the I2 raft-layer
+> joint-membership suite (consensus-layer, not query-layer) and the query-layer proof
+> (incl. the §3.6 stale-routing `UnknownShard`/refresh story under a real transition) is
+> inherited by I4+ (RCR-025 DR-7); "leader kill"/"crash-rebuild during serving" are
+> discharged in their approximated deposed-leader / sequential crash-then-serve forms
+> (RCR-025 DR-8). THE I3
+> MILESTONE RECORD (delivered scope, honest NON-claims, I4+ inheritance: OQ-2 attestation
+> IDR, networked read-index, protocol snapshot bootstrap, LCW views OQ-8, authN/authZ
+> OQ-1, typed shard key, distributed batch, query reads across membership change (DR-7),
+> QUERY-001 CCP) lives in
+> `runtime/rcr/RCR-025.md` (v1.2, amended per adversarial review)).
 
 ## Organization (three teams, three mandates)
 
