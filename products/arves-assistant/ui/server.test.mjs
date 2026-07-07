@@ -146,6 +146,29 @@ try {
     ok('POST /api/reasoner — attach OpenAI live (key validated, never echoed) and switch back to stub');
   }
 
+  // 5c) goals: create a goal (committed truth), set status, list reflects it; skills carry detail
+  {
+    const created = await j('POST', '/api/goals', { title: 'Ship the JARVIS console' });
+    assert.equal(created.status, 200);
+    assert.match(created.data.id, /^[0-9a-f]{16,}/, 'goal truth id returned');
+    const sub = created.data.subject;
+    assert.ok(created.data.goals.some((g) => g.subject === sub && g.status === 'active'), 'new goal is active');
+
+    const st = await j('POST', '/api/goals/status', { subject: sub, status: 'blocked' });
+    assert.equal(st.status, 200);
+    assert.ok(st.data.goals.some((g) => g.subject === sub && g.status === 'blocked'), 'status change (a later truth) is reflected');
+
+    const bad = await j('POST', '/api/goals/status', { subject: sub, status: 'nonsense' });
+    assert.equal(bad.status, 400, 'an unknown status is refused');
+
+    const state = await j('GET', '/api/state');
+    assert.ok(Array.isArray(state.data.goals) && state.data.goals.length >= 1, 'goals in /api/state');
+    assert.ok(state.data.skills.every((s) => typeof s.actionClass === 'string' && Array.isArray(s.produces)), 'skills carry risk class + produces (App Store detail)');
+    const spend = state.data.skills.find((s) => s.name === 'spend.order');
+    assert.equal(spend.actionClass, 'spend', 'spend.order is honestly risk-classed');
+    ok('POST /api/goals + /status — goal & status are committed truth; skills carry real detail');
+  }
+
   // 6) why: reconstruct a path from committed truth (must not 500)
   {
     const { status } = await j('GET', '/api/why?q=' + encodeURIComponent(blockedSubject || 'anything'));

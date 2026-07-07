@@ -80,6 +80,9 @@ const readBody = (req) =>
 
 // A committed event is truth; "pretty" is only for the human line, never the id.
 const prettyEvent = (e) => String(e).replace(/[-_]/g, ' ');
+// Deterministic subject slug for a goal title (content-addressed subject, no clock/random).
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'goal';
+const GOAL_STATES = ['active', 'blocked', 'done'];
 
 // ---- state projection: every panel is READ from committed truth -----------------------
 function projectState(assistant, session, reasonerInfo) {
@@ -90,6 +93,8 @@ function projectState(assistant, session, reasonerInfo) {
   const facts = assistant.truths().map((t) => ({
     id: t.id,
     kind: 'memory',
+    entity: t.fact.entity,
+    event: prettyEvent(t.fact.event),
     summary: `${t.fact.entity} — ${prettyEvent(t.fact.event)}`,
     sources: t.sources,
     tag: 'observed',
@@ -147,9 +152,12 @@ function projectState(assistant, session, reasonerInfo) {
     approvals.push({ subject: e.body.subject, asked: e.body.goal || 'gated action', by: role });
   }
 
-  // Skills — certified + bound (attachSkill RE-RUNS the certification gate, so a name
-  // present here provably passed it; that is why `certified` is honestly true).
-  const skills = assistant.skills().map((name) => ({ name, certified: true }));
+  // Skills — certified + bound, with real detail (version/produces/risk-class from the
+  // entry) + a run count from the journal (its "logs"). certified is honestly true because
+  // attachSkill RE-RUNS the gate.
+  const skillRuns = {};
+  journal.forEach((e) => { if (e.meta && e.meta.via === 'invoke' && e.meta.capability) skillRuns[e.meta.capability] = (skillRuns[e.meta.capability] || 0) + 1; });
+  const skills = assistant.skillsDetailed().map((s) => ({ ...s, certified: true, runs: skillRuns[s.name] || 0 }));
 
   // Agents — the deterministic council available over the shared truth base. Plus any
   // agent findings actually committed this session (attributed research).
@@ -190,6 +198,25 @@ function projectState(assistant, session, reasonerInfo) {
   const timeline = journal.map((e) => { const v = eventOf(e); return v ? { seq: e.seq, id: e.id, status: e.status, ...v } : null; }).filter(Boolean);
   const conflicts = journal.filter((e) => e.body && e.body.type === 'uci.assistant.resolution').length;
 
+  // Goals — a goal is a committed truth (uci.assistant.goal); its status is a later truth
+  // (uci.assistant.goal-status, latest wins). "related" = observations whose entity/event
+  // contains a title keyword — an HONEST keyword association, not a computed % (there is no
+  // milestone truth to derive a percentage from, so we don't invent one).
+  const goalMap = new Map();
+  const goalStatus = new Map();
+  for (const e of journal) {
+    if (!e.body) continue;
+    if (e.body.type === 'uci.assistant.goal') goalMap.set(e.body.subject, { subject: e.body.subject, title: e.body.title, id: e.id });
+    else if (e.body.type === 'uci.assistant.goal-status') goalStatus.set(e.body.subject, e.body.status);
+  }
+  const goals = [...goalMap.values()].map((g) => {
+    const terms = String(g.title).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+    const related = terms.length
+      ? facts.filter((t) => terms.some((term) => t.summary.toLowerCase().includes(term))).length
+      : 0;
+    return { subject: g.subject, title: g.title, id: g.id, status: goalStatus.get(g.subject) || 'active', related };
+  });
+
   return {
     identity: { tenant: session.tenant, workspace: session.workspace, walDir: session.walDir ?? '(in-memory)' },
     reasoner: reasonerInfo,
@@ -198,6 +225,7 @@ function projectState(assistant, session, reasonerInfo) {
     approvals,
     skills,
     agents,
+    goals,
     timeline,
     sources: Object.keys(CONNECTORS).sort(),
     counts: {
@@ -205,6 +233,7 @@ function projectState(assistant, session, reasonerInfo) {
       decisions: decisions.length,
       blocks: blocks.length,
       conflicts,
+      goals: goals.length,
       policies: policies.length,
       skills: skills.length,
       observations: facts.length,
@@ -397,6 +426,26 @@ async function main() {
         const r = await assistant.guardrails.approve(typeof role === 'string' && role.length ? role : 'user', subject);
         const state = projectState(assistant, session, reasonerInfo);
         return sendJson(res, 200, { id: r.id, status: r.status, approvals: state.approvals, truths: state.truths, counts: state.counts });
+      }
+
+      // ---- POST /api/goals { title } — create a goal as committed truth -----------------
+      if (req.method === 'POST' && p === '/api/goals') {
+        const { title } = await readBody(req);
+        if (typeof title !== 'string' || title.trim() === '') return sendJson(res, 400, { error: 'a goal title is required' });
+        const subject = 'goal:' + slug(title);
+        const r = await assistant.commitTruth({ type: 'uci.assistant.goal', subject, title: title.trim() }, 'trace');
+        const state = projectState(assistant, session, reasonerInfo);
+        return sendJson(res, 200, { id: r.contentId, subject, goals: state.goals, counts: state.counts });
+      }
+
+      // ---- POST /api/goals/status { subject, status } — status is a LATER truth ---------
+      if (req.method === 'POST' && p === '/api/goals/status') {
+        const { subject, status } = await readBody(req);
+        if (typeof subject !== 'string' || subject.trim() === '') return sendJson(res, 400, { error: 'a goal subject is required' });
+        if (!GOAL_STATES.includes(status)) return sendJson(res, 400, { error: `status must be one of: ${GOAL_STATES.join(', ')}` });
+        const r = await assistant.commitTruth({ type: 'uci.assistant.goal-status', subject: subject.trim(), status }, 'trace');
+        const state = projectState(assistant, session, reasonerInfo);
+        return sendJson(res, 200, { id: r.contentId, goals: state.goals, counts: state.counts });
       }
 
       // ---- POST /api/reasoner { provider, apiKey?, model? } — attach a reasoner LIVE -----

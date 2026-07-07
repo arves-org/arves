@@ -396,6 +396,21 @@ export class Assistant {
   /** Names of the registered (certified + bound) skills, sorted. */
   skills() { return [...this.#skills.keys()].sort(); }
 
+  /** Detail of each registered skill (for an App-Store-style view): the manifest facts
+   *  (version, produces), the SKILL-bound risk class the gate keys on, and the admission
+   *  truth id. All real, all from the certified+bound entry — never author-claimed. */
+  skillsDetailed() {
+    return [...this.#skills.entries()]
+      .map(([name, e]) => ({
+        name,
+        version: e.cap.manifest.version,
+        produces: [...e.cap.manifest.produces],
+        actionClass: e.cap.actionClass ?? 'normal',
+        registrationId: e.registrationId,
+      }))
+      .sort((a, b) => (a.name < b.name ? -1 : 1));
+  }
+
   hasSkill(name) { return this.#skills.has(name); }
 
   /** Invoke a REGISTERED skill: its execute() runs product-side (honest v1.0 model —

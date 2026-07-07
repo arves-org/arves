@@ -289,8 +289,12 @@ const SAMPLE = {
     { name:"reply.draft", certified:true }
   ],
   agents:[ { id:"researcher", role:"gathers facts into truth" }, { id:"scheduler", role:"proposes plan items" } ],
-  counts:{ truths:3, observations:3, decisions:1, blocks:1, conflicts:1, policies:1, skills:3 },
+  counts:{ truths:3, observations:3, decisions:1, blocks:1, conflicts:1, goals:2, policies:1, skills:3 },
   sources:["calendar","csv","email","ical","journal","jsonl","notes","tasks"],
+  goals:[
+    { subject:"goal:ship-jarvis", title:"Ship the JARVIS console", id:"1220ab34cd…", status:"active", related:2 },
+    { subject:"goal:earn-g2", title:"Earn a real G2 certification", id:"1220ef9012…", status:"blocked", related:0 }
+  ],
   timeline:[
     { seq:1, id:"1220a3f28c…", kind:"observe", label:"Observed", detail:"urn:you · q3-review" },
     { seq:2, id:"1220b91e07…", kind:"observe", label:"Observed", detail:"vendor-x · invoice" },
@@ -320,6 +324,7 @@ const SAMPLE = {
 const ICONS = {
   home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   inbox:'<path d="M4 13h4l2 3h4l2-3h4"/><path d="M4 13l2-8h12l2 8v6H4z"/>',
+  goals:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>',
   timeline:'<circle cx="6" cy="6" r="1.6"/><circle cx="6" cy="18" r="1.6"/><path d="M6 8v8"/><path d="M11 6h9"/><path d="M11 12h6"/><path d="M11 18h9"/>',
   console:'<path d="M4 5h16v14H4z"/><path d="M8 10l3 2-3 2"/><path d="M13 14h4"/>',
   memory:'<path d="M12 3a4 4 0 0 0-4 4v1a3 3 0 0 0 0 6 4 4 0 0 0 8 0 3 3 0 0 0 0-6V7a4 4 0 0 0-4-4z"/>',
@@ -331,6 +336,7 @@ const ICONS = {
 const NAV = [
   { id:"home", name:"Home" },
   { id:"inbox", name:"Inbox", badge:s=>s.truths.filter(isObs).length },
+  { id:"goals", name:"Goals", badge:s=>(s.goals||[]).length },
   { id:"timeline", name:"Timeline" },
   { id:"memory", name:"Memory", badge:s=>s.truths.length },
   { id:"why", name:"Why" },
@@ -379,10 +385,13 @@ function renderNav(){
   document.querySelectorAll('.navi').forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;renderNav();render();});
 }
 
+/* transient UI state (not truth) */
+let UI = { entity:null, whyq:null, whyTrace:null, openSkill:null };
+
 function render(){
   const m = $('#main');
   m.innerHTML = ({
-    home:viewHome, inbox:viewInbox, timeline:viewTimeline,
+    home:viewHome, inbox:viewInbox, goals:viewGoals, timeline:viewTimeline,
     console:viewConsole, memory:viewMemory, why:viewWhy,
     guardrails:viewGuardrails, skills:viewSkills, settings:viewSettings
   })[TAB]();
@@ -484,6 +493,30 @@ function viewTimeline(){
   </section>`;
 }
 
+/* ---------- Goals (goal-driven) ---------- */
+function viewGoals(){
+  const goals = STATE.goals||[];
+  const pill=(s)=>{ const c=s==='done'?'good':s==='blocked'?'crit':'cool'; return `<span class="tag ${c}">${esc(s)}</span>`; };
+  const cards = goals.length? goals.map(g=>`<div class="card" style="margin-bottom:10px">
+      <div class="top-line">${pill(g.status)}<span style="flex:1"></span><span class="cid" data-cid="${esc(g.id)}">${esc(g.id.slice(0,10))}…</span></div>
+      <div class="body-line" style="color:var(--ink);font-size:15px;font-weight:600">${esc(g.title)}</div>
+      <div style="margin-top:6px;font-size:12.5px;color:var(--muted)">${g.related} related truth${g.related===1?'':'s'} in memory · <span style="font-family:var(--mono);color:var(--faint)">${esc(g.subject)}</span></div>
+      <div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap">
+        ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'primary':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
+        <button class="btn" data-why="${esc(g.subject)}" style="padding:6px 12px;font-size:12.5px">explain</button>
+      </div>
+    </div>`).join(''):`<div class="empty">No goals yet. What are you working toward? Add one — it becomes a committed truth JARVIS reasons against.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Goals</h1><div class="sub">What you’re working toward. A goal is a committed truth; each status change is a <em>later</em> truth, so it’s auditable. “Related” counts observations that mention it — an honest association, not an invented percentage.</div></div>
+    <div class="scroll">
+      <div class="card" style="margin-bottom:16px"><div style="display:flex;gap:9px">
+        <input id="goal-title" placeholder="e.g. Finish Chapter 5 · Earn a real G2 · Ship JARVIS" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+        <button class="btn primary" id="goal-add">Add goal</button></div></div>
+      ${cards}
+    </div>
+  </section>`;
+}
+
 /* ---------- Console (developer view) ---------- */
 function viewConsole(){
   const convo = STATE.conversation.map(m=>{
@@ -521,68 +554,121 @@ function traceStep(t){
     ${t.cid?`<span class="cid" data-cid="${esc(t.cid)}">${esc(t.cid)}</span>`:''}</div></div>`;
 }
 
-/* ---------- Memory ---------- */
+/* ---------- Memory = Entity Explorer ---------- */
 function viewMemory(){
-  const cards = STATE.truths.map(t=>`
-    <div class="card">
-      <div class="top-line"><span class="tag ${t.kind==='observation'?'cool':t.kind==='decision'?'good':t.kind==='compliance'?'crit':'warm'}">${esc(t.kind)}</span>
-        <span class="tag">${esc(t.tag||'')}</span>
-        <span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id)}</span></div>
-      <div class="body-line" style="color:var(--ink)">${esc(t.summary)}</div>
-      <div class="srcs">${(t.sources||[]).map(s=>`<span class="src">◇ ${esc(s)}</span>`).join('')}</div>
-    </div>`).join('');
+  const obs = STATE.truths.filter(isObs);
+  const byEntity = {};
+  obs.forEach(t=>{ const e = t.entity || (String(t.summary).split(' — ')[0]) || '—'; (byEntity[e]=byEntity[e]||[]).push(t); });
+  const entities = Object.keys(byEntity).sort();
+  if(!entities.length) return `<section class="panel on"><div class="phead"><h1>Memory</h1><div class="sub">Browse your truth base by entity — the people, projects and things JARVIS knows.</div></div><div class="scroll"><div class="empty">Nothing yet — pull a source in Inbox.</div></div></section>`;
+  const sel = (UI.entity && byEntity[UI.entity]) ? UI.entity : null;
+  if(sel){
+    const rows = byEntity[sel].map(t=>`<div class="card" style="margin-bottom:8px">
+        <div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div>
+        <div class="body-line" style="color:var(--ink)">${esc(t.event||t.summary)}</div>
+        <div style="margin-top:6px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div>
+      </div>`).join('');
+    const tl = (STATE.timeline||[]).filter(e=>String(e.detail||'').includes(sel));
+    const tlHtml = tl.length? tl.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${col};width:66px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:13px">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span></div>`;}).join(''):`<div class="empty" style="border:none;padding:12px">No cognition has touched this entity yet.</div>`;
+    return `<section class="panel on">
+      <div class="phead"><h1 style="word-break:break-word">${esc(sel)}</h1><div class="sub"><button class="btn" data-entity="" style="padding:4px 10px;font-size:12px">← all entities</button> &nbsp; ${byEntity[sel].length} truth(s) about this entity.</div></div>
+      <div class="scroll">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">Truths</div>${rows}
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:20px 2px 8px">Cognition touching ${esc(sel)}</div>
+        <div class="card" style="padding:5px 16px">${tlHtml}</div>
+      </div></section>`;
+  }
+  const grid = entities.map(e=>`<button class="card" data-entity="${esc(e)}" style="text-align:left;cursor:pointer;background:var(--surface);width:100%;font-family:inherit">
+      <div style="font-weight:650;color:var(--ink);word-break:break-word">${esc(e)}</div>
+      <div style="margin-top:5px;font-size:12.5px;color:var(--muted)">${byEntity[e].length} truth${byEntity[e].length===1?'':'s'}</div>
+    </button>`).join('');
   return `<section class="panel on">
-    <div class="phead"><h1>Memory</h1><div class="sub">Everything JARVIS knows — one content-addressed truth per row, each carrying the sources that attest it. The same real-world event seen by many systems collapses to one truth.</div></div>
-    <div class="scroll"><div class="grid">${cards}</div></div></section>`;
+    <div class="phead"><h1>Memory</h1><div class="sub">Your truth base, browsable by <b>entity</b> — the people, projects and things JARVIS knows. Click one to see everything about it and the cognition that touched it.</div></div>
+    <div class="scroll"><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:11px">${grid}</div></div></section>`;
 }
 
-/* ---------- Why ---------- */
+/* ---------- Why = flowchart ---------- */
 function viewWhy(){
+  const chips = [...new Set([...(STATE.goals||[]).map(g=>g.subject), ...(STATE.approvals||[]).map(a=>a.subject)])].slice(0,12);
+  const chipHtml = chips.map(s=>`<button class="btn" data-why="${esc(s)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(s)}</button>`).join('');
+  const tr = UI.whyTrace;
+  const node=(kind,label,items)=>{ if(!items||!items.length) return ''; const col='var(--'+(KIND[kind]||'cool')+')';
+    return `<div style="border:1px solid var(--line);border-left:3px solid ${col};border-radius:11px;padding:12px 15px;background:var(--surface)">
+      <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:${col};margin-bottom:7px">${label}</div>
+      ${items.map(it=>`<div style="font-size:13.5px;padding:3px 0;display:flex;justify-content:space-between;gap:10px;align-items:baseline"><span style="min-width:0">${it.text}</span>${it.id?`<span class="cid" data-cid="${esc(it.id)}" style="flex:none">${esc(String(it.id).slice(0,10))}…</span>`:''}</div>`).join('')}
+    </div>`; };
+  let flow;
+  if(UI.whyq && !tr) flow = `<div class="empty">Reconstructing from the Kernel WAL…</div>`;
+  else if(tr && tr.error) flow = `<div class="empty">${esc(tr.error)}</div>`;
+  else if(tr){
+    const parts = [
+      node('observe','Observed', (tr.observed||[]).slice(0,8).map(o=>({text:`<b>${esc(o.entity)}</b> · ${esc(o.event)} <span style="color:var(--faint)">(${(o.sources||[]).join(', ')})</span>`, id:o.id}))),
+      node('agent','Agent findings', (tr.findings||[]).map(f=>({text:`${esc(f.agent)} — ${esc(f.topic)}`, id:f.id}))),
+      node('think','Proposals', (tr.proposals||[]).map(p=>({text:`${esc(p.by||'reasoner')} → <b>${esc(p.skill||p.action||'?')}</b> <span style="color:var(--faint)">${esc(p.because||'')}</span>`, id:p.id}))),
+      node('policy','Policies checked', (tr.policies||[]).map(pl=>({text:`${esc(pl.name)} <span style="color:var(--faint)">(${(pl.appliesTo||[]).join('/')} → ${esc(pl.approverRole||'')})</span>`, id:pl.id}))),
+      node('gate','Compliance', (tr.compliance||[]).map(c=>({text:`<b>${esc(c.outcome)}</b>${c.skill?` · ${esc(c.skill)}`:''}`, id:c.id}))),
+      node('approve','Approvals', (tr.approvals||[]).map(a=>({text:`${esc(a.role)} approval granted`, id:a.id}))),
+      node('act','Committed effects', (tr.committed||[]).map(cm=>({text:`<b>${esc(cm.skill)}</b> → ${esc(cm.target||'')}`, id:cm.id}))),
+      node('decide','Decisions', (tr.decisions||[]).map(d=>({text:`${esc(d.action)} <span style="color:var(--faint)">${esc(d.because||'')}</span>`, id:d.id}))),
+    ].filter(Boolean);
+    flow = `<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Decision path for <b style="color:var(--ink)">${esc(tr.subject||UI.whyq)}</b> — every box is committed truth, reconstructed from the WAL.</div>`
+      + (parts.length? parts.join('<div style="text-align:center;color:var(--faint);font-size:15px;margin:2px 0">↓</div>') : `<div class="empty">Nothing recorded for “${esc(tr.subject||UI.whyq)}”.</div>`);
+  } else flow = `<div class="empty">Pick a subject above (or type one) and JARVIS reconstructs its whole decision path — observed → reasoned → policy → approval → effect.</div>`;
   return `<section class="panel on">
-    <div class="phead"><h1>Why</h1><div class="sub">Pick any decision and JARVIS reconstructs the whole path from its Kernel WAL — what it observed, what it reasoned, which policy it checked, what it committed. This is the trace no chatbot can give you.</div></div>
-    <div class="scroll"><div class="timeline"><div class="tl">
-      <div class="tlnode"><div class="h">observed</div><div class="c">Invoice from <b>vendor-x</b> — $2,400 renewal, attested by <b>erp</b> + <b>email</b>. <span class="meta-src">1220b91e07…</span></div></div>
-      <div class="tlnode warm"><div class="h">reasoned · stub</div><div class="c">Proposed <b>renew</b>: real (2-system) but amount &gt; $1,000 spend guardrail.</div></div>
-      <div class="tlnode crit"><div class="h">policy checked</div><div class="c">Guardrail <b>spend&gt;$1,000 → legal approval</b> matched; no approval truth on record → <b>blocked</b>.</div></div>
-      <div class="tlnode commit"><div class="h">committed</div><div class="c">Refusal recorded as a compliance truth. <span class="cid" data-cid="1220e9d3a4…">1220e9d3a4…</span></div></div>
-    </div></div></div></section>`;
+    <div class="phead"><h1>Why</h1><div class="sub">Any decision, reconstructed from committed truth. The audit trail no chatbot can give you — because here it <em>is</em> the truth, not a log.</div></div>
+    <div class="scroll">
+      <div style="display:flex;gap:9px;margin-bottom:10px"><input id="why-input" placeholder="a subject, e.g. goal:ship-jarvis or spend:flowers" value="${esc(UI.whyq||'')}" style="flex:1;padding:10px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:13px;outline:none"><button class="btn primary" id="why-go">Explain</button></div>
+      ${chipHtml?`<div style="margin-bottom:16px">${chipHtml}</div>`:''}
+      ${flow}
+    </div></section>`;
 }
 
-/* ---------- Guardrails ---------- */
+/* ---------- Guardrails = notifications + policy ledger ---------- */
 function viewGuardrails(){
-  const pol = STATE.policies.map(p=>`<div class="card"><div class="top-line"><span class="tag cool">policy · truth</span><span style="flex:1"></span></div>
-    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div></div>`).join('');
   const app = STATE.approvals.length ? STATE.approvals.map(a=>`
-    <div class="card" style="border-left:3px solid var(--crit)">
-      <div class="top-line"><span class="tag crit">awaiting approval</span><span style="flex:1"></span></div>
-      <div class="body-line" style="color:var(--ink)"><b>${esc(a.subject)}</b> — ${esc(a.asked)} · needs a separate <b>${esc(a.by)}</b> approval truth</div>
+    <div class="card" style="border-left:3px solid var(--crit);margin-bottom:9px">
+      <div class="top-line"><span class="tag crit">⏳ needs ${esc(a.by)}</span><span style="flex:1"></span></div>
+      <div class="body-line" style="color:var(--ink)"><b>${esc(a.subject)}</b> — ${esc(a.asked)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--muted)">A separate <b>${esc(a.by)}</b> approval truth is required — the proposer can’t clear its own gate.</div>
       <div style="margin-top:11px;display:flex;gap:8px">
         <button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}">Approve as ${esc(a.by)}</button>
-        <button class="btn">Dismiss</button></div>
-    </div>`).join('') : `<div class="empty">No pending approvals. Governed actions clear straight through.</div>`;
+        <button class="btn" data-why="${esc(a.subject)}">Why blocked?</button></div>
+    </div>`).join('') : `<div class="empty">Nothing awaiting you. Governed actions cleared straight through.</div>`;
+  const pol = STATE.policies.map(p=>`<div class="card" style="margin-bottom:9px"><div class="top-line"><span class="tag cool">policy · truth</span><span style="flex:1"></span></div>
+    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${esc(p.domain||'')}</div></div>`).join('') || `<div class="empty">No policies yet.</div>`;
   return `<section class="panel on">
-    <div class="phead"><h1>Guardrails</h1><div class="sub">Your rules are committed truths, not code — JARVIS checks every action against them, and an approval is a <em>separate</em> truth from a different actor, so it can’t clear its own gate.</div></div>
-    <div class="scroll"><div class="grid">
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px -2px">Pending</div>${app}
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:12px 2px -2px">Policies</div>${pol}
-    </div></div></section>`;
+    <div class="phead"><h1>Guardrails</h1><div class="sub">Your rules are committed truths, not code. An approval is a <em>separate</em> truth from a different actor — so nothing can wave itself through.</div></div>
+    <div class="scroll">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">Notifications — needs you</div>${app}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:18px 2px 8px">Policy ledger</div>${pol}
+    </div></section>`;
 }
 
-/* ---------- Skills ---------- */
+/* ---------- Skills = App Store ---------- */
 function viewSkills(){
-  const sk = STATE.skills.map(s=>`<div class="card"><div class="top-line">
-    <span class="tag ${s.certified?'good':'crit'}">${s.certified?'✓ certified':'✗ uncertified'}</span>
-    <span style="flex:1"></span><span class="cid" style="cursor:default">${esc(s.name)}</span></div>
-    <div class="body-line">A skill runs only if certification passes — a forged flag is refused at the gate.</div></div>`).join('');
-  const ag = STATE.agents.map(a=>`<div class="card"><div class="top-line"><span class="tag warm">sub-agent</span><span style="flex:1"></span><span class="cid" style="cursor:default">${esc(a.id)}</span></div>
-    <div class="body-line">${esc(a.role)} — works over the one shared truth base, attributed.</div></div>`).join('');
+  const sk = (STATE.skills||[]).map(s=>{
+    const open = UI.openSkill===s.name;
+    const risk = s.actionClass && s.actionClass!=='normal';
+    const detail = open? `<div style="margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px">
+        <div style="display:flex;gap:22px;flex-wrap:wrap">
+          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="font-family:var(--mono);color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
+        </div>
+        <div style="margin-top:12px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Produces (output truth types)</div>${(s.produces||[]).map(p=>`<span class="tag cool" style="margin:0 6px 5px 0;display:inline-block">${esc(p)}</span>`).join('')||'—'}</div>
+        <div style="margin-top:11px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Admission truth (which code was certified)</div><span class="cid" data-cid="${esc(s.registrationId||'')}">${esc(String(s.registrationId||'').slice(0,18))}…</span></div>
+      </div>`:'';
+    return `<div class="card" data-skill="${esc(s.name)}" style="margin-bottom:9px;cursor:pointer">
+      <div class="top-line"><span class="tag good">✓ certified</span>${risk?'<span class="tag crit">approval-gated</span>':''}<span style="flex:1"></span><span style="font-family:var(--mono);font-weight:600;color:var(--ink)">${esc(s.name)}</span></div>
+      <div class="body-line" style="color:var(--muted)">v${esc(s.version||'?')} · ${(s.produces||[]).length} output type(s) · ${s.runs||0} run(s) — ${open?'click to collapse ▲':'click for outputs, risk &amp; admission ▾'}</div>
+      ${detail}</div>`;
+  }).join('');
+  const ag = (STATE.agents||[]).map(a=>`<div class="card"><div class="top-line"><span class="tag warm">sub-agent</span><span style="flex:1"></span><span style="font-family:var(--mono);color:var(--ink)">${esc(a.id)}</span></div>
+    <div class="body-line">${esc(a.role)}</div></div>`).join('');
   return `<section class="panel on">
-    <div class="phead"><h1>Skills &amp; Agents</h1><div class="sub">Skills are certified capabilities JARVIS may run; sub-agents reason over one shared truth with attribution. Add a skill and it’s bound + re-certified before it can ever act.</div>
-      <button class="btn primary" data-add-skill>+ Add skill</button></div>
-    <div class="scroll"><div class="grid">
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px -2px">Certified skills</div>${sk}
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:12px 2px -2px">Sub-agents</div>${ag}
-    </div></div></section>`;
+    <div class="phead"><h1>Skills</h1><div class="sub">Certified capabilities JARVIS may run — an app store where every listing PROVED it passed certification (a forged flag can’t get in). Click one for its outputs, risk class and admission truth.</div></div>
+    <div class="scroll">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">Certified skills</div>${sk}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 2px 8px">Sub-agents</div>${ag}
+    </div></section>`;
 }
 
 /* ---------- Settings ---------- */
@@ -631,7 +717,7 @@ function wire(){
     send.onclick=doAsk;
   }
   document.querySelectorAll('[data-obs]').forEach(b=>b.onclick=()=>doObserve(b.dataset.obs));
-  document.querySelectorAll('[data-cid]').forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.cid);toast('ContentId copied',b.dataset.cid);});
+  document.querySelectorAll('[data-cid]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();navigator.clipboard&&navigator.clipboard.writeText(b.dataset.cid);toast('ContentId copied',b.dataset.cid);});
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>{TAB='guardrails';renderNav();render();});
   document.querySelectorAll('[data-do-approve]').forEach(b=>b.onclick=()=>doApprove(b.dataset.doApprove, b.dataset.approveRole||'user'));
   document.querySelectorAll('[data-reasoner]').forEach(b=>b.onclick=()=>{
@@ -639,6 +725,12 @@ function wire(){
     else { const k=$('#oa-key'); if(k) k.focus(); toast('Paste your OpenAI key below, then Attach'); }
   });
   const oaAttach=$('#oa-attach'); if(oaAttach) oaAttach.onclick=()=>doAttachReasoner('openai');
+  document.querySelectorAll('[data-entity]').forEach(b=>b.onclick=()=>{ UI.entity=b.dataset.entity||null; render(); });
+  document.querySelectorAll('[data-skill]').forEach(b=>b.onclick=()=>{ UI.openSkill = UI.openSkill===b.dataset.skill?null:b.dataset.skill; render(); });
+  document.querySelectorAll('[data-why]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doWhy(b.dataset.why); });
+  document.querySelectorAll('[data-goal-status]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doGoalStatus(b.dataset.goalStatus,b.dataset.goalTo); });
+  const ga=$('#goal-add'), gt=$('#goal-title'); if(ga&&gt){ ga.onclick=doAddGoal; gt.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();doAddGoal();}} }
+  const wgo=$('#why-go'), wi=$('#why-input'); if(wgo&&wi){ const go=()=>{const q=wi.value.trim(); if(q) doWhy(q);}; wgo.onclick=go; wi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go();}} }
   const hs=$('#home-send'), ha=$('#home-ask');
   if(hs&&ha){ const go=()=>{ const q=ha.value.trim(); if(!q) return; TAB='console'; renderNav(); render(); const a=$('#ask'); if(a) a.value=q; doAsk(); };
     hs.onclick=go; ha.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();go();} }; }
@@ -700,6 +792,29 @@ async function doApprove(subject, role){
     const d=await r.json(); STATE.approvals=d.approvals||[]; STATE.truths=d.truths||STATE.truths;
     paintChrome(); renderNav(); render(); toast(role.charAt(0).toUpperCase()+role.slice(1)+' approval committed', d.id);
   }catch(e){ toast('Could not reach the local Kernel'); }
+}
+
+async function doAddGoal(){
+  const el=$('#goal-title'); const title=el?el.value.trim():''; if(!title) return;
+  if(!STATE.connected){ toast('Preview — run the local server to add goals'); return; }
+  try{ const r=await fetch('/api/goals',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title})});
+    const d=await r.json(); if(!r.ok){ toast(d.error||'Could not add goal'); return; }
+    STATE.goals=d.goals||[]; STATE.counts=d.counts||STATE.counts; renderNav(); render(); toast('Goal committed as truth', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doGoalStatus(subject,to){
+  if(!STATE.connected){ toast('Preview only'); return; }
+  try{ const r=await fetch('/api/goals/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject,status:to})});
+    const d=await r.json(); if(!r.ok){ toast(d.error||'Could not update'); return; }
+    STATE.goals=d.goals||[]; render(); toast('Status → '+to+' (committed truth)', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doWhy(subject){
+  TAB='why'; UI.whyq=subject; UI.whyTrace=null; renderNav(); render();
+  if(!STATE.connected){ UI.whyTrace={error:'Preview — run the local server to reconstruct from truth'}; render(); return; }
+  try{ const r=await fetch('/api/why?q='+encodeURIComponent(subject));
+    const d=await r.json(); UI.whyTrace = r.ok ? d.trace : { error:d.error||'nothing found for that subject' }; render();
+  }catch(e){ UI.whyTrace={error:'Could not reach the local Kernel'}; render(); }
 }
 
 /* theme */
