@@ -74,16 +74,26 @@ Everything you see is a **read projection of committed truth** in your WAL — s
 server, start it again over the same `--wal-dir`, and every truth, decision, policy and
 block comes back (RCR-033 recovery). The browser is only a window; the truth is in the Kernel.
 
-**Plug your own LLM** (same slot as §4, no repo edit) by pointing the server at your
-reasoner module — its default export must implement the `Reasoner` interface:
+**Plug a real model — the fastest path is OpenAI, already shipped.** Set your key in the
+environment (never in the repo) and the server auto-attaches the built-in OpenAI reasoner:
+
+```sh
+OPENAI_API_KEY=sk-...  node products/arves-assistant/ui/server.mjs --wal-dir $JW
+#   choose the model:   OPENAI_API_KEY=sk-...  OPENAI_MODEL=gpt-4o  node .../ui/server.mjs --wal-dir $JW
+```
+
+The Settings pill flips to `openai:<model>` (isStub=false) and every proposal it makes is
+committed as attributed, governed, replayable truth. Or point the server at **any** reasoner
+module (same slot as §4) — its default export must implement the `Reasoner` interface:
 
 ```sh
 JARVIS_REASONER=./my-llm-reasoner.mjs node products/arves-assistant/ui/server.mjs --wal-dir $JW
 ```
 
-The Settings pill flips to your model's name, and every proposal it makes is committed as
-attributed, governed, replayable truth exactly like everything else. Governance, memory and
-audit are unchanged — only the intelligence became yours.
+Governance, memory and audit are unchanged — only the intelligence became yours. And it is
+honestly governed BOTH ways: if the model proposes an unregistered skill it is refused; if it
+supplies input a skill can't run on, that failure is committed as truth and shown plainly —
+never a crash.
 
 > **Honesty (same as everywhere):** single host, `localhost` only, no authN/TLS on the
 > commit path (v1.0 scope — a personal assistant on your own machine, not a deployed
@@ -282,6 +292,25 @@ export class LlmReasoner {
 import { LlmReasoner } from './my-llm-reasoner.mjs';
 assistant.useReasoner(new LlmReasoner());
 ```
+
+**Don't want to write the adapter? OpenAI is shipped.** `src/openai-reasoner.mjs` is a
+complete, **zero-dependency** (global `fetch`, no SDK) OpenAI-backed reasoner that reads the
+key from `process.env.OPENAI_API_KEY` — the key never touches the repo. It reuses the same
+governed `parseProposal` (hallucinated skills refused), so nothing about governance changes:
+
+```js
+import OpenAiReasoner from './products/arves-assistant/src/openai-reasoner.mjs';
+assistant.useReasoner(new OpenAiReasoner());   // model from OPENAI_MODEL (default gpt-4o-mini)
+```
+
+```sh
+# run it (the CLI and the UI both auto-attach it when OPENAI_API_KEY is present):
+OPENAI_API_KEY=sk-...  node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW ask summarize my day
+OPENAI_API_KEY=sk-...  node products/arves-assistant/openai-reasoner.test.mjs   # a live governed-pipeline proof
+```
+
+The live test **self-skips with no key**, so CI stays offline-hermetic; it makes a real call
+only when you provide a key. (Your OpenAI key is billed by OpenAI, not ARVES.)
 
 **What stays true with a real LLM attached — this is the product's claim:**
 

@@ -405,6 +405,12 @@ export class Assistant {
     const entry = this.#skills.get(name);
     if (!entry) throw new Error(`assistant: skill '${name}' is not registered — registerSkill() first (certification + bind are the gate)`);
     const effects = entry.cap.execute(input);
+    if (!Array.isArray(effects)) throw new Error(`assistant: skill '${name}' execute() must return an array of effects`);
+    // PRE-VALIDATE every effect value is ACS-canonical BEFORE committing ANY of them. A skill
+    // driven by a real reasoner may produce a non-canonical value (e.g. a bare number from
+    // guessed input); addressing it here throws WITHOUT a bridge commit, so a bad effect fails
+    // ATOMICALLY — no partial commit, and the caller's "no effect was committed" stays truthful.
+    for (const eff of effects) arves.address(eff.value, 'commit');
     const truths = [];
     for (const eff of effects) {
       const res = await this.#bridge.invoke(eff.value, name, 'commit'); // bind -> invoke -> committed effect truth
@@ -461,7 +467,29 @@ export class Assistant {
         ? { skill: proposal.skill, subject: proposal.subject, actionClass: proposal.actionClass, input: proposal.input }
         : {}),
     };
-    const prop = await this.#commit(trace, 'trace', { via: 'think' });
+    // Committing the proposal-as-truth can itself FAIL when a REAL (LLM) reasoner supplies
+    // NON-CANONICAL input — most commonly a bare JS number from JSON (ACS rejects it as
+    // int/float-ambiguous). Govern that too: commit a minimal rejection compliance truth
+    // (no offending payload, so it stays content-addressed-stable) and return a clean
+    // `failed` result. Never a raw throw. (The stub always supplies canonical input, so this
+    // path is exercised only by a plugged-in model — exactly where robustness matters.)
+    let prop;
+    try {
+      prop = await this.#commit(trace, 'trace', { via: 'think' });
+    } catch (err) {
+      const rejection = {
+        type: 'uci.assistant.compliance',
+        outcome: 'proposal-rejected',
+        reasoner: this.#reasoner.name,
+        skill: (proposal.action === 'invoke-skill' && typeof proposal.skill === 'string') ? proposal.skill : '',
+        subject: (typeof proposal.subject === 'string' && proposal.subject.length > 0) ? proposal.subject : '',
+        goal,
+      };
+      const rej = await this.#commit(rejection, 'trace', { via: 'think' });
+      // `stage: 'proposal-rejected'` tells the UI/CLI this failed BEFORE the gate ran and
+      // before any skill executed — so they must NOT render a "gate passed"/"skill ran" step.
+      return { acted: false, failed: true, stage: 'proposal-rejected', proposal, error: err.message, complianceId: rej.contentId, complianceStatus: rej.status };
+    }
 
     if (proposal.action !== 'invoke-skill') {
       return { acted: false, reason: 'no-action-proposed', proposal, proposalId: prop.contentId };
@@ -483,7 +511,16 @@ export class Assistant {
 
     // Guardrails BEFORE any skill invocation: a violation is blocked AND committed
     // as a compliance-event truth (never a silent drop).
-    const gate = await this.#guardrails.enforce({ ...proposal, goal });
+    //
+    // A6 GOVERNANCE — the risk class the gate keys on is resolved from the REGISTERED SKILL,
+    // never from the proposal. Otherwise an untrusted (LLM) reasoner could label its own
+    // spend/irreversible action 'normal' — or just omit the field (adapters default it to
+    // 'normal') — and walk straight through the spend gate. The reasoner's declared
+    // actionClass stays in the proposal truth for AUDIT ("what the model claimed"), but it
+    // is authoritative for NOTHING. This is what makes A6 hold for a real model, not only the
+    // table-bound stub.
+    const registeredClass = this.#skills.get(proposal.skill).cap.actionClass ?? 'normal';
+    const gate = await this.#guardrails.enforce({ ...proposal, actionClass: registeredClass, goal });
     if (!gate.ok) {
       return {
         acted: false,
@@ -497,7 +534,41 @@ export class Assistant {
       };
     }
 
-    const invocation = await this.invokeSkill(proposal.skill, proposal.input);
+    // A certified+bound skill can still FAIL at execution — most importantly when a REAL
+    // (LLM) reasoner supplies input the skill did not expect (the stub always supplies the
+    // exact shape; a model guesses). Such a failure is GOVERNED, never a raw throw or a
+    // silent drop: like a block or a refusal, it is committed as a compliance truth and
+    // returned as a clean `failed` result. The proposal (and the passed gate) remain
+    // committed truth, so `why()` still shows what was attempted and that it failed.
+    let invocation;
+    try {
+      invocation = await this.invokeSkill(proposal.skill, proposal.input);
+    } catch (err) {
+      // The committed body is kept content-addressed-STABLE (no volatile V8 error string in
+      // it — that lives only in the returned result for the human/UI). Auditable, replayable.
+      const failure = {
+        type: 'uci.assistant.compliance',
+        outcome: 'skill-execution-failed',
+        skill: proposal.skill,
+        subject: proposal.subject,
+        actionClass: registeredClass, // the AUTHORITATIVE class the gate cleared, not the model's claim
+        goal,
+        proposalId: prop.contentId,
+      };
+      const fail = await this.#commit(failure, 'trace', { via: 'think' });
+      // `stage: 'skill-execution'` — the gate DID pass and the skill DID run, but its
+      // execute() threw (distinct from a pre-gate proposal-rejected).
+      return {
+        acted: false,
+        failed: true,
+        stage: 'skill-execution',
+        proposal,
+        proposalId: prop.contentId,
+        error: err.message,
+        complianceId: fail.contentId,
+        complianceStatus: fail.status,
+      };
+    }
     return { acted: true, proposal, proposalId: prop.contentId, approvals: gate.approvals, invocation };
   }
 

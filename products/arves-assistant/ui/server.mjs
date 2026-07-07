@@ -115,6 +115,22 @@ function projectState(assistant, session, reasonerInfo) {
     tag: 'policy-block',
   }));
 
+  // Governed failures are truth too (a real reasoner supplied bad input / non-canonical
+  // input). BOTH modes surface, so every committed compliance truth is a durable read
+  // projection (consistent across a WAL restart), never only a transient chat line.
+  const failures = journal
+    .filter((e) => e.body && e.body.type === 'uci.assistant.compliance'
+      && (e.body.outcome === 'skill-execution-failed' || e.body.outcome === 'proposal-rejected'))
+    .map((e) => ({
+      id: e.id,
+      kind: 'blocked',
+      summary: e.body.outcome === 'proposal-rejected'
+        ? `${e.body.skill || 'proposal'} — rejected before the gate${e.body.goal ? ` (“${e.body.goal}”)` : ''}`
+        : `${e.body.skill} — execution failed${e.body.goal ? ` (“${e.body.goal}”)` : ''}`,
+      sources: ['runtime'],
+      tag: e.body.outcome === 'proposal-rejected' ? 'proposal-rejected' : 'skill-failed',
+    }));
+
   // Pending approvals = blocked subjects with no committed approval truth yet, in the
   // approver role their policy demands. This is what JARVIS is WAITING FOR YOU to clear.
   const grantedApprovals = journal.filter((e) => e.body && e.body.type === 'uci.assistant.approval');
@@ -146,7 +162,7 @@ function projectState(assistant, session, reasonerInfo) {
   return {
     identity: { tenant: session.tenant, workspace: session.workspace, walDir: session.walDir ?? '(in-memory)' },
     reasoner: reasonerInfo,
-    truths: [...blocks, ...decisions, ...facts],
+    truths: [...failures, ...blocks, ...decisions, ...facts],
     policies: policies.map((p) => ({ rule: p.name, domain: `${p.appliesTo.join(', ')} → needs ${p.approverRole}` })),
     approvals,
     skills,
@@ -199,6 +215,39 @@ function traceOfThink(assistant, goal, r) {
     };
   }
 
+  if (r.failed && r.stage === 'proposal-rejected') {
+    // The proposal was rejected BEFORE the gate ran and before any skill executed (e.g. the
+    // model supplied non-canonical input). Do NOT claim the guardrail passed or the skill ran.
+    steps.push({
+      kind: 'gate',
+      state: 'block',
+      label: 'Proposal rejected (before the gate)',
+      lines: [r.error || 'the reasoner’s proposed input was not valid', 'the guardrail never ran; no skill executed'],
+      cid: r.complianceId,
+    });
+    return {
+      say: `I couldn't even record that proposal — the input I produced was invalid (${r.error}). It never reached the guardrail or a skill; the rejection itself is recorded as truth.`,
+      trace: steps,
+    };
+  }
+
+  if (r.failed) {
+    // stage === 'skill-execution': the gate DID pass and the certified skill DID run, but its
+    // execute() threw. Governed: committed as a compliance truth, no effect committed.
+    steps.push({ kind: 'gate', state: 'pass', label: 'Guardrail passed', lines: [`'${r.proposal.skill}' is certified + bound`] });
+    steps.push({
+      kind: 'gate',
+      state: 'block',
+      label: `Skill execution failed — ${r.proposal.skill}`,
+      lines: [r.error || 'the skill could not run on the proposed input'],
+      cid: r.complianceId,
+    });
+    return {
+      say: `I proposed ${r.proposal.skill} and it passed the guardrail, but it couldn't run on the input I gave it (${r.error}). No effect was committed — the failure itself is recorded as truth.`,
+      trace: steps,
+    };
+  }
+
   // no-action-proposed
   return { say: r.proposal.because || 'Nothing to act on for that.', trace: steps };
 }
@@ -212,16 +261,40 @@ async function main() {
   // and seeds the default spend policy on a virgin shard.
   const assistant = await openSession(session);
 
-  // Reasoner honesty + optional real-LLM plug. Default = deterministic stub.
+  // Reasoner honesty + real-LLM plug. Default = deterministic stub. Resolution order,
+  // logged loudly so the choice is explicit, never magic:
+  //   1. JARVIS_REASONER=./module.mjs  — attach that module's default-exported Reasoner.
+  //   2. else OPENAI_API_KEY is set     — attach the shipped OpenAI reasoner (src/openai-
+  //      reasoner.mjs), model from OPENAI_MODEL (default gpt-4o-mini). The key is read
+  //      from the env by the reasoner at call time; the server never touches it.
+  //   3. else                          — the deterministic stub (honestly reported).
   let reasonerInfo = { name: new StubReasoner().name, isStub: true };
+  let reasonerModulePath = null;
+  let autoOpenAi = false;
   if (process.env.JARVIS_REASONER) {
-    const modUrl = pathToFileURL(path.resolve(process.env.JARVIS_REASONER)).href;
-    const mod = await import(modUrl);
+    reasonerModulePath = path.resolve(process.env.JARVIS_REASONER);
+  } else if (process.env.OPENAI_API_KEY) {
+    reasonerModulePath = path.join(HERE, '..', 'src', 'openai-reasoner.mjs'); // shipped, zero-dep
+    autoOpenAi = true;
+  }
+  if (reasonerModulePath) {
+    const mod = await import(pathToFileURL(reasonerModulePath).href);
     const Reasoner = mod.default ?? mod.Reasoner;
-    if (typeof Reasoner !== 'function') throw new Error(`JARVIS_REASONER module must default-export a Reasoner class (${process.env.JARVIS_REASONER})`);
+    if (typeof Reasoner !== 'function') throw new Error(`reasoner module must default-export a Reasoner class (${reasonerModulePath})`);
     const inst = new Reasoner();
     assistant.useReasoner(inst); // validated against the reasoner contract
     reasonerInfo = { name: inst.name || 'custom-reasoner', isStub: false };
+    if (autoOpenAi) {
+      // Loud, unmissable: a BILLED model was attached solely because OPENAI_API_KEY is present
+      // in the environment. No call happens until you ask, but every ask then bills OpenAI.
+      // eslint-disable-next-line no-console
+      console.log(
+        `\n  ⚠  OPENAI_API_KEY detected → attached BILLED model '${reasonerInfo.name}' as the reasoner.\n` +
+        `     Every /ask calls the OpenAI API (billed by OpenAI, not ARVES). To change:\n` +
+        `       • unset OPENAI_API_KEY to fall back to the free deterministic stub, or\n` +
+        `       • set JARVIS_REASONER=./your-reasoner.mjs to use a different model.`,
+      );
+    }
   }
 
   const conversation = []; // server-held transcript; every turn's TRUTH is in the WAL

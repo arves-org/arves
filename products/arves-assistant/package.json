@@ -20,6 +20,7 @@
     "hardened-day": "node examples/jarvis-hardened-day.mjs",
     "cli": "node bin/jarvis.mjs",
     "ui": "node ui/server.mjs --wal-dir ./jarvis-wal",
-    "ui:test": "node ui/server.test.mjs"
+    "ui:test": "node ui/server.test.mjs",
+    "test:openai": "node openai-reasoner.test.mjs"
   }
 }
