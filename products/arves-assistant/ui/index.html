@@ -247,6 +247,18 @@
 
   .empty{padding:60px 24px;text-align:center;color:var(--faint);font-family:var(--sans);font-size:13px}
 
+  /* Principle 3 — ARVES is invisible by default. The technical layer (ContentIds, shard,
+     WAL, runtime) only appears in Developer mode (html.dev). Nothing is deleted — the
+     evidence is one toggle away (progressive disclosure), it just isn't the headline. */
+  html:not(.dev) .cid{display:none}
+  html:not(.dev) .idcard .idrow{display:none}
+  html:not(.dev) #runtimebadge{display:none}
+  html:not(.dev) #wormark{display:none}
+  html:not(.dev) .devonly{display:none}
+  html.dev .devtoggle{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 45%,var(--line))}
+  /* Calm register: a touch more air, quieter borders */
+  .card{border-color:color-mix(in srgb,var(--line) 78%,transparent)}
+  .grid{gap:13px}
   @keyframes breathe{0%,100%{opacity:1}50%{opacity:.35}}
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -266,7 +278,7 @@
 <div class="app">
   <div class="brand">
     <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
-    <div><b>JARVIS</b><div class="v">ON ARVES · v0.1</div></div>
+    <div><b>JARVIS</b><div class="v">your cognitive workspace</div></div>
   </div>
 
   <header class="top">
@@ -274,6 +286,9 @@
     <span id="reasonerpill" class="pill reasoner stub"><span class="dot"></span><span class="k">reasoner</span>&nbsp;<span id="reasonername">Stub (deterministic)</span></span>
     <span class="spacer"></span>
     <span id="wormark" class="pill"><span class="dot" style="background:var(--cool)"></span><span id="shardlabel">hakan / personal</span></span>
+    <button class="iconbtn devtoggle" id="devbtn" title="Developer mode — show the technical layer" aria-label="Developer mode">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 5l-2 14"/></svg>
+    </button>
     <button class="iconbtn" id="themebtn" title="Toggle theme" aria-label="Toggle theme">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
     </button>
@@ -284,7 +299,7 @@
       <div class="idrow"><span class="k">tenant</span><span class="val" id="id-tenant">hakan</span></div>
       <div class="idrow"><span class="k">workspace</span><span class="val" id="id-ws">personal</span></div>
       <div class="idrow"><span class="k">wal</span><span class="val" id="id-wal">~/.jarvis/wal</span></div>
-      <div class="truthcount"><b id="truthnum">0</b><span>truths remembered</span></div>
+      <div class="truthcount"><b id="truthnum">0</b><span>in memory</span></div>
     </div>
     <nav id="nav"></nav>
     <div id="runtimebadge" style="margin-top:auto;padding:11px 13px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted)">
@@ -402,6 +417,17 @@ const $ = s => document.querySelector(s);
 // Attribute-safe: escapes quotes too, so `attr="${esc(x)}"` can't be broken out of by
 // connector-/reasoner-derived truth text (stored-XSS defense). Safe in text context as well.
 const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Principle 2/3 — people see meaningful names, not truth keys. urn:you → You,
+   proj:arves → ARVES, alice@dental.example → Alice, spend:vendor-x → Vendor X. */
+const ACRONYMS = {arves:'ARVES',jarvis:'JARVIS',pr:'PR',g2:'G2',ai:'AI',os:'OS',hitl:'HITL',wal:'WAL'};
+function humanize(s){
+  if(s==null) return '';
+  let x=String(s).replace(/^(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order):/i,'');
+  const em=x.match(/^([a-z0-9._+-]+)@/i); if(em) x=em[1];               // email → local part
+  x=x.replace(/[._\-]+/g,' ').replace(/\s+/g,' ').trim();
+  if(!x) return 'You';
+  return x.split(' ').map(w=>ACRONYMS[w.toLowerCase()] || (w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
+}
 
 async function boot(){
   try{
@@ -473,12 +499,12 @@ function viewHome(){
   let dateStr=''; try{ dateStr=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}); }catch(e){}
   const card=(title,inner,accent)=>`<div class="card"${accent?` style="border-left:3px solid ${accent}"`:''}><div style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-bottom:9px">${title}</div>${inner}</div>`;
   const focus=active.length? active.slice(0,4).map(g=>`<div style="display:flex;gap:9px;align-items:baseline;padding:5px 0"><span style="width:6px;height:6px;border-radius:50%;background:var(--cool);flex:none;transform:translateY(3px)"></span><span style="flex:1;font-size:14px">${esc(g.title)}</span><button class="btn" data-why="${esc(g.subject)}" style="padding:2px 9px;font-size:11px">why</button></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">No active goals. <button class="btn" data-goto="goals" style="padding:2px 9px;font-size:12px">Set one →</button></div>`;
-  const pendInner=pend.length? pend.map(a=>`<div style="display:flex;gap:9px;align-items:center;padding:5px 0"><span class="tag crit">${esc(a.by)}</span><span style="flex:1;font-size:13.5px;min-width:0">${esc(a.subject)}</span><button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}" style="padding:3px 11px;font-size:12px">Approve</button></div>`).join('') : `<div style="color:var(--good);font-size:13.5px">Nothing waiting on you. ✓</div>`;
-  const memInner=recentObs.length? recentObs.map(t=>`<div style="padding:5px 0;font-size:13.5px"><b>${esc(t.entity||'')}</b> <span style="color:var(--muted)">${esc(t.event||t.summary)}</span></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Nothing yet — <button class="btn" data-goto="inbox" style="padding:2px 9px;font-size:12px">observe →</button></div>`;
-  const worldInner=ents.length? ents.slice(0,7).map(e=>`<button class="btn" data-goto-entity="${esc(e.name)}" style="padding:5px 10px;font-size:12px;margin:0 6px 6px 0">${esc(e.name)} <span style="color:var(--faint)">${e.truths}</span></button>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Your people &amp; projects appear here as you observe.</div>`;
+  const pendInner=pend.length? pend.map(a=>`<div style="display:flex;gap:9px;align-items:center;padding:5px 0"><span class="tag crit">${esc(a.by)}</span><span style="flex:1;font-size:13.5px;min-width:0">${esc(humanize(a.subject))}</span><button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}" style="padding:3px 11px;font-size:12px">Approve</button></div>`).join('') : `<div style="color:var(--good);font-size:13.5px">Nothing waiting on you. ✓</div>`;
+  const memInner=recentObs.length? recentObs.map(t=>`<div style="padding:5px 0;font-size:13.5px"><b>${esc(humanize(t.entity||''))}</b> <span style="color:var(--muted)">${esc(t.event||t.summary)}</span></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Nothing yet — <button class="btn" data-goto="inbox" style="padding:2px 9px;font-size:12px">observe →</button></div>`;
+  const worldInner=ents.length? ents.slice(0,7).map(e=>`<button class="btn" data-goto-entity="${esc(e.name)}" style="padding:5px 10px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))} <span style="color:var(--faint)">${e.truths}</span></button>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Your people &amp; projects appear here as you observe.</div>`;
   const cogInner=recentCog.length? recentCog.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:9px;align-items:baseline;padding:4px 0"><span style="font-family:var(--mono);font-size:9.5px;text-transform:uppercase;color:${col};width:58px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:12.5px;min-width:0">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span></div>`;}).join('') : `<div style="color:var(--muted);font-size:13px">Ask JARVIS something to see it think.</div>`;
   return `<section class="panel on">
-    <div class="phead"><h1>${greet}${name}</h1><div class="sub">${esc(dateStr)}${dateStr?' · ':''}your personal HQ — everything JARVIS is holding for you, assembled from real truth.</div></div>
+    <div class="phead"><h1>${greet}${name}</h1><div class="sub">${esc(dateStr)}${dateStr?' · ':''}here's what matters today.</div></div>
     <div class="scroll">
       <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
         ${card('Today’s focus', focus, active.length?'var(--cool)':'')}
@@ -500,7 +526,7 @@ function viewInbox(){
   const srcBtns = (STATE.sources||['calendar','email','tasks']).map(s=>`<button class="btn" data-obs="${esc(s)}" style="margin:0 7px 7px 0">+ ${esc(s)}</button>`).join('');
   const feed = mem.length? mem.map(t=>`<div class="card" style="margin-bottom:9px">
       <div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div>
-      <div class="body-line" style="color:var(--ink)">${esc(t.summary)}</div>
+      <div class="body-line" style="color:var(--ink)">${t.entity?`<b>${esc(humanize(t.entity))}</b> — ${esc(t.event||'')}`:esc(t.summary)}</div>
       <div style="margin-top:7px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div>
     </div>`).join(''):`<div class="empty">Inbox is empty. Pull a source above — JARVIS observes it into truth (the same event from two sources becomes one).</div>`;
   return `<section class="panel on">
@@ -539,7 +565,7 @@ function viewGoals(){
   const cards = goals.length? goals.map(g=>`<div class="card" style="margin-bottom:10px">
       <div class="top-line">${pill(g.status)}<span style="flex:1"></span><span class="cid" data-cid="${esc(g.id)}">${esc(g.id.slice(0,10))}…</span></div>
       <div class="body-line" style="color:var(--ink);font-size:15px;font-weight:600">${esc(g.title)}</div>
-      <div style="margin-top:6px;font-size:12.5px;color:var(--muted)">${g.related} related truth${g.related===1?'':'s'} in memory · <span style="font-family:var(--mono);color:var(--faint)">${esc(g.subject)}</span></div>
+      <div style="margin-top:6px;font-size:12.5px;color:var(--muted)">${g.related} related ${g.related===1?'memory':'memories'} · <span class="devonly" style="font-family:var(--mono);color:var(--faint)">${esc(g.subject)}</span></div>
       <div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap">
         ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'primary':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
         <button class="btn" data-why="${esc(g.subject)}" style="padding:6px 12px;font-size:12.5px">explain</button>
@@ -646,7 +672,7 @@ function viewKnowledge(){
     const related=ents.filter(x=>x.name!==e.name && (x.sources||[]).some(s=>(e.sources||[]).includes(s))).slice(0,6);
     return `<div class="card" style="margin-bottom:12px">
       <div class="top-line"><span class="tag warm">${esc(e.type)}</span><span style="flex:1"></span><button class="btn" data-goto-entity="${esc(e.name)}" style="padding:3px 10px;font-size:11px">profile →</button></div>
-      <div style="font-size:17px;font-weight:700;margin:4px 0 2px">${esc(e.name)}</div>
+      <div style="font-size:17px;font-weight:700;margin:4px 0 2px">${esc(humanize(e.name))}</div>
       <div style="color:var(--muted);font-size:13px">${e.truths} truth(s) · ${g.length} goal(s) · seen via ${(e.sources||[]).map(s=>esc(s)).join(', ')||'—'}</div>
       <div style="margin-top:11px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Recent changes</div>
       ${changes.length?changes.map(x=>`<div style="font-size:13px;padding:3px 0;color:var(--ink)">· ${esc(x.label)}${x.detail?` <span style="color:var(--muted)">— ${esc(x.detail)}</span>`:''}</div>`).join(''):'<div style="font-size:13px;color:var(--faint);padding:3px 0">none recorded this session</div>'}
@@ -657,7 +683,7 @@ function viewKnowledge(){
   };
   const body = focus.length? focus.map(areaCard).join('') : `<div class="empty">Nothing to synthesize yet — observe some sources and set a goal or two.</div>`;
   return `<section class="panel on">
-    <div class="phead"><h1>Knowledge</h1><div class="sub">Where Memory is raw truth, Knowledge is <b>synthesis</b> — each project/entity organized into what it is, what changed, and what's open. Assembled from committed truth.</div></div>
+    <div class="phead"><h1>Knowledge</h1><div class="sub">Where Memory is the raw record, Knowledge is <b>synthesis</b> — each project and person organized into what it is, what changed, and what's open.</div></div>
     <div class="scroll">
       <div class="callout" style="border-left:3px solid var(--cool);background:var(--cool-soft);border-radius:0 11px 11px 0;padding:12px 15px;font-size:13px;margin-bottom:14px">${STATE.reasoner.isStub?`A written, prose <b>AI summary</b> ("current direction / what to do next") comes from an attached model — <b>plug your OpenAI key in Settings</b>. What's below is organized from your real truth, no model needed.`:`Your model is attached. This view organizes real truth; a one-click AI prose summary is the next dedicated step.`}</div>
       ${body}
@@ -702,9 +728,9 @@ function viewMemory(){
     const goalsHtml = relGoals.length? relGoals.map(g=>`<div style="display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span class="tag ${g.status==='done'?'good':g.status==='blocked'?'crit':'cool'}">${esc(g.status)}</span><span style="flex:1;font-size:13.5px">${esc(g.title)}</span><button class="btn" data-why="${esc(g.subject)}" style="padding:3px 9px;font-size:11px">why</button></div>`).join('') : `<div class="empty" style="border:none;padding:8px 0">No goals mention this yet.</div>`;
     const truthsHtml = mine.map(t=>`<div class="card" style="margin-bottom:8px"><div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div><div class="body-line" style="color:var(--ink)">${esc(t.event||t.summary)}</div><div style="margin-top:6px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div></div>`).join('');
     const tlHtml = tl.length? tl.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${col};width:66px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:13px">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span></div>`;}).join('') : `<div class="empty" style="border:none;padding:8px 0">No cognition has touched this yet.</div>`;
-    const alsoHtml = alsoVia.map(e=>`<button class="btn" data-entity="${esc(e.name)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(e.name)}</button>`).join('');
+    const alsoHtml = alsoVia.map(e=>`<button class="btn" data-entity="${esc(e.name)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))}</button>`).join('');
     return `<section class="panel on">
-      <div class="phead"><h1 style="word-break:break-word">${esc(sel)}</h1><div class="sub"><button class="btn" data-entity="" style="padding:4px 10px;font-size:12px">← all</button> &nbsp; <span class="tag warm">${esc(ent.type||'Thing')}</span> &nbsp; JARVIS's profile of this ${esc((ent.type||'thing').toLowerCase())}, assembled from committed truth. <span style="color:var(--faint)">(type is a heuristic)</span></div></div>
+      <div class="phead"><h1 style="word-break:break-word">${esc(humanize(sel))}</h1><div class="sub"><button class="btn" data-entity="" style="padding:4px 10px;font-size:12px">← all</button> &nbsp; <span class="tag warm">${esc(ent.type||'Thing')}</span> &nbsp; What JARVIS knows about this ${esc((ent.type||'thing').toLowerCase())}. <span class="devonly" style="color:var(--faint)">${esc(sel)}</span></div></div>
       <div class="scroll">
         <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
           ${stat(mine.length,'truths','var(--cool)')}${stat(relGoals.length,'related goals','var(--ink)')}${stat((ent.sources||[]).length,'sources','var(--ink)')}${stat(tl.length,'cognition events','var(--warm)')}
@@ -722,7 +748,7 @@ function viewMemory(){
   const filtered = q? ents.filter(e=>e.name.toLowerCase().includes(q)) : ents;
   const groups={}; filtered.forEach(e=>{ (groups[e.type]=groups[e.type]||[]).push(e); });
   const card=e=>`<button class="card" data-entity="${esc(e.name)}" style="text-align:left;cursor:pointer;background:var(--surface);width:100%;font-family:inherit">
-      <div style="font-weight:650;color:var(--ink);word-break:break-word">${esc(e.name)}</div>
+      <div style="font-weight:650;color:var(--ink);word-break:break-word">${esc(humanize(e.name))}</div>
       <div style="margin-top:5px;font-size:12px;color:var(--muted)">${e.truths} truth${e.truths===1?'':'s'} · ${(e.sources||[]).length} source${(e.sources||[]).length===1?'':'s'}</div>
     </button>`;
   const sections = ['You','People','Projects','Things'].filter(t=>groups[t]&&groups[t].length).map(t=>
@@ -777,8 +803,8 @@ function viewGuardrails(){
   const app = STATE.approvals.length ? STATE.approvals.map(a=>`
     <div class="card" style="border-left:3px solid var(--crit);margin-bottom:9px">
       <div class="top-line"><span class="tag crit">⏳ needs ${esc(a.by)}</span><span style="flex:1"></span></div>
-      <div class="body-line" style="color:var(--ink)"><b>${esc(a.subject)}</b> — ${esc(a.asked)}</div>
-      <div style="margin-top:6px;font-size:12px;color:var(--muted)">A separate <b>${esc(a.by)}</b> approval truth is required — the proposer can’t clear its own gate.</div>
+      <div class="body-line" style="color:var(--ink)"><b>${esc(humanize(a.subject))}</b> — ${esc(a.asked)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--muted)">Needs a separate <b>${esc(a.by)}</b> sign-off — an action can’t approve itself.</div>
       <div style="margin-top:11px;display:flex;gap:8px">
         <button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}">Approve as ${esc(a.by)}</button>
         <button class="btn" data-why="${esc(a.subject)}">Why blocked?</button></div>
@@ -929,7 +955,7 @@ async function doAsk(){
     if(!r.ok||!d.turn){ STATE.conversation.push({role:'jarvis', say:'Something went wrong: '+((d&&d.error)||'the assistant returned no turn')+'.', trace:[]}); render(); scrollStream(); toast(d&&d.error?d.error:'Ask failed'); return; }
     STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
     paintChrome(); renderNav(); render(); scrollStream();
-    if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Committed as truth',c.cid);}
+    if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Saved to memory',c.cid);}
   }catch(e){ toast('Could not reach the local Kernel'); }
 }
 function scrollStream(){const s=$('#stream');if(s)s.parentElement.scrollTop=s.parentElement.scrollHeight;}
@@ -977,6 +1003,16 @@ async function doWhy(subject){
   const root=document.documentElement, btn=$('#themebtn');
   btn.onclick=()=>{ const cur=root.getAttribute('data-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
     root.setAttribute('data-theme', cur==='dark'?'light':'dark'); };
+})();
+
+/* developer mode — html.dev reveals the technical layer (ContentIds, shard, WAL, runtime).
+   Off by default so ARVES stays invisible; the evidence is one toggle away. */
+(function(){
+  const root=document.documentElement, db=$('#devbtn');
+  let dev=false; try{ dev=localStorage.getItem('jarvis-dev')==='1'; }catch(e){}
+  root.classList.toggle('dev',dev);
+  if(db) db.onclick=()=>{ dev=!dev; try{localStorage.setItem('jarvis-dev',dev?'1':'0');}catch(e){}
+    root.classList.toggle('dev',dev); toast(dev?'Developer mode on — showing the technical layer':'Developer mode off — the human view'); };
 })();
 
 boot();
