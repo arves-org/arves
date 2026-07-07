@@ -54,10 +54,11 @@ try {
     assert.ok(data.identity && typeof data.identity.tenant === 'string', 'identity.tenant');
     assert.equal(data.reasoner.isStub, true, 'reasoner must honestly report the stub by default');
     assert.equal(data.reasoner.name, 'stub-reasoner');
-    for (const k of ['truths', 'policies', 'approvals', 'skills', 'agents', 'conversation', 'sources', 'timeline']) {
+    for (const k of ['truths', 'policies', 'approvals', 'skills', 'agents', 'conversation', 'sources', 'timeline', 'entities']) {
       assert.ok(Array.isArray(data[k]), `state.${k} is an array`);
     }
     assert.ok(typeof data.counts.conflicts === 'number', 'counts.conflicts is present');
+    assert.ok(data.entities.every((e) => e.name && ['You', 'People', 'Projects', 'Things'].includes(e.type) && typeof e.truths === 'number'), 'entities are typed (People/Projects/Things/You) — the life-object layer');
     assert.ok(data.timeline.length >= 1 && data.timeline.every((e) => e.kind && e.label), 'timeline has typed cognition events (skill admissions at least)');
     assert.ok(data.policies.length >= 1, 'default spend policy is seeded');
     assert.ok(data.skills.length >= 1 && data.skills.every((s) => s.certified === true), 'skills certified');

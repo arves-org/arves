@@ -105,6 +105,27 @@ function projectState(assistant, session, reasonerInfo) {
     tag: 'observed',
   }));
 
+  // ENTITIES — JARVIS's primary objects (People / Projects / Things / You). Truth is the
+  // evidence BEHIND these; the user thinks in entities, not truths. The type is a HONEST
+  // heuristic from the entity string (labelled as such in the UI), never invented data —
+  // every entity here is one that actually appears in a committed observation.
+  const classify = (e) => {
+    if (e === 'urn:you' || e === session.tenant || e === `urn:${session.tenant}`) return 'You';
+    if (/@/.test(e)) return 'People';
+    if (/^(proj|project|repo)[:\/]/i.test(e)) return 'Projects';
+    if (/^(person|user|contact)[:\/]/i.test(e)) return 'People';
+    return 'Things';
+  };
+  const entMap = new Map();
+  for (const t of facts) {
+    const e = t.entity; if (!e) continue;
+    if (!entMap.has(e)) entMap.set(e, { name: e, type: classify(e), truths: 0, sources: new Set() });
+    const x = entMap.get(e); x.truths += 1; (t.sources || []).forEach((s) => x.sources.add(s));
+  }
+  const entities = [...entMap.values()]
+    .map((x) => ({ name: x.name, type: x.type, truths: x.truths, sources: [...x.sources].sort() }))
+    .sort((a, b) => (b.truths - a.truths) || (a.name < b.name ? -1 : 1));
+
   // Decisions — committed, content-addressed, latest-per-subject.
   const decisions = assistant.decisions().map((d) => ({
     id: d.id,
@@ -231,6 +252,7 @@ function projectState(assistant, session, reasonerInfo) {
     skills,
     agents,
     goals,
+    entities,
     timeline,
     sources: Object.keys(CONNECTORS).sort(),
     counts: {
