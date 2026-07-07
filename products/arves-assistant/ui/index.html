@@ -240,6 +240,25 @@
 
   .empty{padding:60px 24px;text-align:center;color:var(--faint);font-family:var(--sans);font-size:13px}
 
+  /* Command palette (⌘K) — the v1 flagship: search + run from anywhere */
+  .cmdk{position:fixed;inset:0;z-index:100;background:rgba(4,6,12,.55);display:flex;align-items:flex-start;justify-content:center;padding-top:13vh;animation:cmdkfade .12s ease}
+  .cmdk[hidden]{display:none}
+  .cmdk-panel{width:min(580px,92vw);background:var(--raise);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:0 24px 64px -16px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column;animation:cmdkrise .14s ease}
+  .cmdk-input{border:0;background:none;padding:16px 18px;font-family:var(--body);font-size:15.5px;color:var(--ink);outline:none;border-bottom:1px solid var(--line)}
+  .cmdk-input::placeholder{color:var(--faint)}
+  .cmdk-list{max-height:54vh;overflow-y:auto;padding:6px}
+  .cmdk-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--ink);font-size:13.5px}
+  .cmdk-item .i{width:20px;text-align:center;color:var(--muted);flex:none;font-size:13px}
+  .cmdk-item .h{margin-left:auto;font-size:11px;color:var(--faint);white-space:nowrap}
+  .cmdk-item.sel,.cmdk-item:hover{background:var(--cool-soft)}
+  .cmdk-item.sel{box-shadow:inset 2px 0 0 var(--cool)}
+  .cmdk-empty{padding:24px;text-align:center;color:var(--faint);font-size:13px}
+  .cmdk-foot{display:flex;gap:16px;padding:9px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)}
+  .cmdk-foot kbd{font-family:var(--mono);font-size:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .khint{font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  @keyframes cmdkfade{from{opacity:0}to{opacity:1}}
+  @keyframes cmdkrise{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
   /* Principle 3 — ARVES is invisible by default. The technical layer (ContentIds, shard,
      WAL, runtime) only appears in Developer mode (html.dev). Nothing is deleted — the
      evidence is one toggle away (progressive disclosure), it just isn't the headline. */
@@ -277,6 +296,7 @@
   <header class="top">
     <span id="connpill" class="pill preview"><span class="dot"></span><span id="conntext">Preview · sample data</span></span>
     <span id="reasonerpill" class="pill reasoner stub"><span class="dot"></span><span class="k">reasoner</span>&nbsp;<span id="reasonername">Stub (deterministic)</span></span>
+    <button id="cmdkbtn" class="pill" style="cursor:pointer;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span><span class="khint">⌘K</span></button>
     <span class="spacer"></span>
     <span id="wormark" class="pill"><span class="dot" style="background:var(--cool)"></span><span id="shardlabel">hakan / personal</span></span>
     <button class="iconbtn devtoggle" id="devbtn" title="Developer mode — show the technical layer" aria-label="Developer mode">
@@ -306,6 +326,14 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-panel">
+    <input id="cmdk-input" class="cmdk-input" placeholder="Search or run a command…  (views, observe, add goal, a person…)" autocomplete="off" spellcheck="false">
+    <div class="cmdk-list" id="cmdk-list"></div>
+    <div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span></div>
+  </div>
+</div>
 
 <script>
 /* ------------------------------------------------------------------ *
@@ -1007,6 +1035,47 @@ async function doWhy(subject){
   if(db) db.onclick=()=>{ dev=!dev; try{localStorage.setItem('jarvis-dev',dev?'1':'0');}catch(e){}
     root.classList.toggle('dev',dev); toast(dev?'Developer mode on — showing the technical layer':'Developer mode off — the human view'); };
 })();
+
+/* ---------- Command palette (⌘K) ---------- */
+const CMDK={open:false,q:'',sel:0,list:[]};
+function cmdkCommands(){
+  const go=id=>()=>{ TAB=id; renderNav(); render(); };
+  const focusAfter=(id,sel)=>()=>{ TAB=id; renderNav(); render(); const el=$(sel); if(el) el.focus(); };
+  const c=[];
+  NAV.forEach(n=>c.push({i:'→',label:'Go to '+n.name,hint:'View',run:go(n.id)}));
+  c.push({i:'✦',label:'Ask JARVIS',hint:'Action',run:focusAfter('assistant','#ask')});
+  c.push({i:'◎',label:'Add a goal',hint:'Action',run:focusAfter('goals','#goal-title')});
+  c.push({i:'⚙',label:'Attach a model · Settings',hint:'Action',run:go('settings')});
+  (STATE.sources||[]).forEach(s=>c.push({i:'↓',label:'Observe '+s,hint:'Bring into memory',run:()=>{TAB='inbox';renderNav();render();doObserve(s);}}));
+  c.push({i:'◐',label:'Toggle light / dark',hint:'Appearance',run:()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark');}});
+  c.push({i:'⟨⟩',label:'Toggle developer mode',hint:'Appearance',run:()=>{const db=$('#devbtn');if(db)db.click();}});
+  (STATE.entities||[]).forEach(e=>c.push({i:'●',label:humanize(e.name),hint:e.type,run:()=>{TAB='memory';UI.entity=e.name;renderNav();render();}}));
+  (STATE.goals||[]).forEach(g=>c.push({i:'◎',label:'Explain: '+g.title,hint:'Why',run:()=>doWhy(g.subject)}));
+  return c;
+}
+function cmdkRender(){
+  const all=cmdkCommands(); const q=CMDK.q.toLowerCase().trim();
+  CMDK.list = q? all.filter(x=>x.label.toLowerCase().includes(q)||(x.hint||'').toLowerCase().includes(q)) : all;
+  if(CMDK.sel>=CMDK.list.length) CMDK.sel=Math.max(0,CMDK.list.length-1);
+  const el=$('#cmdk-list');
+  el.innerHTML = CMDK.list.length? CMDK.list.map((x,idx)=>`<div class="cmdk-item ${idx===CMDK.sel?'sel':''}" data-ci="${idx}"><span class="i">${x.i||''}</span><span>${esc(x.label)}</span><span class="h">${esc(x.hint||'')}</span></div>`).join('')
+    : `<div class="cmdk-empty">No matches — try a view name, “observe”, “add goal”, or a person.</div>`;
+  el.querySelectorAll('[data-ci]').forEach(b=>{ b.onclick=()=>cmdkRun(+b.dataset.ci); b.onmousemove=()=>{ CMDK.sel=+b.dataset.ci; el.querySelectorAll('.cmdk-item').forEach(z=>z.classList.remove('sel')); b.classList.add('sel'); }; });
+  const s=el.querySelector('.cmdk-item.sel'); if(s) s.scrollIntoView({block:'nearest'});
+}
+function cmdkOpen(){ CMDK.open=true; CMDK.q=''; CMDK.sel=0; const o=$('#cmdk'); if(!o) return; o.hidden=false; const inp=$('#cmdk-input'); inp.value=''; cmdkRender(); setTimeout(()=>inp.focus(),0); }
+function cmdkClose(){ CMDK.open=false; const o=$('#cmdk'); if(o) o.hidden=true; }
+function cmdkRun(i){ const x=CMDK.list[i]; cmdkClose(); if(x){ try{ x.run(); }catch(e){ toast('Could not run that'); } } }
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); CMDK.open?cmdkClose():cmdkOpen(); return; }
+  if(!CMDK.open) return;
+  if(e.key==='Escape'){ e.preventDefault(); cmdkClose(); }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); CMDK.sel=Math.min(CMDK.list.length-1,CMDK.sel+1); cmdkRender(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); CMDK.sel=Math.max(0,CMDK.sel-1); cmdkRender(); }
+  else if(e.key==='Enter'){ e.preventDefault(); cmdkRun(CMDK.sel); }
+});
+document.addEventListener('input',e=>{ if(e.target&&e.target.id==='cmdk-input'){ CMDK.q=e.target.value; CMDK.sel=0; cmdkRender(); } });
+(function(){ const o=$('#cmdk'); if(o) o.onclick=e=>{ if(e.target===o) cmdkClose(); }; const b=$('#cmdkbtn'); if(b) b.onclick=cmdkOpen; })();
 
 boot();
 </script>
