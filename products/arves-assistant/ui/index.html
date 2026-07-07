@@ -4,13 +4,15 @@
   /* ARVES "Glass Brain" — calm intelligence, Calm register.
      cool = committed TRUTH (the substrate) · warm = THOUGHT (reasoning, not-yet-truth) */
   :root{
-    --bg:#040711; --bg-deep:#081223; --bg-void:#030509;
-    --surface:rgba(10,18,34,.58); --surface-2:rgba(16,27,48,.66); --raise:#101d34;
-    --line:rgba(130,162,208,.20); --line-2:rgba(150,185,235,.32);
-    --ink:#e6eeff; --muted:#9db4d6; --faint:#6f88ad;
-    --cool:#2ee6d6; --cool-soft:rgba(46,230,214,.13); --cool-dim:#159b95;
-    --warm:#f5b942; --warm-soft:rgba(245,185,66,.13);
-    --good:#3ddb95; --warn:#f5b942; --crit:#fb7185; --crit-soft:rgba(251,113,133,.12);
+    /* arves-ui exact palette — slate-navy glass, cyan accent, calm-intelligence states */
+    --bg:#040711; --bg-deep:#081223; --bg-void:#030509; --bg-ink:#05080f;
+    --surface:rgba(8,14,28,.62); --surface-2:rgba(14,24,44,.72); --raise:#0d1930;
+    --line:rgba(130,162,208,.22); --line-2:rgba(255,255,255,.13);
+    --ink:#e2ecff; --muted:#8ea7cc; --faint:#647d9e;
+    --cool:#22d3ee; --cool-soft:rgba(34,211,238,.12); --cool-dim:#0e9aa8;
+    --trust:#38bdf8; --reflective:#a78bfa; --continuity:#22d3ee;
+    --warm:#fbbf24; --warm-soft:rgba(251,191,36,.12);
+    --good:#34d399; --warn:#fbbf24; --crit:#fb7185; --crit-soft:rgba(244,63,94,.13);
     --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
     --sans:"Space Grotesk","Segoe UI Variable","Segoe UI",system-ui,sans-serif;
     --body:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
@@ -39,12 +41,13 @@
     --glow:0 0 0 1px var(--cool-soft),0 0 0 rgba(0,0,0,0);
   }
   :root[data-theme="dark"]{
-    --bg:#040711; --bg-deep:#081223; --bg-void:#030509;
-    --surface:rgba(10,18,34,.58); --surface-2:rgba(16,27,48,.66); --raise:#101d34;
-    --line:rgba(130,162,208,.20); --line-2:rgba(150,185,235,.32);
-    --ink:#e6eeff; --muted:#9db4d6; --faint:#6f88ad;
-    --cool:#2ee6d6; --cool-soft:rgba(46,230,214,.13); --cool-dim:#159b95;
-    --warm:#f5b942; --warm-soft:rgba(245,185,66,.13); --good:#3ddb95; --warn:#f5b942; --crit:#fb7185; --crit-soft:rgba(251,113,133,.12);
+    --bg:#040711; --bg-deep:#081223; --bg-void:#030509; --bg-ink:#05080f;
+    --surface:rgba(8,14,28,.62); --surface-2:rgba(14,24,44,.72); --raise:#0d1930;
+    --line:rgba(130,162,208,.22); --line-2:rgba(255,255,255,.13);
+    --ink:#e2ecff; --muted:#8ea7cc; --faint:#647d9e;
+    --cool:#22d3ee; --cool-soft:rgba(34,211,238,.12); --cool-dim:#0e9aa8;
+    --trust:#38bdf8; --reflective:#a78bfa; --continuity:#22d3ee;
+    --warm:#fbbf24; --warm-soft:rgba(251,191,36,.12); --good:#34d399; --warn:#fbbf24; --crit:#fb7185; --crit-soft:rgba(244,63,94,.13);
     --shadow:0 10px 34px rgba(0,0,0,.45),0 2px 8px rgba(0,0,0,.3);
     --glow:0 0 0 1px var(--cool-soft),0 0 26px -7px var(--cool);
   }
@@ -54,15 +57,15 @@
   body{margin:0;color:var(--ink);font-family:var(--body);position:relative;
     font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overflow:hidden;
     background:
-      radial-gradient(1200px 720px at 3% -10%, rgba(80,120,255,.16), transparent 60%),
-      radial-gradient(940px 580px at 98% 4%, rgba(0,206,214,.12), transparent 58%),
-      linear-gradient(160deg, var(--bg-deep) 0%, var(--bg) 55%, var(--bg-void) 100%)}
+      radial-gradient(1200px 700px at 4% -8%, rgba(91,119,255,.22), transparent 60%),
+      radial-gradient(900px 560px at 96% 6%, rgba(0,206,214,.16), transparent 58%),
+      linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-void) 56%, var(--bg-ink) 100%)}
   h1,h2,h3,h4,.brand b,.phead h1{font-family:var(--sans);letter-spacing:-.005em}
 
   /* Glass Brain atmosphere — a living, calm ground (behind the app) */
   .atmosphere{pointer-events:none;position:fixed;border-radius:999px;filter:blur(74px);opacity:.5;z-index:-2;animation:drift 15s ease-in-out infinite}
-  .atmosphere.a{width:46vw;height:46vw;top:-17vw;left:-14vw;background:radial-gradient(circle,rgba(78,117,255,.40) 0%,transparent 70%)}
-  .atmosphere.b{width:40vw;height:40vw;right:-11vw;bottom:-19vw;background:radial-gradient(circle,rgba(0,198,184,.32) 0%,transparent 68%);animation-delay:-5s}
+  .atmosphere.a{width:44vw;height:44vw;top:-16vw;left:-14vw;background:radial-gradient(circle,rgba(78,117,255,.42) 0%,transparent 70%)}
+  .atmosphere.b{width:38vw;height:38vw;right:-10vw;bottom:-18vw;background:radial-gradient(circle,rgba(0,198,184,.34) 0%,transparent 68%);animation-delay:-4s}
   .grain{pointer-events:none;position:fixed;inset:0;z-index:-1;opacity:.06;
     background-image:radial-gradient(rgba(255,255,255,.5) .6px,transparent .6px);background-size:2px 2px}
   @keyframes drift{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(0,14px,0) scale(1.04)}}
