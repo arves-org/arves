@@ -70,6 +70,12 @@
   .card{border-radius:var(--r-md);border-color:var(--line);box-shadow:none}
   .card:hover{border-color:var(--line-2)}
   .trace{border-radius:var(--r-md)}
+  /* v1: never edge-to-edge — cap + centre content on wide screens */
+  .phead{padding-inline:max(24px, calc((100% - 1160px) / 2))}
+  .scroll{padding-inline:max(0px, calc((100% - 1160px) / 2))}
+  /* v1: one primary per section — toggles/selection use an outlined accent, not the filled CTA */
+  .btn.on{border-color:var(--cool);color:var(--cool);background:var(--cool-soft)}
+  .btn.on:hover{border-color:var(--cool);color:var(--cool)}
   ::selection{background:var(--cool-soft)}
   button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
   :focus-visible{outline:2px solid var(--cool);outline-offset:2px;border-radius:6px}
@@ -183,7 +189,7 @@
   .chip{font-size:11px;letter-spacing:.03em;padding:5px 11px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
   .chip:hover{color:var(--ink);border-color:var(--line-2)}
   .chip.warm{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 35%,var(--line))}
-  .hint{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:auto}
+  .hint{font-family:var(--body);font-size:11.5px;color:var(--faint);margin-left:auto}
 
   /* ---- generic cards / grids for other panels ---- */
   .grid{padding:20px 24px;display:grid;gap:12px;max-width:1000px}
@@ -338,7 +344,7 @@
       <span id="rtdot" style="width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none"></span>
       <span style="font-family:var(--mono);letter-spacing:.02em"><b id="rttext" style="color:var(--ink);font-weight:600">Runtime</b> · <span id="rtconn">offline</span> · ARVES G1</span>
     </div>
-    <div class="foot">Nothing leaves this machine — every action is content-addressed truth in your local Kernel.</div>
+    <div class="foot">Everything stays on your machine — private, yours, and always here.</div>
   </aside>
 
   <main class="main" id="main"></main>
@@ -348,7 +354,7 @@
 
 <div class="cmdk" id="cmdk" hidden>
   <div class="cmdk-panel">
-    <input id="cmdk-input" class="cmdk-input" placeholder="Search or run a command…  (views, observe, add goal, a person…)" autocomplete="off" spellcheck="false">
+    <input id="cmdk-input" class="cmdk-input" aria-label="Search or run a command" placeholder="Search or run a command…  (views, observe, add goal, a person…)" autocomplete="off" spellcheck="false">
     <div class="cmdk-list" id="cmdk-list"></div>
     <div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span></div>
   </div>
@@ -468,6 +474,8 @@ function humanize(s){
   if(!x) return 'You';
   return x.split(' ').map(w=>ACRONYMS[w.toLowerCase()] || (w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
 }
+/* strip kernel-key prefixes from a free-form line (timeline details etc.) for the default view */
+function humText(s){ return String(s==null?'':s).replace(/\b(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order):/gi,''); }
 
 async function boot(){
   try{
@@ -480,7 +488,7 @@ async function boot(){
 function paintChrome(){
   const live = STATE.connected;
   const cp = $('#connpill'); cp.className = 'pill ' + (live?'live':'preview');
-  $('#conntext').textContent = live ? 'Live · local Kernel' : 'Preview · sample data';
+  $('#conntext').textContent = live ? 'Connected' : 'Preview · sample data';
   const rp = $('#reasonerpill'), stub = STATE.reasoner.isStub;
   rp.className = 'pill reasoner ' + (stub?'stub':'real');
   $('#reasonername').textContent = STATE.reasoner.name;
@@ -508,7 +516,7 @@ function renderNav(){
 /* transient UI state (not truth) */
 let UI = { entity:null, entitySearch:'', goalSearch:'', tlSearch:'', knowSearch:'', whyq:null, whyTrace:null, openSkill:null };
 const SEARCH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>';
-function searchBox(id,ph,val){ return `<div class="searchbox">${SEARCH_SVG}<input id="${id}" placeholder="${esc(ph)}" value="${esc(val||'')}" autocomplete="off" spellcheck="false"></div>`; }
+function searchBox(id,ph,val){ return `<div class="searchbox">${SEARCH_SVG}<input id="${id}" aria-label="${esc(ph)}" placeholder="${esc(ph)}" value="${esc(val||'')}" autocomplete="off" spellcheck="false"></div>`; }
 function wireSearch(id,setter){ const el=$('#'+id); if(!el) return; el.oninput=()=>{ setter(el.value); const pos=el.selectionStart; render(); const n=$('#'+id); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} } }; }
 
 function render(){
@@ -545,7 +553,7 @@ function viewHome(){
   const pendInner=pend.length? pend.map(a=>`<div style="display:flex;gap:9px;align-items:center;padding:5px 0"><span class="tag crit">${esc(a.by)}</span><span style="flex:1;font-size:13.5px;min-width:0">${esc(humanize(a.subject))}</span><button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}" style="padding:3px 11px;font-size:12px">Approve</button></div>`).join('') : `<div style="color:var(--good);font-size:13.5px">Nothing waiting on you. ✓</div>`;
   const memInner=recentObs.length? recentObs.map(t=>`<div style="padding:5px 0;font-size:13.5px"><b>${esc(humanize(t.entity||''))}</b> <span style="color:var(--muted)">${esc(t.event||t.summary)}</span></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Nothing yet — <button class="btn" data-goto="inbox" style="padding:2px 9px;font-size:12px">observe →</button></div>`;
   const worldInner=ents.length? ents.slice(0,7).map(e=>`<button class="btn" data-goto-entity="${esc(e.name)}" style="padding:5px 10px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))} <span style="color:var(--faint)">${e.truths}</span></button>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Your people &amp; projects appear here as you observe.</div>`;
-  const cogInner=recentCog.length? recentCog.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:9px;align-items:baseline;padding:4px 0"><span style="font-family:var(--mono);font-size:9.5px;text-transform:uppercase;color:${col};width:58px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:12.5px;min-width:0">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span></div>`;}).join('') : `<div style="color:var(--muted);font-size:13px">Ask JARVIS something to see it think.</div>`;
+  const cogInner=recentCog.length? recentCog.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:9px;align-items:baseline;padding:4px 0"><span style="font-family:var(--mono);font-size:9.5px;text-transform:uppercase;color:${col};width:58px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:12.5px;min-width:0">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(humText(e.detail))}</span>`:''}</span></div>`;}).join('') : `<div style="color:var(--muted);font-size:13px">Ask JARVIS something to see it think.</div>`;
   return `<section class="panel on">
     <div class="phead"><h1>${greet}${name}</h1><div class="sub">${esc(dateStr)}${dateStr?' · ':''}here's what matters today.</div></div>
     <div class="scroll">
@@ -557,7 +565,7 @@ function viewHome(){
       </div>
       <div style="margin-top:12px">${card('Recent cognition', cogInner)}</div>
       <div style="margin-top:16px;display:flex;gap:9px">
-        <input id="home-ask" placeholder="Ask JARVIS anything…" style="flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+        <input id="home-ask" aria-label="Ask JARVIS" placeholder="Ask JARVIS anything…" style="flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
         <button class="btn primary" id="home-send">Ask</button>
       </div>
     </div></section>`;
@@ -593,7 +601,7 @@ function viewTimeline(){
         <div style="padding-bottom:17px;min-width:0">
           <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:${col}">${KINDLABEL[e.kind]||e.kind}</div>
           <div style="font-size:14.5px;font-weight:600;margin-top:1px">${esc(e.label)}</div>
-          ${e.detail?`<div style="font-size:13px;color:var(--muted);margin-top:1px;word-break:break-word">${esc(e.detail)}</div>`:''}
+          ${e.detail?`<div style="font-size:13px;color:var(--muted);margin-top:1px;word-break:break-word">${esc(humText(e.detail))}</div>`:''}
           ${e.id?`<span class="cid" data-cid="${esc(e.id)}" style="margin-top:5px;display:inline-block">${esc(e.id.slice(0,14))}…</span>`:''}
         </div></div>`;
     }).join('');
@@ -614,7 +622,7 @@ function viewGoals(){
       <div class="body-line" style="color:var(--ink);font-size:15px;font-weight:600">${esc(g.title)}</div>
       <div style="margin-top:6px;font-size:12.5px;color:var(--muted)">${g.related} related ${g.related===1?'memory':'memories'} · <span class="devonly" style="font-family:var(--mono);color:var(--faint)">${esc(g.subject)}</span></div>
       <div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap">
-        ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'primary':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
+        ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'on':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
         <button class="btn" data-why="${esc(g.subject)}" style="padding:6px 12px;font-size:12.5px">explain</button>
       </div>
     </div>`).join(''):(gq?`<div class="empty">No goals match “${esc(UI.goalSearch)}”.</div>`:`<div class="empty">No goals yet. What are you working toward? Add one and JARVIS will help you make progress.</div>`);
@@ -622,7 +630,7 @@ function viewGoals(){
     <div class="phead"><h1>Goals</h1><div class="sub">What you’re working toward. A goal is a committed truth; each status change is a <em>later</em> truth, so it’s auditable. “Related” counts observations that mention it — an honest association, not an invented percentage.</div></div>
     <div class="scroll">
       <div class="card" style="margin-bottom:16px"><div style="display:flex;gap:9px">
-        <input id="goal-title" placeholder="e.g. Finish Chapter 5 · Earn a real G2 · Ship JARVIS" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+        <input id="goal-title" aria-label="New goal" placeholder="What are you working toward? e.g. Finish Chapter 5" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
         <button class="btn primary" id="goal-add">Add goal</button></div></div>
       ${allGoals.length>3?searchBox('goal-search','Search goals…',UI.goalSearch):''}
       ${cards}
@@ -699,7 +707,7 @@ function viewInsights(){
   return `<section class="panel on">
     <div class="phead"><h1>Insights</h1><div class="sub">What JARVIS notices about your world — <b>derived only from what it has actually observed</b>. No fabrication: richer life-insights (sleep, focus hours, code velocity) appear when you connect the matching source.</div></div>
     <div class="scroll">
-      ${card('Most present in your world', top?`<div style="font-size:18px;font-weight:650">${esc(top.name)}</div><div style="color:var(--muted);font-size:13px;margin-top:3px"><span class="tag warm">${esc(top.type)}</span> ${top.truths} truth(s) — more than any other entity. <button class="btn" data-goto-entity="${esc(top.name)}" style="padding:3px 10px;font-size:11px;margin-left:6px">open</button></div>`:'<div class="empty" style="border:none;padding:6px 0">Observe a source to build a picture.</div>')}
+      ${card('Most present in your world', top?`<div style="font-size:18px;font-weight:650">${esc(humanize(top.name))}</div><div style="color:var(--muted);font-size:13px;margin-top:3px"><span class="tag warm">${esc(top.type)}</span> ${top.truths} mention${top.truths===1?'':'s'} — more than anything else. <button class="btn" data-goto-entity="${esc(top.name)}" style="padding:3px 10px;font-size:11px;margin-left:6px">open</button></div>`:'<div class="empty" style="border:none;padding:6px 0">Observe a source to build a picture.</div>')}
       ${card('Source coverage', `<div style="font-size:18px;font-weight:650">${used.size} / ${(STATE.sources||[]).length} connectors active</div><div style="color:var(--muted);font-size:13px;margin-top:3px">${[...used].map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'none yet'} — the more you connect, the more JARVIS can notice.</div>`)}
       ${card('Cognition this session', `<div style="font-size:18px;font-weight:650">${tl.length} events</div><div style="margin-top:8px">${kindRow}</div><div style="color:var(--faint);font-size:12px;margin-top:6px">Resets on restart — this counts what happened since the server started (the WAL keeps the truths).</div>`)}
       ${card('Where your goals stand', `<div style="display:flex;gap:20px"><div><b style="font-size:20px;color:var(--cool)">${gA}</b> <span style="color:var(--muted);font-size:13px">active</span></div><div><b style="font-size:20px;color:var(--crit)">${gB}</b> <span style="color:var(--muted);font-size:13px">blocked</span></div><div><b style="font-size:20px;color:var(--good)">${gD}</b> <span style="color:var(--muted);font-size:13px">done</span></div><div style="flex:1"></div><div><b style="font-size:20px">${STATE.approvals.length}</b> <span style="color:var(--muted);font-size:13px">awaiting you</span></div></div>`)}
@@ -728,7 +736,7 @@ function viewKnowledge(){
       ${changes.length?changes.map(x=>`<div style="font-size:13px;padding:3px 0;color:var(--ink)">· ${esc(x.label)}${x.detail?` <span style="color:var(--muted)">— ${esc(x.detail)}</span>`:''}</div>`).join(''):'<div style="font-size:13px;color:var(--faint);padding:3px 0">none recorded this session</div>'}
       <div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Open questions</div>
       ${open.length?open.map(x=>`<div style="font-size:13px;padding:3px 0"><span class="tag crit">blocked</span> ${esc(x.title)}</div>`).join(''):'<div style="font-size:13px;color:var(--faint);padding:3px 0">nothing blocked</div>'}
-      ${related.length?`<div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Related</div><div style="margin-top:4px">${related.map(r=>`<button class="btn" data-goto-entity="${esc(r.name)}" style="padding:4px 9px;font-size:11px;margin:0 5px 5px 0">${esc(r.name)}</button>`).join('')}</div>`:''}
+      ${related.length?`<div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Related</div><div style="margin-top:4px">${related.map(r=>`<button class="btn" data-goto-entity="${esc(r.name)}" style="padding:4px 9px;font-size:11px;margin:0 5px 5px 0">${esc(humanize(r.name))}</button>`).join('')}</div>`:''}
     </div>`;
   };
   const kq=(UI.knowSearch||'').toLowerCase().trim();
@@ -777,10 +785,10 @@ function viewMemory(){
     const relGoals = (STATE.goals||[]).filter(g=>terms.some(t=>String(g.title).toLowerCase().includes(t)));
     const tl = (STATE.timeline||[]).filter(e=>String(e.detail||'').includes(sel));
     const alsoVia = ents.filter(e=>e.name!==sel && (e.sources||[]).some(s=>(ent.sources||[]).includes(s))).slice(0,10);
-    const stat=(v,l,col)=>`<div style="flex:1;min-width:88px"><div style="font-family:var(--mono);font-size:22px;font-weight:750;line-height:1;color:${col}">${v}</div><div style="font-size:11px;color:var(--muted);margin-top:5px">${l}</div></div>`;
+    const stat=(v,l,col)=>`<div style="flex:1;min-width:88px"><div style="font-size:22px;font-weight:700;line-height:1;color:${col}">${v}</div><div style="font-size:11px;color:var(--muted);margin-top:5px">${l}</div></div>`;
     const goalsHtml = relGoals.length? relGoals.map(g=>`<div style="display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span class="tag ${g.status==='done'?'good':g.status==='blocked'?'crit':'cool'}">${esc(g.status)}</span><span style="flex:1;font-size:13.5px">${esc(g.title)}</span><button class="btn" data-why="${esc(g.subject)}" style="padding:3px 9px;font-size:11px">why</button></div>`).join('') : `<div class="empty" style="border:none;padding:8px 0">No goals mention this yet.</div>`;
     const truthsHtml = mine.map(t=>`<div class="card" style="margin-bottom:8px"><div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div><div class="body-line" style="color:var(--ink)">${esc(t.event||t.summary)}</div><div style="margin-top:6px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div></div>`).join('');
-    const tlHtml = tl.length? tl.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${col};width:66px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:13px">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span></div>`;}).join('') : `<div class="empty" style="border:none;padding:8px 0">No cognition has touched this yet.</div>`;
+    const tlHtml = tl.length? tl.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${col};width:66px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:13px">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(humText(e.detail))}</span>`:''}</span></div>`;}).join('') : `<div class="empty" style="border:none;padding:8px 0">No cognition has touched this yet.</div>`;
     const alsoHtml = alsoVia.map(e=>`<button class="btn" data-entity="${esc(e.name)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))}</button>`).join('');
     return `<section class="panel on">
       <div class="phead"><h1 style="word-break:break-word">${esc(humanize(sel))}</h1><div class="sub"><button class="btn" data-entity="" style="padding:4px 10px;font-size:12px">← all</button> &nbsp; <span class="tag warm">${esc(ent.type||'Thing')}</span> &nbsp; What JARVIS knows about this ${esc((ent.type||'thing').toLowerCase())}. <span class="devonly" style="color:var(--faint)">${esc(sel)}</span></div></div>
@@ -818,15 +826,15 @@ function viewMemory(){
 /* ---------- Why = flowchart ---------- */
 function viewWhy(){
   const chips = [...new Set([...(STATE.goals||[]).map(g=>g.subject), ...(STATE.approvals||[]).map(a=>a.subject)])].slice(0,12);
-  const chipHtml = chips.map(s=>`<button class="btn" data-why="${esc(s)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(s)}</button>`).join('');
+  const chipHtml = chips.map(s=>`<button class="btn" data-why="${esc(s)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(s))}</button>`).join('');
   const tr = UI.whyTrace;
   const node=(kind,label,items)=>{ if(!items||!items.length) return ''; const col='var(--'+(KIND[kind]||'cool')+')';
     return `<div style="border:1px solid var(--line);border-left:3px solid ${col};border-radius:11px;padding:12px 15px;background:var(--surface)">
-      <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:${col};margin-bottom:7px">${label}</div>
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:${col};margin-bottom:7px">${label}</div>
       ${items.map(it=>`<div style="font-size:13.5px;padding:3px 0;display:flex;justify-content:space-between;gap:10px;align-items:baseline"><span style="min-width:0">${it.text}</span>${it.id?`<span class="cid" data-cid="${esc(it.id)}" style="flex:none">${esc(String(it.id).slice(0,10))}…</span>`:''}</div>`).join('')}
     </div>`; };
   let flow;
-  if(UI.whyq && !tr) flow = `<div class="empty">Reconstructing from the Kernel WAL…</div>`;
+  if(UI.whyq && !tr) flow = `<div class="empty">Reconstructing from your memory…</div>`;
   else if(tr && tr.error) flow = `<div class="empty">${esc(tr.error)}</div>`;
   else if(tr){
     const parts = [
@@ -839,13 +847,13 @@ function viewWhy(){
       node('act','Committed effects', (tr.committed||[]).map(cm=>({text:`<b>${esc(cm.skill)}</b> → ${esc(cm.target||'')}`, id:cm.id}))),
       node('decide','Decisions', (tr.decisions||[]).map(d=>({text:`${esc(d.action)} <span style="color:var(--faint)">${esc(d.because||'')}</span>`, id:d.id}))),
     ].filter(Boolean);
-    flow = `<div style="font-size:13px;color:var(--muted);margin-bottom:14px">Decision path for <b style="color:var(--ink)">${esc(tr.subject||UI.whyq)}</b> — every box is committed truth, reconstructed from the WAL.</div>`
+    flow = `<div style="font-size:13px;color:var(--muted);margin-bottom:14px">How JARVIS decided about <b style="color:var(--ink)">${esc(humanize(tr.subject||UI.whyq))}</b> — each step is something it knows, reconstructed from your record.</div>`
       + (parts.length? parts.join('<div style="text-align:center;color:var(--faint);font-size:15px;margin:2px 0">↓</div>') : `<div class="empty">Nothing recorded for “${esc(tr.subject||UI.whyq)}”.</div>`);
   } else flow = `<div class="empty">Pick a subject above (or type one) and JARVIS reconstructs its whole decision path — observed → reasoned → policy → approval → effect.</div>`;
   return `<section class="panel on">
     <div class="phead"><h1>Why</h1><div class="sub">Any decision, reconstructed from committed truth. The audit trail no chatbot can give you — because here it <em>is</em> the truth, not a log.</div></div>
     <div class="scroll">
-      <div style="display:flex;gap:9px;margin-bottom:10px"><input id="why-input" placeholder="a subject, e.g. goal:ship-jarvis or spend:flowers" value="${esc(UI.whyq||'')}" style="flex:1;padding:10px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:13px;outline:none"><button class="btn primary" id="why-go">Explain</button></div>
+      <div style="display:flex;gap:9px;margin-bottom:10px"><input id="why-input" aria-label="A decision, goal or person to explain" placeholder="a decision, a goal or a person…" value="${esc(UI.whyq||'')}" style="flex:1;padding:10px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13.5px;outline:none"><button class="btn primary" id="why-go">Explain</button></div>
       ${chipHtml?`<div style="margin-bottom:16px">${chipHtml}</div>`:''}
       ${flow}
     </div></section>`;
@@ -863,7 +871,7 @@ function viewGuardrails(){
         <button class="btn" data-why="${esc(a.subject)}">Why blocked?</button></div>
     </div>`).join('') : `<div class="empty">Nothing awaiting you. Governed actions cleared straight through.</div>`;
   const pol = STATE.policies.map(p=>`<div class="card" style="margin-bottom:9px"><div class="top-line"><span class="tag cool">policy · truth</span><span style="flex:1"></span></div>
-    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${esc(p.domain||'')}</div></div>`).join('') || `<div class="empty">No policies yet.</div>`;
+    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${esc(p.domain||'')}</div></div>`).join('') || `<div class="empty">No rules yet. JARVIS will suggest one the first time an action needs your sign-off.</div>`;
   return `<section class="panel on">
     <div class="phead"><h1>Guardrails</h1><div class="sub">Your rules are committed truths, not code. An approval is a <em>separate</em> truth from a different actor — so nothing can wave itself through.</div></div>
     <div class="scroll">
@@ -879,10 +887,10 @@ function viewSkills(){
     const risk = s.actionClass && s.actionClass!=='normal';
     const detail = open? `<div style="margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px">
         <div style="display:flex;gap:22px;flex-wrap:wrap">
-          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs · this session',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="font-family:var(--mono);color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
+          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs · this session',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
         </div>
-        <div style="margin-top:12px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Produces (output truth types)</div>${(s.produces||[]).map(p=>`<span class="tag cool" style="margin:0 6px 5px 0;display:inline-block">${esc(p)}</span>`).join('')||'—'}</div>
-        <div style="margin-top:11px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Admission truth (which code was certified)</div><span class="cid" data-cid="${esc(s.registrationId||'')}">${esc(String(s.registrationId||'').slice(0,18))}…</span></div>
+        <div style="margin-top:12px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Produces</div>${(s.produces||[]).map(p=>`<span class="tag cool" style="margin:0 6px 5px 0;display:inline-block">${esc(humanize(p.replace(/^uci\.assistant\./,'')))}</span>`).join('')||'—'}</div>
+        <div class="devonly" style="margin-top:11px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Admission truth (which code was certified)</div><span class="cid" data-cid="${esc(s.registrationId||'')}">${esc(String(s.registrationId||'').slice(0,18))}…</span></div>
       </div>`:'';
     return `<div class="card" data-skill="${esc(s.name)}" style="margin-bottom:9px;cursor:pointer">
       <div class="top-line"><span class="tag good">✓ certified</span>${risk?'<span class="tag crit">approval-gated</span>':''}<span style="flex:1"></span><span style="font-family:var(--mono);font-weight:600;color:var(--ink)">${esc(s.name)}</span></div>
@@ -911,8 +919,8 @@ function viewSettings(){
 
       <div class="field"><label>Intelligence</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn ${stub?'primary':''}" data-reasoner="stub">Free stub (deterministic)</button>
-          <button class="btn ${stub?'':'primary'}" data-reasoner="openai">Real model — OpenAI</button>
+          <button class="btn ${stub?'on':''}" data-reasoner="stub">Free stub (deterministic)</button>
+          <button class="btn ${stub?'':'on'}" data-reasoner="openai">Real model — OpenAI</button>
         </div>
         <div class="help">Switch live. The stub is free and reproducible; a real model reasons over anything, billed by your provider.</div></div>
 
@@ -924,11 +932,11 @@ function viewSettings(){
         <div class="help" style="margin-top:9px;line-height:1.5">🔒 <b>Your key stays in this server’s memory for this session only.</b> It is never written to disk, never logged, never committed, and never becomes truth — it leaves this machine solely as the Authorization header of <em>your own</em> OpenAI request (billed by OpenAI, not ARVES). For a key that survives a restart, start the server with <code>OPENAI_API_KEY=…</code> instead. Rotate any key you’ve shared anywhere.</div>
       </div>
 
-      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:14px 2px 2px">Shard &amp; memory</div>
-      <div class="field"><label>Tenant</label><input value="${esc(STATE.identity.tenant)}" readonly></div>
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:14px 2px 2px">Identity &amp; storage</div>
       <div class="field"><label>Workspace</label><input value="${esc(STATE.identity.workspace)}" readonly></div>
-      <div class="field"><label>Durable memory (--wal-dir)</label><input value="${esc(STATE.identity.walDir)}" readonly>
-        <div class="help">Your whole memory lives here and survives restarts — nothing leaves the machine. Changing the shard or folder rebinds the Kernel, so it’s a server-start flag (<code>--tenant</code> / <code>--workspace</code> / <code>--wal-dir</code>), not a live switch.</div></div>
+      <div class="field"><label>Where your memory is stored</label><input value="${esc(STATE.identity.walDir)}" readonly>
+        <div class="help">Everything JARVIS remembers lives in this folder and survives restarts — it never leaves your machine.</div>
+        <div class="help devonly">Developer: the shard (<code>--tenant</code> / <code>--workspace</code>) and folder (<code>--wal-dir</code>) are set at server start — changing them rebinds the Kernel, so they aren’t live-editable. Tenant: <code>${esc(STATE.identity.tenant)}</code>.</div></div>
     </div></div></section>`;
 }
 
