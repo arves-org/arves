@@ -24,3 +24,11 @@ verification/formal/states/
 # review tooling; never committed (the corpus .docx + spec-markdown mirrors are the frozen
 # sources of record). Ignored so they can never re-enter the freeze manifest by accident.
 runtime/review-input/
+
+# JARVIS local memory — the WAL directory the assistant/console writes your truth into
+# (node ui/server.mjs --wal-dir …, `npm run ui`, and the quickstart). Runtime data on YOUR
+# machine, never source; ignored so a demo run can never stage your personal truth.
+jarvis-wal/
+**/jarvis-wal/
+my-jarvis-wal/
+**/my-jarvis-wal/

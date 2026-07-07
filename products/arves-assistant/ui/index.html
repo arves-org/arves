@@ -1,0 +1,553 @@
+<title>JARVIS · Cognitive Console</title>
+<style>
+  /* ============================ tokens ============================ */
+  :root{
+    /* cool = committed TRUTH (the substrate) · warm = THOUGHT (reasoning, not-yet-truth) */
+    --bg:#0a0f12; --surface:#0f171b; --surface-2:#132025; --raise:#16262c;
+    --line:#1e3239; --line-2:#284249;
+    --ink:#dbeef0; --muted:#7fa0a4; --faint:#4f6d72;
+    --cool:#3ad6c8; --cool-soft:#3ad6c822; --cool-dim:#2a8f88;
+    --warm:#e3a54b; --warm-soft:#e3a54b1f;
+    --good:#54c07a; --warn:#d9a441; --crit:#e2624d; --crit-soft:#e2624d1a;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.45);
+    --glow:0 0 0 1px var(--cool-soft),0 0 22px -6px var(--cool);
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#e9eef0; --surface:#ffffff; --surface-2:#f2f6f7; --raise:#eaf1f2;
+      --line:#d3e0e2; --line-2:#c2d5d8;
+      --ink:#0f2226; --muted:#4e6c71; --faint:#8aa6aa;
+      --cool:#0f9c92; --cool-soft:#0f9c9218; --cool-dim:#0c837b;
+      --warm:#b06f10; --warm-soft:#b06f1014;
+      --good:#2f9757; --warn:#a9791b; --crit:#c14329; --crit-soft:#c1432912;
+      --shadow:0 1px 2px rgba(16,34,38,.06),0 10px 28px rgba(16,34,38,.08);
+      --glow:0 0 0 1px var(--cool-soft),0 0 0 rgba(0,0,0,0);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e9eef0; --surface:#ffffff; --surface-2:#f2f6f7; --raise:#eaf1f2;
+    --line:#d3e0e2; --line-2:#c2d5d8; --ink:#0f2226; --muted:#4e6c71; --faint:#8aa6aa;
+    --cool:#0f9c92; --cool-soft:#0f9c9218; --cool-dim:#0c837b; --warm:#b06f10; --warm-soft:#b06f1014;
+    --good:#2f9757; --warn:#a9791b; --crit:#c14329; --crit-soft:#c1432912;
+    --shadow:0 1px 2px rgba(16,34,38,.06),0 10px 28px rgba(16,34,38,.08);
+    --glow:0 0 0 1px var(--cool-soft),0 0 0 rgba(0,0,0,0);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0f12; --surface:#0f171b; --surface-2:#132025; --raise:#16262c; --line:#1e3239; --line-2:#284249;
+    --ink:#dbeef0; --muted:#7fa0a4; --faint:#4f6d72; --cool:#3ad6c8; --cool-soft:#3ad6c822; --cool-dim:#2a8f88;
+    --warm:#e3a54b; --warm-soft:#e3a54b1f; --good:#54c07a; --warn:#d9a441; --crit:#e2624d; --crit-soft:#e2624d1a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.45);
+    --glow:0 0 0 1px var(--cool-soft),0 0 22px -6px var(--cool);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);
+    font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overflow:hidden}
+  ::selection{background:var(--cool-soft)}
+  button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+  :focus-visible{outline:2px solid var(--cool);outline-offset:2px;border-radius:6px}
+  input,textarea{font:inherit;color:inherit}
+
+  .app{display:grid;grid-template-columns:236px 1fr;grid-template-rows:52px 1fr;height:100vh;
+    grid-template-areas:"brand top" "rail main"}
+
+  /* ---------------- top bar ---------------- */
+  .top{grid-area:top;display:flex;align-items:center;gap:14px;padding:0 18px;
+    border-bottom:1px solid var(--line);background:linear-gradient(var(--surface),var(--bg))}
+  .top .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.04em;
+    padding:5px 10px;border:1px solid var(--line);border-radius:99px;color:var(--muted);white-space:nowrap}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .pill.live{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 45%,var(--line))}
+  .pill.live .dot{background:var(--cool);box-shadow:0 0 8px var(--cool);animation:breathe 3s ease-in-out infinite}
+  .pill.preview{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 45%,var(--line))}
+  .pill.preview .dot{background:var(--warm)}
+  .pill.reasoner .k{color:var(--faint)}
+  .pill.reasoner.stub{color:var(--warm)} .pill.reasoner.stub .dot{background:var(--warm)}
+  .pill.reasoner.real{color:var(--good)} .pill.reasoner.real .dot{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .iconbtn{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line);
+    border-radius:9px;color:var(--muted)}
+  .iconbtn:hover{color:var(--ink);border-color:var(--line-2)}
+
+  /* ---------------- brand ---------------- */
+  .brand{grid-area:brand;display:flex;align-items:center;gap:11px;padding:0 18px;
+    border-bottom:1px solid var(--line);border-right:1px solid var(--line);background:var(--surface)}
+  .orb{width:22px;height:22px;position:relative;flex:none}
+  .orb i{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--cool);opacity:.9}
+  .orb i:nth-child(2){inset:4px;border-color:var(--cool-dim);animation:spin 7s linear infinite}
+  .orb i:nth-child(3){inset:8px;background:var(--cool);border:0;box-shadow:0 0 10px var(--cool)}
+  .brand b{font-size:15px;letter-spacing:.28em;font-weight:700}
+  .brand .v{font-size:9px;color:var(--faint);letter-spacing:.14em;margin-top:2px}
+
+  /* ---------------- left rail ---------------- */
+  .rail{grid-area:rail;border-right:1px solid var(--line);background:var(--surface);
+    display:flex;flex-direction:column;overflow-y:auto}
+  .idcard{padding:16px 18px 14px;border-bottom:1px solid var(--line);display:grid;gap:9px}
+  .idrow{display:flex;justify-content:space-between;gap:10px;font-size:11.5px}
+  .idrow .k{color:var(--faint);letter-spacing:.05em}
+  .idrow .val{color:var(--ink);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .truthcount{margin-top:2px;display:flex;align-items:baseline;gap:8px}
+  .truthcount b{font-size:26px;color:var(--cool);letter-spacing:-.02em}
+  .truthcount span{font-size:10px;color:var(--faint);letter-spacing:.12em;text-transform:uppercase}
+  nav{padding:10px 10px;display:grid;gap:2px}
+  .navi{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--muted);
+    font-size:13px;letter-spacing:.01em;text-align:left;width:100%}
+  .navi svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6}
+  .navi .badge{margin-left:auto;font-size:10px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;
+    display:grid;place-items:center;background:var(--surface-2);color:var(--muted)}
+  .navi:hover{color:var(--ink);background:var(--surface-2)}
+  .navi.on{color:var(--cool);background:var(--cool-soft);box-shadow:inset 2px 0 0 var(--cool)}
+  .navi.on .badge{background:var(--cool-soft);color:var(--cool)}
+  .navi.alert .badge{background:var(--crit-soft);color:var(--crit)}
+  .rail .foot{margin-top:auto;padding:12px 18px;border-top:1px solid var(--line);font-size:10.5px;color:var(--faint);line-height:1.5}
+
+  /* ---------------- main ---------------- */
+  .main{grid-area:main;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .panel{display:none;flex:1;min-height:0;flex-direction:column}
+  .panel.on{display:flex}
+  .phead{padding:16px 24px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;gap:14px}
+  .phead h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.02em}
+  .phead .sub{font-family:var(--sans);font-size:12.5px;color:var(--muted);flex:1;line-height:1.5}
+  .scroll{overflow-y:auto;flex:1;min-height:0}
+
+  /* ---- console (the hero) ---- */
+  .stream{padding:22px 24px 8px;display:flex;flex-direction:column;gap:20px;max-width:920px}
+  .ask{align-self:flex-end;max-width:76%;background:var(--surface-2);border:1px solid var(--line-2);
+    border-radius:13px 13px 4px 13px;padding:11px 15px;font-family:var(--sans);font-size:14px;line-height:1.5}
+  .ask .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  .resp{align-self:flex-start;max-width:88%;width:100%;display:grid;gap:0}
+  .resp .say{font-family:var(--sans);font-size:14.5px;line-height:1.6;color:var(--ink);margin-bottom:12px}
+  .resp .say .lead{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cool);margin-bottom:5px}
+  /* the trace — the thesis: thought(warm) -> gate -> commit(cool truth) */
+  .trace{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+  .tstep{display:grid;grid-template-columns:132px 1fr;gap:0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .tstep:last-child{border-bottom:0}
+  .tstep .lbl{padding:11px 14px;background:var(--surface-2);color:var(--muted);border-right:1px solid var(--line);
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+  .tstep .lbl .m{width:8px;height:8px;border-radius:2px;flex:none}
+  .tstep .body{padding:11px 15px;font-family:var(--sans);line-height:1.5;color:var(--ink);display:flex;flex-direction:column;gap:4px}
+  .tstep.thought .lbl .m{background:var(--warm)} .tstep.thought .lbl{color:var(--warm)}
+  .tstep.thought .body{background:var(--warm-soft)}
+  .tstep.gate.pass .lbl .m{background:var(--good)} .tstep.gate.pass .lbl{color:var(--good)}
+  .tstep.gate.block .lbl .m{background:var(--crit)} .tstep.gate.block .lbl{color:var(--crit)}
+  .tstep.gate.block .body{background:var(--crit-soft)}
+  .tstep.commit .lbl .m{background:var(--cool)} .tstep.commit .lbl{color:var(--cool)}
+  .cid{font-family:var(--mono);font-size:11px;color:var(--cool);background:var(--cool-soft);
+    padding:2px 7px;border-radius:6px;letter-spacing:.02em;cursor:pointer;align-self:flex-start;
+    border:1px solid color-mix(in srgb,var(--cool) 30%,transparent)}
+  .cid:hover{border-color:var(--cool)}
+  .inlinebtn{align-self:flex-start;margin-top:5px;font-family:var(--mono);font-size:11px;letter-spacing:.03em;
+    padding:6px 12px;border:1px solid var(--crit);color:var(--crit);border-radius:8px}
+  .inlinebtn:hover{background:var(--crit-soft)}
+  .meta-src{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+  /* ---- composer ---- */
+  .composer{border-top:1px solid var(--line);padding:14px 24px 18px;background:linear-gradient(var(--bg),var(--surface))}
+  .cbox{max-width:920px;display:flex;gap:10px;align-items:flex-end;background:var(--surface);border:1px solid var(--line-2);
+    border-radius:14px;padding:10px 10px 10px 16px;box-shadow:var(--glow)}
+  .cbox textarea{flex:1;resize:none;border:0;background:none;font-family:var(--sans);font-size:14.5px;
+    line-height:1.5;max-height:140px;min-height:24px;outline:none}
+  .cbox textarea::placeholder{color:var(--faint)}
+  .send{width:38px;height:38px;flex:none;border-radius:10px;background:var(--cool);color:#04110f;
+    display:grid;place-items:center;box-shadow:0 0 16px -4px var(--cool)}
+  .send:hover{filter:brightness(1.08)} .send:disabled{opacity:.4;box-shadow:none;cursor:not-allowed}
+  .send svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2}
+  .quickrow{max-width:920px;display:flex;gap:8px;margin:9px 2px 0;flex-wrap:wrap;align-items:center}
+  .chip{font-size:11px;letter-spacing:.03em;padding:5px 11px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+  .chip:hover{color:var(--ink);border-color:var(--line-2)}
+  .chip.warm{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 35%,var(--line))}
+  .hint{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:auto}
+
+  /* ---- generic cards / grids for other panels ---- */
+  .grid{padding:20px 24px;display:grid;gap:12px;max-width:1000px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card .top-line{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;letter-spacing:.01em}
+  .card .body-line{font-family:var(--sans);font-size:13px;color:var(--muted);line-height:1.55}
+  .tag{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:99px;
+    border:1px solid var(--line);color:var(--muted)}
+  .tag.cool{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 40%,var(--line));background:var(--cool-soft)}
+  .tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
+  .tag.warm{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 40%,var(--line))}
+  .tag.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))}
+  .srcs{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .src{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .btn{font-family:var(--mono);font-size:12px;letter-spacing:.02em;padding:8px 14px;border-radius:9px;
+    border:1px solid var(--line-2);color:var(--ink)}
+  .btn:hover{border-color:var(--cool);color:var(--cool)}
+  .btn.warm{border-color:color-mix(in srgb,var(--warm) 50%,var(--line));color:var(--warm)}
+  .btn.warm:hover{background:var(--warm-soft)}
+  .btn.primary{background:var(--cool);color:#04110f;border-color:var(--cool)}
+  .btn.primary:hover{filter:brightness(1.08)}
+
+  /* why timeline */
+  .timeline{padding:20px 24px;max-width:820px;position:relative}
+  .tl{position:relative;padding-left:30px}
+  .tl:before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:1.5px;background:var(--line-2)}
+  .tlnode{position:relative;margin-bottom:16px}
+  .tlnode:before{content:"";position:absolute;left:-25px;top:4px;width:11px;height:11px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--cool-dim)}
+  .tlnode.warm:before{border-color:var(--warm)} .tlnode.crit:before{border-color:var(--crit)}
+  .tlnode.commit:before{background:var(--cool);border-color:var(--cool);box-shadow:0 0 8px var(--cool)}
+  .tlnode .h{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .tlnode .c{font-family:var(--sans);font-size:13.5px;line-height:1.5;color:var(--ink)}
+
+  /* settings */
+  .field{display:grid;gap:6px;margin-bottom:16px;max-width:520px}
+  .field label{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .field input,.field select{background:var(--surface-2);border:1px solid var(--line-2);border-radius:9px;
+    padding:10px 13px;font-family:var(--mono);font-size:13px;outline:none}
+  .field input:focus,.field select:focus{border-color:var(--cool)}
+  .field .help{font-family:var(--sans);font-size:12px;color:var(--faint);line-height:1.5}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--warm);border-radius:10px;
+    padding:13px 16px;background:var(--warm-soft);max-width:640px;margin-bottom:18px}
+  .callout b{color:var(--warm)}
+  .callout p{margin:0;font-family:var(--sans);font-size:13px;line-height:1.6}
+  .callout code{font-family:var(--mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px;color:var(--ink)}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--raise);border:1px solid var(--line-2);color:var(--ink);padding:11px 18px;border-radius:11px;
+    font-size:12.5px;box-shadow:var(--shadow);transition:.25s;pointer-events:none;z-index:50;max-width:80vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .cid{margin-left:8px}
+
+  .empty{padding:60px 24px;text-align:center;color:var(--faint);font-family:var(--sans);font-size:13px}
+
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .stream>*{animation:rise .35s ease both}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+  @media (max-width:820px){
+    .app{grid-template-columns:1fr;grid-template-rows:52px 1fr;grid-template-areas:"top top" "main main"}
+    .brand,.rail{display:none}
+  }
+</style>
+
+<div class="app">
+  <div class="brand">
+    <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div><b>JARVIS</b><div class="v">ON ARVES · v0.1</div></div>
+  </div>
+
+  <header class="top">
+    <span id="connpill" class="pill preview"><span class="dot"></span><span id="conntext">Preview · sample data</span></span>
+    <span id="reasonerpill" class="pill reasoner stub"><span class="dot"></span><span class="k">reasoner</span>&nbsp;<span id="reasonername">Stub (deterministic)</span></span>
+    <span class="spacer"></span>
+    <span id="wormark" class="pill"><span class="dot" style="background:var(--cool)"></span><span id="shardlabel">hakan / personal</span></span>
+    <button class="iconbtn" id="themebtn" title="Toggle theme" aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+    </button>
+  </header>
+
+  <aside class="rail">
+    <div class="idcard">
+      <div class="idrow"><span class="k">tenant</span><span class="val" id="id-tenant">hakan</span></div>
+      <div class="idrow"><span class="k">workspace</span><span class="val" id="id-ws">personal</span></div>
+      <div class="idrow"><span class="k">wal</span><span class="val" id="id-wal">~/.jarvis/wal</span></div>
+      <div class="truthcount"><b id="truthnum">0</b><span>truths remembered</span></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="foot">Every action here becomes content-addressed truth in your local Kernel — replayable, attributable, yours. Nothing leaves this machine.</div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  JARVIS Cognitive Console — front end.
+ *  Talks to its own local server at /api/* (served by ui/server.mjs).
+ *  If the server is unreachable (e.g. opened as a static preview), it
+ *  falls back to SAMPLE data and marks itself "Preview" — the design is
+ *  identical; only the data is canned. Nothing here fakes intelligence:
+ *  the reasoner shown is whatever the server reports (a deterministic
+ *  Stub until you plug an LLM in Settings).
+ * ------------------------------------------------------------------ */
+
+const SAMPLE = {
+  connected:false,
+  identity:{ tenant:"hakan", workspace:"personal", walDir:"~/.jarvis/wal" },
+  reasoner:{ name:"Stub (deterministic)", isStub:true },
+  truths:[
+    { id:"1220a3f28c… q3-review", kind:"observation", summary:"Meeting “q3-review” today 14:00", sources:["calendar","email","slack"], tag:"3 systems" },
+    { id:"1220b91e07… vendor-x", kind:"observation", summary:"Invoice from vendor-x — $2,400 renewal", sources:["erp","email"], tag:"2 systems" },
+    { id:"1220ce4471… sleep", kind:"observation", summary:"Low sleep last night (5h10m)", sources:["health"], tag:"1 system" },
+    { id:"12207fa2d9… invest", kind:"decision", summary:"Declined invest:acme-fund — “risk”", sources:["you"], tag:"decision" },
+    { id:"1220e9d3a4… vendor-x", kind:"compliance", summary:"BLOCKED renew spend:vendor-x — needs legal approval", sources:["policy"], tag:"compliance" }
+  ],
+  policies:[ { rule:"spend > $1,000 requires a separate legal approval", domain:"spend" } ],
+  approvals:[ { subject:"spend:vendor-x", asked:"renew $2,400", by:"legal" } ],
+  skills:[
+    { name:"notes.digest", certified:true }, { name:"schedule.block", certified:true },
+    { name:"reply.draft", certified:true }
+  ],
+  agents:[ { id:"researcher", role:"gathers facts into truth" }, { id:"scheduler", role:"proposes plan items" } ],
+  conversation:[
+    { role:"you", text:"Should I renew the vendor-x server for $2,400?" },
+    { role:"jarvis",
+      say:"I checked it against your governance and your memory. It’s blocked — here’s exactly why.",
+      trace:[
+        { kind:"thought", label:"reasoner · stub", lines:[
+          "Renew: the invoice is attested by 2 independent systems (erp, email) — high confidence it’s real.",
+          "But the amount ($2,400) crosses your spend guardrail." ] },
+        { kind:"gate", state:"block", label:"guardrail", lines:[
+          "Policy: spend > $1,000 requires a separate legal approval.",
+          "No legal-approval truth exists for spend:vendor-x." ], action:"Request legal approval" },
+        { kind:"commit", label:"committed truth", lines:[
+          "Recorded the refusal as a compliance event — auditable, replayable." ], cid:"1220e9d3a4…" }
+      ] }
+  ]
+};
+
+const ICONS = {
+  console:'<path d="M4 5h16v14H4z"/><path d="M8 10l3 2-3 2"/><path d="M13 14h4"/>',
+  memory:'<path d="M12 3a4 4 0 0 0-4 4v1a3 3 0 0 0 0 6 4 4 0 0 0 8 0 3 3 0 0 0 0-6V7a4 4 0 0 0-4-4z"/>',
+  why:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 .9-1 1.7"/><path d="M12 16.5h.01"/>',
+  guardrails:'<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
+  skills:'<path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 16l-5 2.9 1-5.5-4-3.9 5.5-.8z"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4A7 7 0 0 0 7.5 5.7l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .9.1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3z"/>'
+};
+const NAV = [
+  { id:"console", name:"Console" },
+  { id:"memory", name:"Memory", badge:s=>s.truths.length },
+  { id:"why", name:"Why" },
+  { id:"guardrails", name:"Guardrails", badge:s=>s.approvals.length, alert:s=>s.approvals.length>0 },
+  { id:"skills", name:"Skills", badge:s=>s.skills.length },
+  { id:"settings", name:"Settings" }
+];
+
+let STATE = structuredClone(SAMPLE);
+let TAB = "console";
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+async function boot(){
+  try{
+    const r = await fetch('/api/state', { headers:{accept:'application/json'} });
+    if(r.ok){ const d = await r.json(); STATE = Object.assign(structuredClone(SAMPLE), d, {connected:true}); }
+  }catch(e){ /* preview mode */ }
+  paintChrome(); renderNav(); render();
+}
+
+function paintChrome(){
+  const live = STATE.connected;
+  const cp = $('#connpill'); cp.className = 'pill ' + (live?'live':'preview');
+  $('#conntext').textContent = live ? 'Live · local Kernel' : 'Preview · sample data';
+  const rp = $('#reasonerpill'), stub = STATE.reasoner.isStub;
+  rp.className = 'pill reasoner ' + (stub?'stub':'real');
+  $('#reasonername').textContent = STATE.reasoner.name;
+  $('#id-tenant').textContent = STATE.identity.tenant;
+  $('#id-ws').textContent = STATE.identity.workspace;
+  $('#id-wal').textContent = STATE.identity.walDir;
+  $('#shardlabel').textContent = STATE.identity.tenant + ' / ' + STATE.identity.workspace;
+  $('#truthnum').textContent = STATE.truths.length;
+}
+
+function renderNav(){
+  $('#nav').innerHTML = NAV.map(n=>{
+    const b = n.badge ? n.badge(STATE) : null;
+    const alert = n.alert && n.alert(STATE);
+    return `<button class="navi ${n.id===TAB?'on':''} ${alert?'alert':''}" data-tab="${n.id}">
+      <svg viewBox="0 0 24 24">${ICONS[n.id]}</svg><span>${n.name}</span>
+      ${b?`<span class="badge">${b}</span>`:''}</button>`;
+  }).join('');
+  document.querySelectorAll('.navi').forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;renderNav();render();});
+}
+
+function render(){
+  const m = $('#main');
+  m.innerHTML = ({
+    console:viewConsole, memory:viewMemory, why:viewWhy,
+    guardrails:viewGuardrails, skills:viewSkills, settings:viewSettings
+  })[TAB]();
+  wire();
+}
+
+/* ---------- Console (the hero) ---------- */
+function viewConsole(){
+  const convo = STATE.conversation.map(m=>{
+    if(m.role==='you') return `<div class="ask"><div class="who">you</div>${esc(m.text)}</div>`;
+    return `<div class="resp">
+      <div class="say"><span class="lead">jarvis</span>${esc(m.say)}</div>
+      <div class="trace">${m.trace.map(traceStep).join('')}</div></div>`;
+  }).join('');
+  const preview = !STATE.connected;
+  return `<section class="panel on">
+    <div class="scroll"><div class="stream" id="stream">${convo}</div></div>
+    <div class="composer">
+      <div class="cbox">
+        <textarea id="ask" rows="1" placeholder="Ask JARVIS — it will reason, check your guardrails, and remember…"></textarea>
+        <button class="send" id="sendbtn" title="Ask"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="quickrow">
+        <button class="chip warm" data-obs="calendar">+ observe calendar</button>
+        <button class="chip warm" data-obs="email">+ observe email</button>
+        <button class="chip warm" data-obs="tasks">+ observe tasks</button>
+        <span class="hint">${preview?'preview — connect the local server for a live reasoner':'⏎ to ask · shift+⏎ newline'}</span>
+      </div>
+    </div>
+  </section>`;
+}
+function traceStep(t){
+  if(t.kind==='thought') return `<div class="tstep thought"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+    <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}</div></div>`;
+  if(t.kind==='gate'){ const pass=t.state==='pass';
+    return `<div class="tstep gate ${pass?'pass':'block'}"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+      <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}
+      ${t.action?`<button class="inlinebtn" data-approve="${esc(t.action)}">${esc(t.action)}</button>`:''}</div></div>`; }
+  return `<div class="tstep commit"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+    <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}
+    ${t.cid?`<span class="cid" data-cid="${esc(t.cid)}">${esc(t.cid)}</span>`:''}</div></div>`;
+}
+
+/* ---------- Memory ---------- */
+function viewMemory(){
+  const cards = STATE.truths.map(t=>`
+    <div class="card">
+      <div class="top-line"><span class="tag ${t.kind==='observation'?'cool':t.kind==='decision'?'good':t.kind==='compliance'?'crit':'warm'}">${esc(t.kind)}</span>
+        <span class="tag">${esc(t.tag||'')}</span>
+        <span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id)}</span></div>
+      <div class="body-line" style="color:var(--ink)">${esc(t.summary)}</div>
+      <div class="srcs">${(t.sources||[]).map(s=>`<span class="src">◇ ${esc(s)}</span>`).join('')}</div>
+    </div>`).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Memory</h1><div class="sub">Everything JARVIS knows — one content-addressed truth per row, each carrying the sources that attest it. The same real-world event seen by many systems collapses to one truth.</div></div>
+    <div class="scroll"><div class="grid">${cards}</div></div></section>`;
+}
+
+/* ---------- Why ---------- */
+function viewWhy(){
+  return `<section class="panel on">
+    <div class="phead"><h1>Why</h1><div class="sub">Pick any decision and JARVIS reconstructs the whole path from its Kernel WAL — what it observed, what it reasoned, which policy it checked, what it committed. This is the trace no chatbot can give you.</div></div>
+    <div class="scroll"><div class="timeline"><div class="tl">
+      <div class="tlnode"><div class="h">observed</div><div class="c">Invoice from <b>vendor-x</b> — $2,400 renewal, attested by <b>erp</b> + <b>email</b>. <span class="meta-src">1220b91e07…</span></div></div>
+      <div class="tlnode warm"><div class="h">reasoned · stub</div><div class="c">Proposed <b>renew</b>: real (2-system) but amount &gt; $1,000 spend guardrail.</div></div>
+      <div class="tlnode crit"><div class="h">policy checked</div><div class="c">Guardrail <b>spend&gt;$1,000 → legal approval</b> matched; no approval truth on record → <b>blocked</b>.</div></div>
+      <div class="tlnode commit"><div class="h">committed</div><div class="c">Refusal recorded as a compliance truth. <span class="cid" data-cid="1220e9d3a4…">1220e9d3a4…</span></div></div>
+    </div></div></div></section>`;
+}
+
+/* ---------- Guardrails ---------- */
+function viewGuardrails(){
+  const pol = STATE.policies.map(p=>`<div class="card"><div class="top-line"><span class="tag cool">policy · truth</span><span style="flex:1"></span></div>
+    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div></div>`).join('');
+  const app = STATE.approvals.length ? STATE.approvals.map(a=>`
+    <div class="card" style="border-left:3px solid var(--crit)">
+      <div class="top-line"><span class="tag crit">awaiting approval</span><span style="flex:1"></span></div>
+      <div class="body-line" style="color:var(--ink)"><b>${esc(a.subject)}</b> — ${esc(a.asked)} · needs a separate <b>${esc(a.by)}</b> approval truth</div>
+      <div style="margin-top:11px;display:flex;gap:8px">
+        <button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}">Approve as ${esc(a.by)}</button>
+        <button class="btn">Dismiss</button></div>
+    </div>`).join('') : `<div class="empty">No pending approvals. Governed actions clear straight through.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Guardrails</h1><div class="sub">Your rules are committed truths, not code — JARVIS checks every action against them, and an approval is a <em>separate</em> truth from a different actor, so it can’t clear its own gate.</div></div>
+    <div class="scroll"><div class="grid">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px -2px">Pending</div>${app}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:12px 2px -2px">Policies</div>${pol}
+    </div></div></section>`;
+}
+
+/* ---------- Skills ---------- */
+function viewSkills(){
+  const sk = STATE.skills.map(s=>`<div class="card"><div class="top-line">
+    <span class="tag ${s.certified?'good':'crit'}">${s.certified?'✓ certified':'✗ uncertified'}</span>
+    <span style="flex:1"></span><span class="cid" style="cursor:default">${esc(s.name)}</span></div>
+    <div class="body-line">A skill runs only if certification passes — a forged flag is refused at the gate.</div></div>`).join('');
+  const ag = STATE.agents.map(a=>`<div class="card"><div class="top-line"><span class="tag warm">sub-agent</span><span style="flex:1"></span><span class="cid" style="cursor:default">${esc(a.id)}</span></div>
+    <div class="body-line">${esc(a.role)} — works over the one shared truth base, attributed.</div></div>`).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Skills &amp; Agents</h1><div class="sub">Skills are certified capabilities JARVIS may run; sub-agents reason over one shared truth with attribution. Add a skill and it’s bound + re-certified before it can ever act.</div>
+      <button class="btn primary" data-add-skill>+ Add skill</button></div>
+    <div class="scroll"><div class="grid">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px -2px">Certified skills</div>${sk}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:12px 2px -2px">Sub-agents</div>${ag}
+    </div></div></section>`;
+}
+
+/* ---------- Settings ---------- */
+function viewSettings(){
+  const stub = STATE.reasoner.isStub;
+  return `<section class="panel on">
+    <div class="phead"><h1>Settings</h1><div class="sub">Where JARVIS becomes yours: point it at your workspace, your durable memory, and — the one that turns the lights on — your own LLM.</div></div>
+    <div class="scroll"><div class="grid" style="display:block;max-width:660px">
+      <div class="callout"><p><b>Reasoner: ${stub?'Stub (deterministic)':esc(STATE.reasoner.name)}.</b>
+        ${stub?`JARVIS is honest by design — until you plug a real model it uses a deterministic rule-based stub, so demos stay reproducible. Implement the <code>Reasoner</code> interface in <code>src/llm-reasoner.example.mjs</code> (there’s a marked <code>PUT YOUR API CALL HERE</code>), set it below, and the intelligence is yours. The governance, memory and audit stay exactly the same.`:`A real model is wired in. Its output becomes addressable, governed, replayable truth just like everything else.`}</p></div>
+      <div class="field"><label>Reasoner</label>
+        <select id="set-reasoner"><option ${stub?'selected':''}>Stub (deterministic)</option><option ${!stub?'selected':''}>My LLM (llm-reasoner.mjs)</option></select>
+        <div class="help">Selecting your LLM loads your adapter module. No API key is stored in the repo — it lives in your environment.</div></div>
+      <div class="field"><label>Tenant</label><input id="set-tenant" value="${esc(STATE.identity.tenant)}"></div>
+      <div class="field"><label>Workspace</label><input id="set-ws" value="${esc(STATE.identity.workspace)}"></div>
+      <div class="field"><label>Durable memory (--wal-dir)</label><input id="set-wal" value="${esc(STATE.identity.walDir)}">
+        <div class="help">A real folder. Your assistant’s whole memory lives here and survives restarts — nothing leaves the machine.</div></div>
+      <button class="btn primary" id="savecfg">Save &amp; reconnect</button>
+    </div></div></section>`;
+}
+
+/* ---------- wiring ---------- */
+function toast(msg, cid){
+  const t=$('#toast'); t.innerHTML = esc(msg) + (cid?`<span class="cid">${esc(cid)}</span>`:'');
+  t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function wire(){
+  const ask=$('#ask'), send=$('#sendbtn');
+  if(ask){
+    ask.oninput=()=>{ask.style.height='auto';ask.style.height=Math.min(ask.scrollHeight,140)+'px';};
+    ask.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doAsk();} };
+    send.onclick=doAsk;
+  }
+  document.querySelectorAll('[data-obs]').forEach(b=>b.onclick=()=>doObserve(b.dataset.obs));
+  document.querySelectorAll('[data-cid]').forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.cid);toast('ContentId copied',b.dataset.cid);});
+  document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>{TAB='guardrails';renderNav();render();});
+  document.querySelectorAll('[data-do-approve]').forEach(b=>b.onclick=()=>doApprove(b.dataset.doApprove, b.dataset.approveRole||'user'));
+  const save=$('#savecfg'); if(save) save.onclick=()=>toast(STATE.connected?'Saved — reconnecting…':'Preview mode — run the local server to save');
+  const addsk=document.querySelector('[data-add-skill]'); if(addsk) addsk.onclick=()=>toast('Add a skill from a certified capability file');
+}
+
+async function doAsk(){
+  const ask=$('#ask'); const q=ask.value.trim(); if(!q) return;
+  STATE.conversation.push({role:'you',text:q}); ask.value=''; ask.style.height='auto';
+  if(!STATE.connected){
+    STATE.conversation.push({role:'jarvis', say:'Preview mode — I can’t reason without a model. Run the local server and plug your LLM in Settings, then ask me for real.',
+      trace:[{kind:'thought',label:'reasoner · stub (offline)',lines:['This is a static preview. The live console reasons, checks your guardrails, and commits truth.']}]});
+    render(); scrollStream(); return;
+  }
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({goal:q})});
+    const d=await r.json(); STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
+    paintChrome(); renderNav(); render(); scrollStream();
+    if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Committed as truth',c.cid);}
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+function scrollStream(){const s=$('#stream');if(s)s.parentElement.scrollTop=s.parentElement.scrollHeight;}
+async function doObserve(src){
+  if(!STATE.connected){ toast('Preview — observing '+src+' (sample)'); return; }
+  try{ const r=await fetch('/api/observe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({source:src})});
+    const d=await r.json(); STATE.truths=d.truths||STATE.truths; paintChrome(); renderNav();
+    toast(d.deduped?'Already known (deduped)':'Observed '+src, d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doApprove(subject, role){
+  role = role || 'user';
+  if(!STATE.connected){ STATE.approvals=STATE.approvals.filter(a=>a.subject!==subject); renderNav(); render(); toast('Preview — approval truth (sample)'); return; }
+  try{ const r=await fetch('/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject,role})});
+    const d=await r.json(); STATE.approvals=d.approvals||[]; STATE.truths=d.truths||STATE.truths;
+    paintChrome(); renderNav(); render(); toast(role.charAt(0).toUpperCase()+role.slice(1)+' approval committed', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+
+/* theme */
+(function(){
+  const root=document.documentElement, btn=$('#themebtn');
+  btn.onclick=()=>{ const cur=root.getAttribute('data-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+    root.setAttribute('data-theme', cur==='dark'?'light':'dark'); };
+})();
+
+boot();
+</script>
