@@ -349,7 +349,9 @@ const NAV = [
 let STATE = structuredClone(SAMPLE);
 let TAB = "home";
 const $ = s => document.querySelector(s);
-const esc = t => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Attribute-safe: escapes quotes too, so `attr="${esc(x)}"` can't be broken out of by
+// connector-/reasoner-derived truth text (stored-XSS defense). Safe in text context as well.
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 async function boot(){
   try{
@@ -602,10 +604,10 @@ function viewWhy(){
   else if(tr && tr.error) flow = `<div class="empty">${esc(tr.error)}</div>`;
   else if(tr){
     const parts = [
-      node('observe','Observed', (tr.observed||[]).slice(0,8).map(o=>({text:`<b>${esc(o.entity)}</b> · ${esc(o.event)} <span style="color:var(--faint)">(${(o.sources||[]).join(', ')})</span>`, id:o.id}))),
+      node('observe','Observed', (tr.observed||[]).slice(0,8).map(o=>({text:`<b>${esc(o.entity)}</b> · ${esc(o.event)} <span style="color:var(--faint)">(${esc((o.sources||[]).join(', '))})</span>`, id:o.id}))),
       node('agent','Agent findings', (tr.findings||[]).map(f=>({text:`${esc(f.agent)} — ${esc(f.topic)}`, id:f.id}))),
       node('think','Proposals', (tr.proposals||[]).map(p=>({text:`${esc(p.by||'reasoner')} → <b>${esc(p.skill||p.action||'?')}</b> <span style="color:var(--faint)">${esc(p.because||'')}</span>`, id:p.id}))),
-      node('policy','Policies checked', (tr.policies||[]).map(pl=>({text:`${esc(pl.name)} <span style="color:var(--faint)">(${(pl.appliesTo||[]).join('/')} → ${esc(pl.approverRole||'')})</span>`, id:pl.id}))),
+      node('policy','Policies checked', (tr.policies||[]).map(pl=>({text:`${esc(pl.name)} <span style="color:var(--faint)">(${esc((pl.appliesTo||[]).join('/'))} → ${esc(pl.approverRole||'')})</span>`, id:pl.id}))),
       node('gate','Compliance', (tr.compliance||[]).map(c=>({text:`<b>${esc(c.outcome)}</b>${c.skill?` · ${esc(c.skill)}`:''}`, id:c.id}))),
       node('approve','Approvals', (tr.approvals||[]).map(a=>({text:`${esc(a.role)} approval granted`, id:a.id}))),
       node('act','Committed effects', (tr.committed||[]).map(cm=>({text:`<b>${esc(cm.skill)}</b> → ${esc(cm.target||'')}`, id:cm.id}))),
@@ -651,14 +653,14 @@ function viewSkills(){
     const risk = s.actionClass && s.actionClass!=='normal';
     const detail = open? `<div style="margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px">
         <div style="display:flex;gap:22px;flex-wrap:wrap">
-          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="font-family:var(--mono);color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
+          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs · this session',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="font-family:var(--mono);color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
         </div>
         <div style="margin-top:12px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Produces (output truth types)</div>${(s.produces||[]).map(p=>`<span class="tag cool" style="margin:0 6px 5px 0;display:inline-block">${esc(p)}</span>`).join('')||'—'}</div>
         <div style="margin-top:11px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Admission truth (which code was certified)</div><span class="cid" data-cid="${esc(s.registrationId||'')}">${esc(String(s.registrationId||'').slice(0,18))}…</span></div>
       </div>`:'';
     return `<div class="card" data-skill="${esc(s.name)}" style="margin-bottom:9px;cursor:pointer">
       <div class="top-line"><span class="tag good">✓ certified</span>${risk?'<span class="tag crit">approval-gated</span>':''}<span style="flex:1"></span><span style="font-family:var(--mono);font-weight:600;color:var(--ink)">${esc(s.name)}</span></div>
-      <div class="body-line" style="color:var(--muted)">v${esc(s.version||'?')} · ${(s.produces||[]).length} output type(s) · ${s.runs||0} run(s) — ${open?'click to collapse ▲':'click for outputs, risk &amp; admission ▾'}</div>
+      <div class="body-line" style="color:var(--muted)">v${esc(s.version||'?')} · ${(s.produces||[]).length} output type(s) · ${s.runs||0} run(s) this session — ${open?'click to collapse ▲':'click for outputs, risk &amp; admission ▾'}</div>
       ${detail}</div>`;
   }).join('');
   const ag = (STATE.agents||[]).map(a=>`<div class="card"><div class="top-line"><span class="tag warm">sub-agent</span><span style="flex:1"></span><span style="font-family:var(--mono);color:var(--ink)">${esc(a.id)}</span></div>
@@ -772,7 +774,9 @@ async function doAsk(){
   }
   try{
     const r=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({goal:q})});
-    const d=await r.json(); STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
+    const d=await r.json();
+    if(!r.ok||!d.turn){ STATE.conversation.push({role:'jarvis', say:'Something went wrong: '+((d&&d.error)||'the assistant returned no turn')+'.', trace:[]}); render(); scrollStream(); toast(d&&d.error?d.error:'Ask failed'); return; }
+    STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
     paintChrome(); renderNav(); render(); scrollStream();
     if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Committed as truth',c.cid);}
   }catch(e){ toast('Could not reach the local Kernel'); }

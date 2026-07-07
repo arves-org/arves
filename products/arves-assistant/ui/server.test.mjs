@@ -70,7 +70,9 @@ try {
     const html = await res.text();
     assert.equal(res.status, 200);
     assert.match(html, /JARVIS/i, 'index.html served at /');
-    ok('GET / — the console HTML is served');
+    assert.match(res.headers.get('content-security-policy') || '', /connect-src 'self'/, 'CSP restricts connect to same-origin (no exfiltration)');
+    assert.match(html, /\[&<>"'\]/, 'the HTML escaper is attribute-safe (escapes quotes too)');
+    ok('GET / — console served with a restrictive CSP + attribute-safe escaper');
   }
 
   // 3) observe: import a connector, truths grow, evidence sets present
@@ -166,7 +168,18 @@ try {
     assert.ok(state.data.skills.every((s) => typeof s.actionClass === 'string' && Array.isArray(s.produces)), 'skills carry risk class + produces (App Store detail)');
     const spend = state.data.skills.find((s) => s.name === 'spend.order');
     assert.equal(spend.actionClass, 'spend', 'spend.order is honestly risk-classed');
-    ok('POST /api/goals + /status — goal & status are committed truth; skills carry real detail');
+
+    // distinct titles that slug identically must NOT collide to one subject (unique hash)
+    const g1 = await j('POST', '/api/goals', { title: 'Ship it' });
+    const g2 = await j('POST', '/api/goals', { title: 'Ship it!' });
+    assert.notEqual(g1.data.subject, g2.data.subject, 'distinct titles never collide to one subject');
+    const emoji = await j('POST', '/api/goals', { title: '🚀🚀' });
+    assert.ok(emoji.data.subject && emoji.data.subject !== 'goal:goal', 'a non-ASCII title still gets a unique subject (not goal:goal)');
+
+    // why on a subject with no decision path yet is graceful (200 empty), never a 500
+    const wy = await j('GET', '/api/why?q=' + encodeURIComponent(g1.data.subject));
+    assert.equal(wy.status, 200, 'why on a fresh goal subject is a graceful 200 (not a 500)');
+    ok('POST /api/goals + /status — committed truth; unique subjects (no slug collision); why graceful');
   }
 
   // 6) why: reconstruct a path from committed truth (must not 500)

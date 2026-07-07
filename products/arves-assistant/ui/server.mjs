@@ -23,6 +23,7 @@
 // then open http://localhost:7777  — that is your JARVIS console.
 // =============================================================================
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -82,6 +83,10 @@ const readBody = (req) =>
 const prettyEvent = (e) => String(e).replace(/[-_]/g, ' ');
 // Deterministic subject slug for a goal title (content-addressed subject, no clock/random).
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'goal';
+// A goal's subject is a readable slug PLUS a hash of the exact title, so DISTINCT titles never
+// collide (slug alone maps "Ship it" / "Ship it!" / "SHIP IT" — and every non-ASCII title —
+// to the same string). Deterministic: same title -> same subject (replay-stable).
+const goalSubject = (title) => `goal:${slug(title)}-${createHash('sha256').update(title).digest('hex').slice(0, 8)}`;
 const GOAL_STATES = ['active', 'blocked', 'done'];
 
 // ---- state projection: every panel is READ from committed truth -----------------------
@@ -370,7 +375,15 @@ async function main() {
       // ---- static: the console itself ------------------------------------------------
       if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
         const html = await readFile(INDEX);
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          // Defense-in-depth behind the attribute-safe escaper: no external anything, and
+          // crucially connect-src/img-src 'self' so that even if a payload ever executed it
+          // could not exfiltrate memory to an outside origin. Same-origin /api/* still works.
+          'content-security-policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+          'x-content-type-options': 'nosniff',
+        });
         res.end(html);
         return;
       }
@@ -432,8 +445,9 @@ async function main() {
       if (req.method === 'POST' && p === '/api/goals') {
         const { title } = await readBody(req);
         if (typeof title !== 'string' || title.trim() === '') return sendJson(res, 400, { error: 'a goal title is required' });
-        const subject = 'goal:' + slug(title);
-        const r = await assistant.commitTruth({ type: 'uci.assistant.goal', subject, title: title.trim() }, 'trace');
+        const cleanTitle = title.trim().slice(0, 200);
+        const subject = goalSubject(cleanTitle);
+        const r = await assistant.commitTruth({ type: 'uci.assistant.goal', subject, title: cleanTitle }, 'trace');
         const state = projectState(assistant, session, reasonerInfo);
         return sendJson(res, 200, { id: r.contentId, subject, goals: state.goals, counts: state.counts });
       }
@@ -480,7 +494,16 @@ async function main() {
       if (req.method === 'GET' && p === '/api/why') {
         const q = url.searchParams.get('q');
         if (!q) return sendJson(res, 400, { error: 'q (subject or truth id) is required' });
-        const trace = why(assistant, q);
+        // why() throws for a subject with no decision path yet (e.g. a brand-new goal). That
+        // is an expected empty result, not a server error — return a graceful empty trace.
+        let trace;
+        try { trace = why(assistant, q); }
+        catch (e) {
+          return sendJson(res, 200, {
+            trace: { subject: q, observed: [], findings: [], proposals: [], policies: [], compliance: [], approvals: [], committed: [], decisions: [] },
+            note: e.message,
+          });
+        }
         return sendJson(res, 200, { trace, text: renderWhy(trace) });
       }
 
@@ -498,6 +521,18 @@ async function main() {
   const shutdown = () => { try { assistant.close(); } catch {} server.close(() => process.exit(0)); };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  // A port conflict (a second instance / an orphaned server) is a normal operator mistake —
+  // fail with a friendly line, not a raw stack trace.
+  server.on('error', (e) => {
+    try { assistant.close(); } catch {}
+    if (e && e.code === 'EADDRINUSE') {
+      console.error(`\njarvis-ui: port ${port} is already in use — another JARVIS server is running.\n  • stop it (Ctrl-C in its terminal), or\n  • start this one on another port:  --port 8080\n`);
+    } else {
+      console.error(`jarvis-ui: server error: ${e ? e.message : 'unknown'}`);
+    }
+    process.exit(1);
+  });
 
   server.listen(port, host, () => {
     const where = session.walDir ? `durable WAL at ${session.walDir}` : 'in-memory (truth is NOT persisted — pass --wal-dir to keep it)';
