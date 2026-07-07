@@ -378,8 +378,12 @@ async function main() {
           reasonerInfo = { name: new StubReasoner().name, isStub: true };
         } else if (provider === 'openai') {
           if (typeof apiKey !== 'string' || apiKey.trim() === '') return sendJson(res, 400, { error: 'an OpenAI API key is required to attach a real model' });
+          const cleanKey = apiKey.trim();
+          // HTTP header values must be Latin-1; a key carrying a non-ASCII char (e.g. an em-dash
+          // from pasted prose) would otherwise crash fetch at call time. Reject it cleanly here.
+          if (!/^[\x21-\x7e]+$/.test(cleanKey)) return sendJson(res, 400, { error: 'the API key must be printable ASCII with no spaces — paste ONLY the key (e.g. sk-…), not the surrounding text' });
           const inst = new OpenAiReasoner({
-            apiKey: apiKey.trim(),
+            apiKey: cleanKey,
             ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
           });
           assistant.useReasoner(inst); // validated against the reasoner contract

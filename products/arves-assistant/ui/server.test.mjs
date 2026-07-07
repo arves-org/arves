@@ -118,6 +118,12 @@ try {
     const bad = await j('POST', '/api/reasoner', { provider: 'openai' });
     assert.equal(bad.status, 400, 'openai without a key is refused');
 
+    // a key carrying a non-ASCII char (e.g. an em-dash from pasted prose) is refused CLEANLY
+    // (not a fetch ByteString crash at call time)
+    const dash = await j('POST', '/api/reasoner', { provider: 'openai', apiKey: 'sk-abc—def' });
+    assert.equal(dash.status, 400, 'a non-ASCII key is rejected with a clean 400');
+    assert.match(dash.data.error, /ASCII|only the key/i, 'the error tells the user to paste only the key');
+
     // attach openai with a (fake) key + model — attaching makes NO network call
     const FAKE = 'sk-fake-key-for-test-only-DO-NOT-USE';
     const on = await j('POST', '/api/reasoner', { provider: 'openai', apiKey: FAKE, model: 'gpt-4o-mini' });

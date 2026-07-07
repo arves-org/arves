@@ -533,9 +533,13 @@ async function doAttachReasoner(provider){
   let body;
   if(provider==='stub'){ body={provider:'stub'}; }
   else{
-    const keyEl=$('#oa-key'); const key=keyEl?keyEl.value.trim():'';
+    const keyEl=$('#oa-key'); let key=keyEl?keyEl.value.trim():'';
+    // Tolerate a paste that carries surrounding text (e.g. "OPENAI_API_KEY=sk-… — the key…"):
+    // extract just the sk- token so a stray dash/space in the prose can't corrupt the header.
+    const m=key.match(/sk-[A-Za-z0-9_\-]+/); if(m) key=m[0];
     const modelEl=$('#oa-model'); const model=modelEl?modelEl.value.trim():'';
     if(!key){ toast('Paste your OpenAI API key first'); if(keyEl) keyEl.focus(); return; }
+    if(!/^[\x21-\x7e]+$/.test(key)){ toast('That doesn’t look like a key — paste only the sk-… token'); if(keyEl) keyEl.focus(); return; }
     body={provider:'openai', apiKey:key, model:model||undefined};
   }
   try{

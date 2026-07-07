@@ -53,6 +53,11 @@ export function openAiClient({
       if (typeof key !== 'string' || key.length === 0) {
         throw new Error('openai-reasoner: no API key — supply one in the UI Settings panel, or set OPENAI_API_KEY in the environment (never a file or the repo)');
       }
+      // Header values must be Latin-1; a key with a non-ASCII char (e.g. an em-dash pasted with
+      // surrounding text) would crash fetch with an opaque ByteString error. Fail clearly instead.
+      if (!/^[\x21-\x7e]+$/.test(key)) {
+        throw new Error('openai-reasoner: the API key contains an invalid character — paste ONLY the key (sk-…), with no surrounding text');
+      }
       let res;
       try {
         res = await fetch(`${baseUrl}/chat/completions`, {
