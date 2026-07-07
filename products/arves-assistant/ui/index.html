@@ -259,6 +259,25 @@
   @keyframes cmdkfade{from{opacity:0}to{opacity:1}}
   @keyframes cmdkrise{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 
+  /* Tooltip — styled, calm (v1) */
+  [data-tip]{position:relative}
+  [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    background:var(--raise);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:5px 9px;font-size:11.5px;
+    white-space:nowrap;box-shadow:var(--shadow);z-index:60;pointer-events:none;font-family:var(--body)}
+  @media (prefers-reduced-motion:no-preference){[data-tip]:hover::after{animation:cmdkfade .12s ease}}
+
+  /* Search field — reusable (Memory/Goals/Knowledge/Timeline) */
+  .searchbox{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-bottom:4px}
+  .searchbox svg{width:15px;height:15px;color:var(--faint);flex:none}
+  .searchbox input{flex:1;border:0;background:none;color:var(--ink);font-family:var(--body);font-size:14px;outline:none}
+  .searchbox input::placeholder{color:var(--faint)}
+
+  /* Skeleton — never a blank wait (v1) */
+  .skel{display:flex;flex-direction:column;gap:8px}
+  .skel-line{height:10px;border-radius:6px;background:var(--cool-soft);max-width:100%}
+  .skel-line.s2{width:72%} .skel-line.s3{width:48%}
+  .skeleton .skel-line,.breathe-el{animation:breathe 1.6s ease-in-out infinite}
+
   /* Principle 3 — ARVES is invisible by default. The technical layer (ContentIds, shard,
      WAL, runtime) only appears in Developer mode (html.dev). Nothing is deleted — the
      evidence is one toggle away (progressive disclosure), it just isn't the headline. */
@@ -299,10 +318,10 @@
     <button id="cmdkbtn" class="pill" style="cursor:pointer;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span><span class="khint">⌘K</span></button>
     <span class="spacer"></span>
     <span id="wormark" class="pill"><span class="dot" style="background:var(--cool)"></span><span id="shardlabel">hakan / personal</span></span>
-    <button class="iconbtn devtoggle" id="devbtn" title="Developer mode — show the technical layer" aria-label="Developer mode">
+    <button class="iconbtn devtoggle" id="devbtn" data-tip="Developer mode" title="Developer mode — show the technical layer" aria-label="Developer mode">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 5l-2 14"/></svg>
     </button>
-    <button class="iconbtn" id="themebtn" title="Toggle theme" aria-label="Toggle theme">
+    <button class="iconbtn" id="themebtn" data-tip="Light / dark" title="Toggle theme" aria-label="Toggle theme">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
     </button>
   </header>
@@ -487,7 +506,10 @@ function renderNav(){
 }
 
 /* transient UI state (not truth) */
-let UI = { entity:null, entitySearch:'', whyq:null, whyTrace:null, openSkill:null };
+let UI = { entity:null, entitySearch:'', goalSearch:'', tlSearch:'', knowSearch:'', whyq:null, whyTrace:null, openSkill:null };
+const SEARCH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>';
+function searchBox(id,ph,val){ return `<div class="searchbox">${SEARCH_SVG}<input id="${id}" placeholder="${esc(ph)}" value="${esc(val||'')}" autocomplete="off" spellcheck="false"></div>`; }
+function wireSearch(id,setter){ const el=$('#'+id); if(!el) return; el.oninput=()=>{ setter(el.value); const pos=el.selectionStart; render(); const n=$('#'+id); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} } }; }
 
 function render(){
   const m = $('#main');
@@ -558,8 +580,10 @@ function viewInbox(){
 
 /* ---------- Timeline (the replay) ---------- */
 function viewTimeline(){
-  const tl = (STATE.timeline||[]);
-  const body = !tl.length ? `<div class="empty">No events yet — observe a source, then ask JARVIS.</div>` :
+  const all = (STATE.timeline||[]);
+  const tq=(UI.tlSearch||'').toLowerCase().trim();
+  const tl = tq? all.filter(e=>String(e.label+' '+(e.detail||'')+' '+(KINDLABEL[e.kind]||e.kind)).toLowerCase().includes(tq)):all;
+  const body = !tl.length ? `<div class="empty">${all.length?`No events match “${esc(UI.tlSearch)}”.`:'No activity yet — observe a source, then ask JARVIS. Everything it does will show up here.'}</div>` :
     tl.map((e,i)=>{
       const col='var(--'+(KIND[e.kind]||'faint')+')'; const last=i===tl.length-1;
       return `<div style="display:grid;grid-template-columns:16px 1fr;gap:13px">
@@ -574,14 +598,16 @@ function viewTimeline(){
         </div></div>`;
     }).join('');
   return `<section class="panel on">
-    <div class="phead"><h1>Timeline</h1><div class="sub">A replay of JARVIS's cognition in commit order${tl.length?` — ${tl.length} events`:''}. Truth carries no clock by design, so the order <em>is</em> the sequence.</div></div>
-    <div class="scroll">${body}</div>
+    <div class="phead"><h1>Timeline</h1><div class="sub">A replay of everything JARVIS did, in order${all.length?` — ${all.length} events`:''}.</div></div>
+    <div class="scroll">${all.length>6?searchBox('tl-search','Search activity…',UI.tlSearch):''}${body}</div>
   </section>`;
 }
 
 /* ---------- Goals (goal-driven) ---------- */
 function viewGoals(){
-  const goals = STATE.goals||[];
+  const allGoals = STATE.goals||[];
+  const gq=(UI.goalSearch||'').toLowerCase().trim();
+  const goals = gq? allGoals.filter(g=>String(g.title).toLowerCase().includes(gq)):allGoals;
   const pill=(s)=>{ const c=s==='done'?'good':s==='blocked'?'crit':'cool'; return `<span class="tag ${c}">${esc(s)}</span>`; };
   const cards = goals.length? goals.map(g=>`<div class="card" style="margin-bottom:10px">
       <div class="top-line">${pill(g.status)}<span style="flex:1"></span><span class="cid" data-cid="${esc(g.id)}">${esc(g.id.slice(0,10))}…</span></div>
@@ -591,13 +617,14 @@ function viewGoals(){
         ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'primary':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
         <button class="btn" data-why="${esc(g.subject)}" style="padding:6px 12px;font-size:12.5px">explain</button>
       </div>
-    </div>`).join(''):`<div class="empty">No goals yet. What are you working toward? Add one — it becomes a committed truth JARVIS reasons against.</div>`;
+    </div>`).join(''):(gq?`<div class="empty">No goals match “${esc(UI.goalSearch)}”.</div>`:`<div class="empty">No goals yet. What are you working toward? Add one and JARVIS will help you make progress.</div>`);
   return `<section class="panel on">
     <div class="phead"><h1>Goals</h1><div class="sub">What you’re working toward. A goal is a committed truth; each status change is a <em>later</em> truth, so it’s auditable. “Related” counts observations that mention it — an honest association, not an invented percentage.</div></div>
     <div class="scroll">
       <div class="card" style="margin-bottom:16px"><div style="display:flex;gap:9px">
         <input id="goal-title" placeholder="e.g. Finish Chapter 5 · Earn a real G2 · Ship JARVIS" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
         <button class="btn primary" id="goal-add">Add goal</button></div></div>
+      ${allGoals.length>3?searchBox('goal-search','Search goals…',UI.goalSearch):''}
       ${cards}
     </div>
   </section>`;
@@ -607,6 +634,8 @@ function viewGoals(){
 function conversationHTML(){
   return STATE.conversation.map(m=>{
     if(m.role==='you') return `<div class="ask"><div class="who">you</div>${esc(m.text)}</div>`;
+    if(m.pending) return `<div class="resp"><div class="say"><span class="lead">jarvis</span></div>
+      <div class="skeleton skel" style="max-width:320px"><div class="skel-line"></div><div class="skel-line s2"></div><div class="skel-line s3"></div></div></div>`;
     return `<div class="resp">
       <div class="say"><span class="lead">jarvis</span>${esc(m.say)}</div>
       <div class="trace">${(m.trace||[]).map(traceStep).join('')}</div></div>`;
@@ -702,11 +731,14 @@ function viewKnowledge(){
       ${related.length?`<div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Related</div><div style="margin-top:4px">${related.map(r=>`<button class="btn" data-goto-entity="${esc(r.name)}" style="padding:4px 9px;font-size:11px;margin:0 5px 5px 0">${esc(r.name)}</button>`).join('')}</div>`:''}
     </div>`;
   };
-  const body = focus.length? focus.map(areaCard).join('') : `<div class="empty">Nothing to synthesize yet — observe some sources and set a goal or two.</div>`;
+  const kq=(UI.knowSearch||'').toLowerCase().trim();
+  const shown = kq? focus.filter(e=>humanize(e.name).toLowerCase().includes(kq)||String(e.name).toLowerCase().includes(kq)):focus;
+  const body = shown.length? shown.map(areaCard).join('') : (kq?`<div class="empty">Nothing matches “${esc(UI.knowSearch)}”.</div>`:`<div class="empty">Nothing to synthesize yet — observe some sources and set a goal or two, and JARVIS will organize them here.</div>`);
   return `<section class="panel on">
     <div class="phead"><h1>Knowledge</h1><div class="sub">Where Memory is the raw record, Knowledge is <b>synthesis</b> — each project and person organized into what it is, what changed, and what's open.</div></div>
     <div class="scroll">
       <div class="callout" style="border-left:3px solid var(--cool);background:var(--cool-soft);border-radius:0 11px 11px 0;padding:12px 15px;font-size:13px;margin-bottom:14px">${STATE.reasoner.isStub?`A written, prose <b>AI summary</b> ("current direction / what to do next") comes from an attached model — <b>plug your OpenAI key in Settings</b>. What's below is organized from your real truth, no model needed.`:`Your model is attached. This view organizes real truth; a one-click AI prose summary is the next dedicated step.`}</div>
+      ${focus.length>4?searchBox('know-search','Search projects & people…',UI.knowSearch):''}
       ${body}
     </div></section>`;
 }
@@ -923,6 +955,9 @@ function wire(){
   const oaAttach=$('#oa-attach'); if(oaAttach) oaAttach.onclick=()=>doAttachReasoner('openai');
   document.querySelectorAll('[data-entity]').forEach(b=>b.onclick=()=>{ UI.entity=b.dataset.entity||null; UI.entitySearch=''; render(); });
   const es=$('#ent-search'); if(es){ es.oninput=()=>{ UI.entitySearch=es.value; const pos=es.selectionStart; render(); const n=$('#ent-search'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} } }; }
+  wireSearch('goal-search', v=>UI.goalSearch=v);
+  wireSearch('tl-search', v=>UI.tlSearch=v);
+  wireSearch('know-search', v=>UI.knowSearch=v);
   document.querySelectorAll('[data-skill]').forEach(b=>b.onclick=()=>{ UI.openSkill = UI.openSkill===b.dataset.skill?null:b.dataset.skill; render(); });
   document.querySelectorAll('[data-why]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doWhy(b.dataset.why); });
   document.querySelectorAll('[data-goal-status]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doGoalStatus(b.dataset.goalStatus,b.dataset.goalTo); });
@@ -970,14 +1005,16 @@ async function doAsk(){
       trace:[{kind:'thought',label:'reasoner · stub (offline)',lines:['This is a static preview. The live console reasons, checks your guardrails, and commits truth.']}]});
     render(); scrollStream(); return;
   }
+  STATE.conversation.push({role:'jarvis',pending:true}); render(); scrollStream();
   try{
     const r=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({goal:q})});
     const d=await r.json();
+    STATE.conversation.pop(); // remove the pending skeleton
     if(!r.ok||!d.turn){ STATE.conversation.push({role:'jarvis', say:'Something went wrong: '+((d&&d.error)||'the assistant returned no turn')+'.', trace:[]}); render(); scrollStream(); toast(d&&d.error?d.error:'Ask failed'); return; }
     STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
     paintChrome(); renderNav(); render(); scrollStream();
     if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Saved to memory',c.cid);}
-  }catch(e){ toast('Could not reach the local Kernel'); }
+  }catch(e){ STATE.conversation.pop(); render(); toast('Could not reach the local Kernel'); }
 }
 function scrollStream(){const s=$('#stream');if(s)s.parentElement.scrollTop=s.parentElement.scrollHeight;}
 async function doObserve(src){
