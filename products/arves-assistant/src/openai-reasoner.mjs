@@ -42,13 +42,16 @@ export function openAiClient({
   model = process.env.OPENAI_MODEL || DEFAULT_MODEL,
   baseUrl = process.env.OPENAI_BASE_URL || DEFAULT_BASE,
   timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
+  apiKey = undefined, // when supplied (e.g. entered in the UI Settings panel), used INSTEAD of
+                      // the env var and held ONLY in this closure — never written to process.env
+                      // (so it is not inherited by the bridge child process), disk, log, or truth.
 } = {}) {
   return {
     model,
     async complete(prompt) {
-      const key = process.env.OPENAI_API_KEY;
+      const key = apiKey || process.env.OPENAI_API_KEY;
       if (typeof key !== 'string' || key.length === 0) {
-        throw new Error('openai-reasoner: OPENAI_API_KEY is not set in the environment — the key is read ONLY from env, never from a file or the repo');
+        throw new Error('openai-reasoner: no API key — supply one in the UI Settings panel, or set OPENAI_API_KEY in the environment (never a file or the repo)');
       }
       let res;
       try {

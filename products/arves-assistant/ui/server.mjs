@@ -29,6 +29,7 @@ import path from 'node:path';
 
 import { openSession } from '../src/cli.mjs';
 import { StubReasoner } from '../src/reasoner.mjs';
+import OpenAiReasoner from '../src/openai-reasoner.mjs';
 import { CONNECTORS, connectorByName } from '../src/connectors.mjs';
 import { why, renderWhy } from '../src/why.mjs';
 import { resolveSession } from '../src/config.mjs';
@@ -363,6 +364,30 @@ async function main() {
         const r = await assistant.guardrails.approve(typeof role === 'string' && role.length ? role : 'user', subject);
         const state = projectState(assistant, session, reasonerInfo);
         return sendJson(res, 200, { id: r.id, status: r.status, approvals: state.approvals, truths: state.truths, counts: state.counts });
+      }
+
+      // ---- POST /api/reasoner { provider, apiKey?, model? } — attach a reasoner LIVE -----
+      // Switch the intelligence from the browser with no restart. SECURITY: an OpenAI key
+      // provided here is passed straight into the reasoner's closure and is NEVER written to
+      // process.env, disk, a log, the response, or a committed truth — it lives only in this
+      // running process, only until the reasoner is replaced or the server stops.
+      if (req.method === 'POST' && p === '/api/reasoner') {
+        const { provider, apiKey, model } = await readBody(req);
+        if (provider === 'stub') {
+          assistant.useReasoner(new StubReasoner());
+          reasonerInfo = { name: new StubReasoner().name, isStub: true };
+        } else if (provider === 'openai') {
+          if (typeof apiKey !== 'string' || apiKey.trim() === '') return sendJson(res, 400, { error: 'an OpenAI API key is required to attach a real model' });
+          const inst = new OpenAiReasoner({
+            apiKey: apiKey.trim(),
+            ...(typeof model === 'string' && model.trim() ? { model: model.trim() } : {}),
+          });
+          assistant.useReasoner(inst); // validated against the reasoner contract
+          reasonerInfo = { name: inst.name, isStub: false };
+        } else {
+          return sendJson(res, 400, { error: 'provider must be "openai" or "stub"' });
+        }
+        return sendJson(res, 200, { reasoner: reasonerInfo }); // NO key echoed, ever
       }
 
       // ---- GET /api/why?q=<subject|id> — reconstruct a decision path from truth --------

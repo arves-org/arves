@@ -111,6 +111,33 @@ try {
     ok('POST /api/approve — separate approval truth clears the pending gate');
   }
 
+  // 5b) reasoner: attach a real model LIVE from the "UI", offline (no /ask => no network),
+  //     and prove the key is validated + never echoed back.
+  {
+    // openai without a key is refused
+    const bad = await j('POST', '/api/reasoner', { provider: 'openai' });
+    assert.equal(bad.status, 400, 'openai without a key is refused');
+
+    // attach openai with a (fake) key + model — attaching makes NO network call
+    const FAKE = 'sk-fake-key-for-test-only-DO-NOT-USE';
+    const on = await j('POST', '/api/reasoner', { provider: 'openai', apiKey: FAKE, model: 'gpt-4o-mini' });
+    assert.equal(on.status, 200);
+    assert.equal(on.data.reasoner.isStub, false, 'a real model is now attached');
+    assert.equal(on.data.reasoner.name, 'openai:gpt-4o-mini');
+    assert.ok(!JSON.stringify(on.data).includes(FAKE), 'the API key is NEVER echoed in the response');
+
+    // state reflects the switch, still without the key
+    const st = await j('GET', '/api/state');
+    assert.equal(st.data.reasoner.isStub, false, 'state reflects the attached model');
+    assert.ok(!JSON.stringify(st.data).includes(FAKE), 'the API key never appears in /api/state');
+
+    // switch back to the free stub
+    const off = await j('POST', '/api/reasoner', { provider: 'stub' });
+    assert.equal(off.status, 200);
+    assert.equal(off.data.reasoner.isStub, true, 'switched back to the deterministic stub');
+    ok('POST /api/reasoner — attach OpenAI live (key validated, never echoed) and switch back to stub');
+  }
+
   // 6) why: reconstruct a path from committed truth (must not 500)
   {
     const { status } = await j('GET', '/api/why?q=' + encodeURIComponent(blockedSubject || 'anything'));

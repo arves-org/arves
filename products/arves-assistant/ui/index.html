@@ -474,19 +474,33 @@ function viewSkills(){
 /* ---------- Settings ---------- */
 function viewSettings(){
   const stub = STATE.reasoner.isStub;
+  const curModel = (!stub && /^openai:/.test(STATE.reasoner.name)) ? STATE.reasoner.name.replace(/^openai:/,'') : '';
   return `<section class="panel on">
-    <div class="phead"><h1>Settings</h1><div class="sub">Where JARVIS becomes yours: point it at your workspace, your durable memory, and — the one that turns the lights on — your own LLM.</div></div>
+    <div class="phead"><h1>Settings</h1><div class="sub">Where JARVIS becomes yours — switch the intelligence right here, no terminal, no restart. Your key never leaves this machine except as your own OpenAI call.</div></div>
     <div class="scroll"><div class="grid" style="display:block;max-width:660px">
-      <div class="callout"><p><b>Reasoner: ${stub?'Stub (deterministic)':esc(STATE.reasoner.name)}.</b>
-        ${stub?`JARVIS is honest by design — until you plug a real model it uses a deterministic rule-based stub, so demos stay reproducible. Implement the <code>Reasoner</code> interface in <code>src/llm-reasoner.example.mjs</code> (there’s a marked <code>PUT YOUR API CALL HERE</code>), set it below, and the intelligence is yours. The governance, memory and audit stay exactly the same.`:`A real model is wired in. Its output becomes addressable, governed, replayable truth just like everything else.`}</p></div>
-      <div class="field"><label>Reasoner</label>
-        <select id="set-reasoner"><option ${stub?'selected':''}>Stub (deterministic)</option><option ${!stub?'selected':''}>My LLM (llm-reasoner.mjs)</option></select>
-        <div class="help">Selecting your LLM loads your adapter module. No API key is stored in the repo — it lives in your environment.</div></div>
-      <div class="field"><label>Tenant</label><input id="set-tenant" value="${esc(STATE.identity.tenant)}"></div>
-      <div class="field"><label>Workspace</label><input id="set-ws" value="${esc(STATE.identity.workspace)}"></div>
-      <div class="field"><label>Durable memory (--wal-dir)</label><input id="set-wal" value="${esc(STATE.identity.walDir)}">
-        <div class="help">A real folder. Your assistant’s whole memory lives here and survives restarts — nothing leaves the machine.</div></div>
-      <button class="btn primary" id="savecfg">Save &amp; reconnect</button>
+      <div class="callout"><p><b>Reasoner: ${stub?'Stub (deterministic) — free, not AI':esc(STATE.reasoner.name)+' — real model, live'}.</b>
+        ${stub?`The stub is a keyword table: reproducible and honest (it says “I don’t know” instead of guessing), but it can’t hold a conversation. Attach a real model below and it reasons over open-ended goals — under the <b>same</b> governance (spend still needs approval, hallucinated skills are refused).`:`A real model is answering. Every proposal it makes is committed as attributed, governed, replayable truth — exactly like everything else.`}</p></div>
+
+      <div class="field"><label>Intelligence</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ${stub?'primary':''}" data-reasoner="stub">Free stub (deterministic)</button>
+          <button class="btn ${stub?'':'primary'}" data-reasoner="openai">Real model — OpenAI</button>
+        </div>
+        <div class="help">Switch live. The stub is free and reproducible; a real model reasons over anything, billed by your provider.</div></div>
+
+      <div class="card" id="oa-form" style="${stub?'':'border-left:3px solid var(--good)'}">
+        <div class="top-line"><span class="tag warm">OpenAI</span><span style="flex:1"></span>${stub?'':'<span class="tag good">attached</span>'}</div>
+        <div class="field"><label>API key</label><input id="oa-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label>Model</label><input id="oa-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
+        <button class="btn primary" id="oa-attach">${stub?'Attach OpenAI':'Re-attach with this key'}</button>
+        <div class="help" style="margin-top:9px;line-height:1.5">🔒 <b>Your key stays in this server’s memory for this session only.</b> It is never written to disk, never logged, never committed, and never becomes truth — it leaves this machine solely as the Authorization header of <em>your own</em> OpenAI request (billed by OpenAI, not ARVES). For a key that survives a restart, start the server with <code>OPENAI_API_KEY=…</code> instead. Rotate any key you’ve shared anywhere.</div>
+      </div>
+
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:14px 2px 2px">Shard &amp; memory</div>
+      <div class="field"><label>Tenant</label><input value="${esc(STATE.identity.tenant)}" readonly></div>
+      <div class="field"><label>Workspace</label><input value="${esc(STATE.identity.workspace)}" readonly></div>
+      <div class="field"><label>Durable memory (--wal-dir)</label><input value="${esc(STATE.identity.walDir)}" readonly>
+        <div class="help">Your whole memory lives here and survives restarts — nothing leaves the machine. Changing the shard or folder rebinds the Kernel, so it’s a server-start flag (<code>--tenant</code> / <code>--workspace</code> / <code>--wal-dir</code>), not a live switch.</div></div>
     </div></div></section>`;
 }
 
@@ -506,8 +520,33 @@ function wire(){
   document.querySelectorAll('[data-cid]').forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.cid);toast('ContentId copied',b.dataset.cid);});
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>{TAB='guardrails';renderNav();render();});
   document.querySelectorAll('[data-do-approve]').forEach(b=>b.onclick=()=>doApprove(b.dataset.doApprove, b.dataset.approveRole||'user'));
-  const save=$('#savecfg'); if(save) save.onclick=()=>toast(STATE.connected?'Saved — reconnecting…':'Preview mode — run the local server to save');
+  document.querySelectorAll('[data-reasoner]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.reasoner==='stub') doAttachReasoner('stub');
+    else { const k=$('#oa-key'); if(k) k.focus(); toast('Paste your OpenAI key below, then Attach'); }
+  });
+  const oaAttach=$('#oa-attach'); if(oaAttach) oaAttach.onclick=()=>doAttachReasoner('openai');
   const addsk=document.querySelector('[data-add-skill]'); if(addsk) addsk.onclick=()=>toast('Add a skill from a certified capability file');
+}
+
+async function doAttachReasoner(provider){
+  if(!STATE.connected){ toast('Preview mode — run the local server to attach a model'); return; }
+  let body;
+  if(provider==='stub'){ body={provider:'stub'}; }
+  else{
+    const keyEl=$('#oa-key'); const key=keyEl?keyEl.value.trim():'';
+    const modelEl=$('#oa-model'); const model=modelEl?modelEl.value.trim():'';
+    if(!key){ toast('Paste your OpenAI API key first'); if(keyEl) keyEl.focus(); return; }
+    body={provider:'openai', apiKey:key, model:model||undefined};
+  }
+  try{
+    const r=await fetch('/api/reasoner',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){ toast(d.error||'Could not attach the reasoner'); return; }
+    STATE.reasoner=d.reasoner;
+    const keyEl=$('#oa-key'); if(keyEl) keyEl.value='';   // wipe the key from the DOM after use
+    paintChrome(); render();
+    toast(d.reasoner.isStub?'Switched to the free stub':'Attached '+d.reasoner.name);
+  }catch(e){ toast('Could not reach the local Kernel'); }
 }
 
 async function doAsk(){

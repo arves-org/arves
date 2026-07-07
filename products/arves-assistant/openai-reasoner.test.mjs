@@ -40,8 +40,8 @@ try {
   let threw = null;
   try { await client.complete('x'); } catch (e) { threw = e; }
   process.env.OPENAI_API_KEY = saved;
-  assert.ok(threw && /OPENAI_API_KEY is not set/.test(threw.message), 'missing key fails loud');
-  ok('missing OPENAI_API_KEY fails loud (key read from env at call time, never stored)');
+  assert.ok(threw && /no API key|OPENAI_API_KEY/.test(threw.message), 'missing key fails loud');
+  ok('missing key fails loud (key read at call time from the env or the supplied arg, never stored)');
 } catch (e) { bad('env-key', e); }
 
 // 2) LIVE governed pipeline: one real call, proposal committed + attributed, no hallucination.
