@@ -160,6 +160,36 @@ function projectState(assistant, session, reasonerInfo) {
     ...findings.map((e) => ({ id: `${e.body.agent}@${e.body.agentVersion}`, role: `finding: ${e.body.topic}` })),
   ];
 
+  // Timeline — the decision journal mapped to human cognition events, in commit order.
+  // This is the "replay feel": every real thing JARVIS did, each a checkable truth id.
+  // (No wall-clock: truth carries no clock by design — order is the commit sequence.)
+  const short = (id) => (id ? id.slice(0, 10) + '…' : '');
+  const eventOf = (e) => {
+    const b = e.body || {};
+    const m = e.meta || {};
+    if (m.via === 'invoke') return { kind: 'act', label: `Acted — ${m.capability}`, detail: m.target || '' };
+    switch (b.type) {
+      case 'uci.assistant.fact': return { kind: 'observe', label: 'Observed', detail: `${b.entity} · ${prettyEvent(b.event)}` };
+      case 'uci.assistant.attestation': return null; // evidence — folded into its fact
+      case 'uci.assistant.proposal': return { kind: 'think', label: `Reasoned · ${b.reasoner}`, detail: b.action === 'invoke-skill' ? `proposed ${b.skill}` : 'no action proposed' };
+      case 'uci.assistant.compliance':
+        if (b.outcome === 'blocked') return { kind: 'gate', label: 'Blocked by policy', detail: b.subject || '' };
+        if (b.outcome === 'skill-execution-failed') return { kind: 'gate', label: 'Skill execution failed', detail: b.skill || '' };
+        if (b.outcome === 'proposal-rejected') return { kind: 'gate', label: 'Proposal rejected', detail: b.skill || '' };
+        if (b.outcome === 'refused-unregistered-skill') return { kind: 'gate', label: 'Refused — unregistered skill', detail: b.skill || '' };
+        return { kind: 'gate', label: 'Compliance event', detail: b.outcome || '' };
+      case 'uci.assistant.approval': return { kind: 'approve', label: 'Approval granted', detail: `${b.role} → ${b.subject}` };
+      case 'uci.assistant.policy': return { kind: 'policy', label: 'Policy committed', detail: b.name || '' };
+      case 'uci.assistant.skill': return { kind: 'admit', label: 'Skill certified', detail: b.name || '' };
+      case 'uci.assistant.decision': return { kind: 'decide', label: 'Decision recorded', detail: `${b.subject}: ${b.action}` };
+      case 'uci.assistant.finding': return { kind: 'agent', label: `${b.agent} researched`, detail: b.topic || '' };
+      case 'uci.assistant.resolution': return { kind: 'conflict', label: 'Conflict resolved', detail: `winner ${short(b.winner)}` };
+      default: return { kind: 'commit', label: 'Committed truth', detail: b.type || e.domain };
+    }
+  };
+  const timeline = journal.map((e) => { const v = eventOf(e); return v ? { seq: e.seq, id: e.id, status: e.status, ...v } : null; }).filter(Boolean);
+  const conflicts = journal.filter((e) => e.body && e.body.type === 'uci.assistant.resolution').length;
+
   return {
     identity: { tenant: session.tenant, workspace: session.workspace, walDir: session.walDir ?? '(in-memory)' },
     reasoner: reasonerInfo,
@@ -168,13 +198,16 @@ function projectState(assistant, session, reasonerInfo) {
     approvals,
     skills,
     agents,
+    timeline,
     sources: Object.keys(CONNECTORS).sort(),
     counts: {
       truths: facts.length,
       decisions: decisions.length,
       blocks: blocks.length,
+      conflicts,
       policies: policies.length,
       skills: skills.length,
+      observations: facts.length,
     },
   };
 }

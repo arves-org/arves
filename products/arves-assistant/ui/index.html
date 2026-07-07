@@ -289,6 +289,17 @@ const SAMPLE = {
     { name:"reply.draft", certified:true }
   ],
   agents:[ { id:"researcher", role:"gathers facts into truth" }, { id:"scheduler", role:"proposes plan items" } ],
+  counts:{ truths:3, observations:3, decisions:1, blocks:1, conflicts:1, policies:1, skills:3 },
+  sources:["calendar","csv","email","ical","journal","jsonl","notes","tasks"],
+  timeline:[
+    { seq:1, id:"1220a3f28c…", kind:"observe", label:"Observed", detail:"urn:you · q3-review" },
+    { seq:2, id:"1220b91e07…", kind:"observe", label:"Observed", detail:"vendor-x · invoice" },
+    { seq:3, id:"1220f01a22…", kind:"agent",   label:"researcher researched", detail:"vendor-x renewal" },
+    { seq:4, id:"1220aa77b1…", kind:"conflict",label:"Conflict resolved", detail:"first-committed-wins" },
+    { seq:5, id:"12203cd9e0…", kind:"think",   label:"Reasoned · stub-reasoner", detail:"proposed spend.order" },
+    { seq:6, id:"1220e9d3a4…", kind:"gate",    label:"Blocked by policy", detail:"spend:vendor-x" },
+    { seq:7, id:"122077aa10…", kind:"decide",  label:"Decision recorded", detail:"invest:acme-fund: declined" }
+  ],
   conversation:[
     { role:"you", text:"Should I renew the vendor-x server for $2,400?" },
     { role:"jarvis",
@@ -307,6 +318,9 @@ const SAMPLE = {
 };
 
 const ICONS = {
+  home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  inbox:'<path d="M4 13h4l2 3h4l2-3h4"/><path d="M4 13l2-8h12l2 8v6H4z"/>',
+  timeline:'<circle cx="6" cy="6" r="1.6"/><circle cx="6" cy="18" r="1.6"/><path d="M6 8v8"/><path d="M11 6h9"/><path d="M11 12h6"/><path d="M11 18h9"/>',
   console:'<path d="M4 5h16v14H4z"/><path d="M8 10l3 2-3 2"/><path d="M13 14h4"/>',
   memory:'<path d="M12 3a4 4 0 0 0-4 4v1a3 3 0 0 0 0 6 4 4 0 0 0 8 0 3 3 0 0 0 0-6V7a4 4 0 0 0-4-4z"/>',
   why:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 .9-1 1.7"/><path d="M12 16.5h.01"/>',
@@ -315,16 +329,19 @@ const ICONS = {
   settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4A7 7 0 0 0 7.5 5.7l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .9.1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3z"/>'
 };
 const NAV = [
-  { id:"console", name:"Console" },
+  { id:"home", name:"Home" },
+  { id:"inbox", name:"Inbox", badge:s=>s.truths.filter(isObs).length },
+  { id:"timeline", name:"Timeline" },
   { id:"memory", name:"Memory", badge:s=>s.truths.length },
   { id:"why", name:"Why" },
   { id:"guardrails", name:"Guardrails", badge:s=>s.approvals.length, alert:s=>s.approvals.length>0 },
   { id:"skills", name:"Skills", badge:s=>s.skills.length },
+  { id:"console", name:"Console", dev:true },
   { id:"settings", name:"Settings" }
 ];
 
 let STATE = structuredClone(SAMPLE);
-let TAB = "console";
+let TAB = "home";
 const $ = s => document.querySelector(s);
 const esc = t => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 
@@ -354,7 +371,8 @@ function renderNav(){
   $('#nav').innerHTML = NAV.map(n=>{
     const b = n.badge ? n.badge(STATE) : null;
     const alert = n.alert && n.alert(STATE);
-    return `<button class="navi ${n.id===TAB?'on':''} ${alert?'alert':''}" data-tab="${n.id}">
+    const sep = n.dev ? `<div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:15px 13px 6px;opacity:.65">developer</div>` : '';
+    return sep + `<button class="navi ${n.id===TAB?'on':''} ${alert?'alert':''}" data-tab="${n.id}" style="${n.dev?'opacity:.72':''}">
       <svg viewBox="0 0 24 24">${ICONS[n.id]}</svg><span>${n.name}</span>
       ${b?`<span class="badge">${b}</span>`:''}</button>`;
   }).join('');
@@ -364,13 +382,109 @@ function renderNav(){
 function render(){
   const m = $('#main');
   m.innerHTML = ({
+    home:viewHome, inbox:viewInbox, timeline:viewTimeline,
     console:viewConsole, memory:viewMemory, why:viewWhy,
     guardrails:viewGuardrails, skills:viewSkills, settings:viewSettings
   })[TAB]();
   wire();
 }
 
-/* ---------- Console (the hero) ---------- */
+/* kind -> accent for cognition events (shared by Home + Timeline) */
+const KIND = {
+  observe:'cool', act:'cool', decide:'cool', approve:'good',
+  think:'warm', agent:'warm', conflict:'warm',
+  gate:'crit', policy:'faint', admit:'faint', commit:'faint'
+};
+const KINDLABEL = { observe:'observed', think:'reasoned', gate:'governed', act:'acted', approve:'approved', policy:'policy', admit:'certified', decide:'decided', agent:'agent', conflict:'conflict', commit:'truth' };
+const isObs = t => t.kind==='memory' || t.kind==='observation';  // live server uses 'memory'; sample uses 'observation'
+
+/* ---------- Home (the daily driver) ---------- */
+function viewHome(){
+  const c = STATE.counts||{};
+  const mem = STATE.truths.filter(isObs);
+  const pend = STATE.approvals||[];
+  const recent = (STATE.timeline||[]).slice(-8).reverse();
+  const h = new Date().getHours();
+  const greet = h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  const name = (STATE.identity&&STATE.identity.tenant&&STATE.identity.tenant!=='you')?(', '+esc(STATE.identity.tenant)):'';
+  const stat=(v,l,col)=>`<div class="card" style="padding:15px 16px"><div style="font-family:var(--mono);font-size:27px;font-weight:750;line-height:1;color:${col}">${v}</div><div style="font-size:12px;color:var(--muted);margin-top:7px">${l}</div></div>`;
+  const chips=`<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:11px">
+    ${stat(mem.length,'observations','var(--cool)')}
+    ${stat(pend.length, pend.length?'pending — needs you':'nothing pending', pend.length?'var(--crit)':'var(--good)')}
+    ${stat(c.conflicts||0,'conflicts', (c.conflicts?'var(--warm)':'var(--faint)'))}
+    ${stat(STATE.truths.length,'truths remembered','var(--ink)')}</div>`;
+  const pendCards = pend.length?`<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:22px 2px 8px">Needs your approval</div>`+
+    pend.map(a=>`<div class="card" style="border-left:3px solid var(--crit);margin-bottom:9px">
+      <div class="top-line"><span class="tag crit">awaiting ${esc(a.by)}</span><span style="flex:1"></span></div>
+      <div class="body-line" style="color:var(--ink)"><b>${esc(a.subject)}</b> — ${esc(a.asked)}</div>
+      <div style="margin-top:10px"><button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}">Approve as ${esc(a.by)}</button></div>
+    </div>`).join(''):'';
+  const recentHtml = recent.length? recent.map(e=>{
+    const col='var(--'+(KIND[e.kind]||'faint')+')';
+    return `<div style="display:flex;gap:11px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line-2)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${col};flex:none;transform:translateY(2px)"></span>
+      <span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:${col};width:70px;flex:none">${KINDLABEL[e.kind]||e.kind}</span>
+      <span style="flex:1;font-size:13.5px;min-width:0"><b>${esc(e.label)}</b>${e.detail?` <span style="color:var(--muted)">— ${esc(e.detail)}</span>`:''}</span>
+      ${e.id?`<span class="cid" data-cid="${esc(e.id)}">${esc(e.id.slice(0,10))}…</span>`:''}</div>`;
+  }).join(''):`<div class="empty" style="border:none">No cognition yet — pull a source in Inbox, then ask JARVIS.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>${greet}${name}</h1><div class="sub">Where JARVIS stands — every number is committed truth in your local Kernel, not a guess.</div></div>
+    <div class="scroll">
+      ${chips}
+      ${pendCards}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:22px 2px 6px">Recent cognition</div>
+      <div class="card" style="padding:5px 16px">${recentHtml}</div>
+      <div style="margin-top:22px">
+        <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:0 2px 8px">Ask JARVIS</div>
+        <div style="display:flex;gap:9px">
+          <input id="home-ask" placeholder="summarize my day · what should I focus on · order flowers" style="flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+          <button class="btn primary" id="home-send">Ask</button>
+        </div>
+        <div style="margin-top:7px;color:var(--faint);font-size:12px">Opens the conversation, where the full thought → gate → commit trace shows.</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ---------- Inbox (everything observed) ---------- */
+function viewInbox(){
+  const mem = STATE.truths.filter(isObs).slice().reverse();
+  const srcBtns = (STATE.sources||['calendar','email','tasks']).map(s=>`<button class="btn" data-obs="${esc(s)}" style="margin:0 7px 7px 0">+ ${esc(s)}</button>`).join('');
+  const feed = mem.length? mem.map(t=>`<div class="card" style="margin-bottom:9px">
+      <div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div>
+      <div class="body-line" style="color:var(--ink)">${esc(t.summary)}</div>
+      <div style="margin-top:7px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div>
+    </div>`).join(''):`<div class="empty">Inbox is empty. Pull a source above — JARVIS observes it into truth (the same event from two sources becomes one).</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Inbox</h1><div class="sub">Everything JARVIS has observed — each item one truth, with the sources that attest it. Source is evidence, never identity.</div></div>
+    <div class="scroll"><div style="margin-bottom:15px">${srcBtns}</div>${feed}</div>
+  </section>`;
+}
+
+/* ---------- Timeline (the replay) ---------- */
+function viewTimeline(){
+  const tl = (STATE.timeline||[]);
+  const body = !tl.length ? `<div class="empty">No events yet — observe a source, then ask JARVIS.</div>` :
+    tl.map((e,i)=>{
+      const col='var(--'+(KIND[e.kind]||'faint')+')'; const last=i===tl.length-1;
+      return `<div style="display:grid;grid-template-columns:16px 1fr;gap:13px">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <span style="width:11px;height:11px;border-radius:50%;background:${col};box-shadow:0 0 0 3px var(--bg),0 0 0 4px ${col};flex:none;margin-top:5px"></span>
+          ${last?'':'<span style="flex:1;width:2px;background:var(--line);margin:3px 0"></span>'}</div>
+        <div style="padding-bottom:17px;min-width:0">
+          <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:${col}">${KINDLABEL[e.kind]||e.kind}</div>
+          <div style="font-size:14.5px;font-weight:600;margin-top:1px">${esc(e.label)}</div>
+          ${e.detail?`<div style="font-size:13px;color:var(--muted);margin-top:1px;word-break:break-word">${esc(e.detail)}</div>`:''}
+          ${e.id?`<span class="cid" data-cid="${esc(e.id)}" style="margin-top:5px;display:inline-block">${esc(e.id.slice(0,14))}…</span>`:''}
+        </div></div>`;
+    }).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Timeline</h1><div class="sub">A replay of JARVIS's cognition in commit order${tl.length?` — ${tl.length} events`:''}. Truth carries no clock by design, so the order <em>is</em> the sequence.</div></div>
+    <div class="scroll">${body}</div>
+  </section>`;
+}
+
+/* ---------- Console (developer view) ---------- */
 function viewConsole(){
   const convo = STATE.conversation.map(m=>{
     if(m.role==='you') return `<div class="ask"><div class="who">you</div>${esc(m.text)}</div>`;
@@ -525,6 +639,9 @@ function wire(){
     else { const k=$('#oa-key'); if(k) k.focus(); toast('Paste your OpenAI key below, then Attach'); }
   });
   const oaAttach=$('#oa-attach'); if(oaAttach) oaAttach.onclick=()=>doAttachReasoner('openai');
+  const hs=$('#home-send'), ha=$('#home-ask');
+  if(hs&&ha){ const go=()=>{ const q=ha.value.trim(); if(!q) return; TAB='console'; renderNav(); render(); const a=$('#ask'); if(a) a.value=q; doAsk(); };
+    hs.onclick=go; ha.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();go();} }; }
   const addsk=document.querySelector('[data-add-skill]'); if(addsk) addsk.onclick=()=>toast('Add a skill from a certified capability file');
 }
 
