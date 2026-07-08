@@ -183,6 +183,18 @@ try {
     ok('POST /api/goals + /status — committed truth; unique subjects (no slug collision); why graceful');
   }
 
+  // 5d) meetings/documents connectors surface as first-class entity TYPES
+  {
+    await j('POST', '/api/observe', { source: 'meetings' });
+    await j('POST', '/api/observe', { source: 'documents' });
+    const st = await j('GET', '/api/state');
+    assert.ok(st.data.sources.includes('meetings') && st.data.sources.includes('documents'), 'meetings + documents connectors registered');
+    const types = new Set(st.data.entities.map((e) => e.type));
+    assert.ok(types.has('Meetings'), 'a meeting:* entity is typed Meetings');
+    assert.ok(types.has('Documents'), 'a doc:* entity is typed Documents');
+    ok('POST /api/observe meetings/documents — first-class Meetings & Documents entities');
+  }
+
   // 6) why: reconstruct a path from committed truth (must not 500)
   {
     const { status } = await j('GET', '/api/why?q=' + encodeURIComponent(blockedSubject || 'anything'));

@@ -480,14 +480,14 @@ const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const ACRONYMS = {arves:'ARVES',jarvis:'JARVIS',pr:'PR',g2:'G2',ai:'AI',os:'OS',hitl:'HITL',wal:'WAL'};
 function humanize(s){
   if(s==null) return '';
-  let x=String(s).replace(/^(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order):/i,'');
+  let x=String(s).replace(/^(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order|meeting|meet|call|event|doc|document|file|place|loc|location):/i,'');
   const em=x.match(/^([a-z0-9._+-]+)@/i); if(em) x=em[1];               // email → local part
   x=x.replace(/[._\-]+/g,' ').replace(/\s+/g,' ').trim();
   if(!x) return 'You';
   return x.split(' ').map(w=>ACRONYMS[w.toLowerCase()] || (w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
 }
 /* strip kernel-key prefixes from a free-form line (timeline details etc.) for the default view */
-function humText(s){ return String(s==null?'':s).replace(/\b(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order):/gi,''); }
+function humText(s){ return String(s==null?'':s).replace(/\b(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order|meeting|meet|call|event|doc|document|file|place|loc|location):/gi,''); }
 
 async function boot(){
   try{
@@ -782,7 +782,7 @@ function entityList(){
   // fallback (preview / older server): derive from truths
   const m={};
   STATE.truths.filter(isObs).forEach(t=>{ const e=t.entity||String(t.summary).split(' — ')[0]||'—';
-    const type = e==='urn:you'?'You':/@/.test(e)?'People':/^(proj|project|repo)[:\/]/i.test(e)?'Projects':'Things';
+    const type = e==='urn:you'?'You':/^(meeting|meet|call|event)[:\/]/i.test(e)?'Meetings':/^(doc|document|file)[:\/]/i.test(e)?'Documents':/^(place|loc|location)[:\/]/i.test(e)?'Places':/^(proj|project|repo)[:\/]/i.test(e)?'Projects':/@/.test(e)?'People':'Things';
     (m[e]=m[e]||{name:e,type,truths:0,sources:new Set()}); m[e].truths++; (t.sources||[]).forEach(s=>m[e].sources.add(s)); });
   return Object.values(m).map(x=>({...x,sources:[...x.sources]})).sort((a,b)=>b.truths-a.truths);
 }
@@ -825,7 +825,7 @@ function viewMemory(){
       <div style="font-weight:650;color:var(--ink);word-break:break-word">${esc(humanize(e.name))}</div>
       <div style="margin-top:5px;font-size:12px;color:var(--muted)">${e.truths} truth${e.truths===1?'':'s'} · ${(e.sources||[]).length} source${(e.sources||[]).length===1?'':'s'}</div>
     </button>`;
-  const sections = ['You','People','Projects','Things'].filter(t=>groups[t]&&groups[t].length).map(t=>
+  const sections = ['You','People','Projects','Meetings','Documents','Places','Things'].filter(t=>groups[t]&&groups[t].length).map(t=>
     `<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 2px 8px">${t} · ${groups[t].length}</div>
      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:11px">${groups[t].map(card).join('')}</div>`).join('') || `<div class="empty">No match for “${esc(UI.entitySearch||'')}”.</div>`;
   const graph = UI.memMode==='graph';

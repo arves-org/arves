@@ -111,9 +111,12 @@ function projectState(assistant, session, reasonerInfo) {
   // every entity here is one that actually appears in a committed observation.
   const classify = (e) => {
     if (e === 'urn:you' || e === session.tenant || e === `urn:${session.tenant}`) return 'You';
-    if (/@/.test(e)) return 'People';
+    if (/^(meeting|meet|call|event)[:\/]/i.test(e)) return 'Meetings';
+    if (/^(doc|document|file)[:\/]/i.test(e)) return 'Documents';
+    if (/^(place|loc|location)[:\/]/i.test(e)) return 'Places';
     if (/^(proj|project|repo)[:\/]/i.test(e)) return 'Projects';
     if (/^(person|user|contact)[:\/]/i.test(e)) return 'People';
+    if (/@/.test(e)) return 'People';
     return 'Things';
   };
   const entMap = new Map();

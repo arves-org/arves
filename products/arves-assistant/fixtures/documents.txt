@@ -1,0 +1,9 @@
+# documents-file fixture — documents the user is working with, one touchpoint per line.
+# Format: <ISO-8601 UTC instant> | <entity> | <event>
+# Documents are a first-class entity (doc:*). A document touchpoint also names the project
+# it belongs to, so document and project link in the graph via the shared 'documents-file' source.
+2026-07-05T18:00:00Z | doc:arves-spec-v2 | ARVES spec v2 draft opened
+2026-07-05T18:00:00Z | proj:arves | spec v2 draft in progress
+2026-07-06T12:00:00Z | doc:q3-report | q3 report edited
+2026-07-07T16:00:00Z | doc:vendor-x-invoice | vendor-x renewal invoice reviewed
+2026-07-07T16:00:00Z | vendor-x | invoice reviewed
