@@ -16,6 +16,10 @@
     --warm:#f2b34a; --warm-soft:rgba(242,179,74,.13);                        /* Thought */
     --good:#37d39a; --warn:#f2b34a; --crit:#f4707f; --crit-soft:rgba(244,112,127,.13);
     --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    /* One font, per v1. Inter if present; else the OS's modern variable sans (Segoe UI
+       Variable / SF Pro / Roboto) — spec-sanctioned "System UI" fallback. Not bundled as a
+       data-URI: a woff2 subset would ~double this single-file app for a marginal gain over
+       Segoe UI Variable; the fallback is intentional, offline-safe, and CSP-safe. */
     --sans:"Inter","Inter var","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
     --body:"Inter","Inter var","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
     --shadow:0 1px 2px rgba(0,0,0,.30),0 6px 16px -6px rgba(0,0,0,.35);
@@ -58,7 +62,8 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;color:var(--ink);font-family:var(--body);position:relative;
-    font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;overflow:hidden;
+    font-variant-numeric:tabular-nums;font-optical-sizing:auto;text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;
     background:
       radial-gradient(1100px 620px at 8% -12%, var(--cool-soft), transparent 62%),
       linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 42%)}
