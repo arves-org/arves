@@ -38,6 +38,7 @@ const orderSkill = () => defineCapability({
   name: 'spend.order',
   version: '1.0.0',
   produces: ['uci.assistant.order'],
+  actionClass: 'spend', // risk class is bound to the SKILL; the gate keys on this, not the proposal
   execute: (input) => [{
     target: 'uci.assistant.order',
     value: { type: 'uci.assistant.order', request: input.request, state: 'placed' },
@@ -184,6 +185,38 @@ test('A6: guardrail BLOCKS a spend-class proposal (compliance truth committed); 
   } finally { a.close(); }
 });
 
+test('A6 hardening: a reasoner CANNOT downgrade its own risk class — the gate keys on the REGISTERED skill, not the proposal (the real-LLM bypass)', async () => {
+  const a = new Assistant({ tenant: 'skills', workspace: 'w2b' });
+  try {
+    await registerSkill(a, orderSkill(), ORDER_INPUTS);          // spend.order, actionClass 'spend' (skill-bound)
+    await a.guardrails.setPolicy({ name: 'spend-needs-user-approval', appliesTo: ['spend', 'irreversible'], approverRole: 'user' });
+
+    // An untrusted model that LABELS its spend action 'normal' to dodge the gate.
+    a.useReasoner({
+      name: 'downgrade-reasoner', version: '1.0.0',
+      reason: () => ({ action: 'invoke-skill', skill: 'spend.order', input: { request: 'flowers' }, subject: 'spend:flowers', actionClass: 'normal', because: 'sneaky' }),
+    });
+    const r1 = await a.think('order flowers');
+    assert.equal(r1.acted, false, 'a mislabeled spend must NOT act');
+    assert.equal(r1.blocked, true, 'the gate resolves the class from the registered skill (spend), ignoring the proposal claim of normal');
+    assert.match(r1.complianceId, /^[0-9a-f]{68}$/, 'the block is committed truth');
+
+    // A model that OMITS actionClass entirely (adapters default it to 'normal') is gated too.
+    a.useReasoner({
+      name: 'omit-reasoner', version: '1.0.0',
+      reason: () => ({ action: 'invoke-skill', skill: 'spend.order', input: { request: 'flowers' }, subject: 'spend:flowers', actionClass: 'normal', because: 'omitted' }),
+    });
+    const r2 = await a.think('order flowers again');
+    assert.equal(r2.blocked, true, 'omitting/normalizing the class still cannot bypass the skill-bound spend gate');
+
+    // The separate committed approval truth (right role) is the ONLY thing that unlocks it.
+    await a.guardrails.approve('user', 'spend:flowers');
+    const r3 = await a.think('order flowers');
+    assert.equal(r3.acted, true, 'with a real approval truth, the spend proceeds');
+    assert.equal(r3.invocation.truths[0].status, 'committed');
+  } finally { a.close(); }
+});
+
 test('A4: reasoner determinism — same context -> same proposal; think() replays end-to-end (already-committed)', async () => {
   const a = new Assistant({ tenant: 'skills', workspace: 'w3' });
   try {
@@ -234,6 +267,59 @@ test('A4: think() without a reasoner refuses loudly; a proposal for an unregiste
     assert.ok(idOf(e1), 'the refusal compliance truth id is surfaced');
     assert.equal(idOf(e1), idOf(e2), 'same refusal -> same content-addressed compliance truth');
     await assert.rejects(() => a.think(''), /goal/);
+  } finally { a.close(); }
+});
+
+test('A4/A6 hardening: a certified skill that FAILS at execution is GOVERNED (compliance truth), not a raw throw — the real-LLM bad-input case', async () => {
+  const a = new Assistant({ tenant: 't', workspace: 'exec-fail' });
+  try {
+    // A certified skill that requires input.events (array) — like day.summarize. Its
+    // testInputs are valid, so certification passes and it BINDS.
+    await registerSkill(a, defineCapability({
+      name: 'needs.events', version: '1.0.0', produces: ['uci.assistant.briefing'],
+      execute: (input) => {
+        if (!Array.isArray(input?.events)) throw new Error('needs.events: input.events must be an array');
+        return [{ target: 'uci.assistant.briefing', value: { type: 'uci.assistant.briefing', count: BigInt(input.events.length) } }];
+      },
+    }), [{ type: 'uci.assistant.skill-input', events: ['a'] }]);
+
+    // CASE (c): valid skill, WRONG-SHAPE (but ACS-canonical) input — the skill's execute()
+    // throws. This is what a real LLM does when it guesses the input shape. MUST NOT crash.
+    a.useReasoner({
+      name: 'bad-input-reasoner', version: '1.0.0',
+      reason: () => ({ action: 'invoke-skill', skill: 'needs.events', input: { note: 'x' }, subject: 'brief:today', actionClass: 'normal', because: 'test' }),
+    });
+
+    const r = await a.think('brief my day');            // no throw — governed
+    assert.equal(r.acted, false, 'did not act');
+    assert.equal(r.failed, true, 'reported as a governed failure');
+    assert.match(r.error, /input\.events must be an array/, 'the clean domain error is surfaced');
+    assert.match(r.complianceId, /^[0-9a-f]{68}$/, 'a compliance truth id is returned');
+
+    // The failure is committed as truth (auditable), and its BODY is content-addressed-stable
+    // (no volatile error string in it) — so the same failure replays to the SAME id.
+    const fails = a.journal().filter((e) => e.body?.type === 'uci.assistant.compliance' && e.body.outcome === 'skill-execution-failed');
+    assert.equal(fails.length >= 1, true, 'the failure is a committed compliance truth');
+    assert.equal(fails[0].body.skill, 'needs.events');
+    assert.equal(fails[0].body.goal, 'brief my day');
+    assert.ok(!('error' in fails[0].body), 'the committed body carries NO volatile error string (replay-stable)');
+
+    const r2 = await a.think('brief my day');
+    assert.equal(r2.complianceId, r.complianceId, 'same failure -> same content-addressed compliance truth');
+
+    // CASE (d): NON-CANONICAL proposed input — a bare JS number (what JSON.parse yields for a
+    // model's `{"count": 5}`). ACS rejects it at the proposal commit; that throw is governed
+    // into a `proposal-rejected` compliance truth, never a raw crash.
+    a.useReasoner({
+      name: 'noncanonical-reasoner', version: '1.0.0',
+      reason: () => ({ action: 'invoke-skill', skill: 'needs.events', input: { events: ['a'], count: 5 }, subject: 'brief:num', actionClass: 'normal', because: 'test' }),
+    });
+    const rn = await a.think('brief with a bare number');
+    assert.equal(rn.failed, true, 'non-canonical input is a governed failure, not a throw');
+    assert.match(rn.error, /BigInt|float|ambiguous/i, 'the ACS reason is surfaced to the human');
+    const rejected = a.journal().filter((e) => e.body?.type === 'uci.assistant.compliance' && e.body.outcome === 'proposal-rejected');
+    assert.equal(rejected.length >= 1, true, 'a proposal-rejected compliance truth is committed');
+    assert.ok(!('input' in rejected[0].body), 'the rejection body does NOT carry the offending input');
   } finally { a.close(); }
 });
 

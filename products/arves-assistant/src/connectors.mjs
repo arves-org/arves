@@ -83,6 +83,17 @@ export function tasksConnector(file = path.join(FIXTURES, 'tasks.txt')) {
   return readSourceFile(file, 'tasks-file');
 }
 
+/** meetings-file connector: the user's meetings (meeting:* entities — first-class in the
+ *  product brief's People/Projects/Meetings/Documents object model). Same line format. */
+export function meetingsConnector(file = path.join(FIXTURES, 'meetings.txt')) {
+  return readSourceFile(file, 'meetings-file');
+}
+
+/** documents-file connector: the user's documents (doc:* entities — first-class). */
+export function documentsConnector(file = path.join(FIXTURES, 'documents.txt')) {
+  return readSourceFile(file, 'documents-file');
+}
+
 /** The whole observable world for the scripted day, in deterministic order.
  *  Contains exactly one cross-source duplicate (dentist-appointment in notes + calendar).
  *  NOTE: intentionally the ORIGINAL three connectors only — the two real-format connectors
@@ -280,6 +291,8 @@ export const CONNECTORS = {
   notes: notesConnector,
   calendar: calendarConnector,
   tasks: tasksConnector,
+  meetings: meetingsConnector,
+  documents: documentsConnector,
   journal: markdownJournalConnector,
   ical: icalConnector,
   email: emailConnector,

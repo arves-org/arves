@@ -18,24 +18,52 @@
 
 import { registerSkill, defineCapability } from './skills.mjs';
 
+// ---- input guards ---------------------------------------------------------------------
+// A skill's execute() receives input from the REASONER. The StubReasoner always supplies
+// the exact shape, but a real LLM reasoner guesses — so a well-authored skill VALIDATES its
+// input and fails with a clear domain error instead of a cryptic `Cannot read properties of
+// undefined`. (The assistant governs any such throw into a `skill-execution-failed`
+// compliance truth — assistant.mjs — so this only sharpens the message, it is not the
+// safety net.) These are the pattern a marketplace skill author should copy.
+
+/** Require an ARRAY field on the skill input, or throw a clear, skill-named error. */
+function reqArray(input, key, skill) {
+  const v = input == null ? undefined : input[key];
+  if (!Array.isArray(v)) throw new Error(`${skill}: input.${key} must be an array (got ${input == null ? 'no input' : typeof v})`);
+  return v;
+}
+/** Require a present (non-undefined) scalar field, or throw a clear, skill-named error. */
+function reqField(input, key, skill) {
+  const v = input == null ? undefined : input[key];
+  if (v === undefined || v === null) throw new Error(`${skill}: input.${key} is required`);
+  return v;
+}
+
 // ---- the skills (factories: a fresh capability object per call) -----------------------
 
 /** day.summarize — a briefing of everything the assistant knows (event names, sorted). */
 export const summarizeSkill = () => defineCapability({
   name: 'day.summarize', version: '1.0.0', produces: ['uci.assistant.briefing'],
-  execute: (input) => [{
-    target: 'uci.assistant.briefing',
-    value: { type: 'uci.assistant.briefing', count: BigInt(input.events.length), events: [...input.events].sort() },
-  }],
+  execute: (input) => {
+    const events = reqArray(input, 'events', 'day.summarize');
+    return [{
+      target: 'uci.assistant.briefing',
+      value: { type: 'uci.assistant.briefing', count: BigInt(events.length), events: [...events].sort() },
+    }];
+  },
 });
 
 /** spend.order — place an order request. SPEND-class: the guardrail gate holds it until a
  *  separate committed approval truth exists (A6). */
 export const orderSkill = () => defineCapability({
   name: 'spend.order', version: '1.0.0', produces: ['uci.assistant.order'],
+  // SPEND-class is bound to the SKILL (not the proposal): the guardrail gate resolves the
+  // risk class from here, so a reasoner — stub OR a real LLM — can never downgrade this to
+  // 'normal' to slip the spend gate. The default policy (openSession) gates 'spend'.
+  actionClass: 'spend',
   execute: (input) => [{
     target: 'uci.assistant.order',
-    value: { type: 'uci.assistant.order', request: input.request, state: 'placed' },
+    value: { type: 'uci.assistant.order', request: reqField(input, 'request', 'spend.order'), state: 'placed' },
   }],
 });
 
@@ -43,7 +71,7 @@ export const orderSkill = () => defineCapability({
 export const draftReplySkill = () => defineCapability({
   name: 'reply.draft', version: '1.0.0', produces: ['uci.assistant.draft'],
   execute: (input) => {
-    const to = [...input.to].sort();
+    const to = [...reqArray(input, 'to', 'reply.draft')].sort();
     return [{
       target: 'uci.assistant.draft',
       value: { type: 'uci.assistant.draft', to, body: `Draft reply addressed to ${to.length} contact(s): ${to.join(', ')}` },
@@ -56,7 +84,7 @@ export const draftReplySkill = () => defineCapability({
 export const scheduleBlockSkill = () => defineCapability({
   name: 'schedule.block', version: '1.0.0', produces: ['uci.assistant.schedule'],
   execute: (input) => {
-    const events = [...input.events].sort();
+    const events = [...reqArray(input, 'events', 'schedule.block')].sort();
     return [{
       target: 'uci.assistant.schedule',
       value: { type: 'uci.assistant.schedule', count: BigInt(events.length), blocks: events.map((e) => `block:${e}`) },
@@ -68,10 +96,10 @@ export const scheduleBlockSkill = () => defineCapability({
 export const notesDigestSkill = () => defineCapability({
   name: 'notes.digest', version: '1.0.0', produces: ['uci.assistant.digest'],
   execute: (input) => {
-    const entities = [...input.entities].sort();
+    const entities = [...reqArray(input, 'entities', 'notes.digest')].sort();
     return [{
       target: 'uci.assistant.digest',
-      value: { type: 'uci.assistant.digest', entities, factCount: input.count },
+      value: { type: 'uci.assistant.digest', entities, factCount: reqField(input, 'count', 'notes.digest') },
     }];
   },
 });

@@ -44,6 +44,62 @@ approval → certified skills act → **kill the Kernel, restart over the same W
 memory intact → `why()` explains the spend decision end to end, byte-identically to the
 pre-restart explanation.
 
+## 2a. See it — open the JARVIS console in your browser (no CLI)
+
+If you would rather **see** JARVIS than type at it, run the local console. One command,
+zero extra dependencies (Node's built-in `http` server), the same real bridge and the same
+governed pipeline — just visual:
+
+```sh
+JW=./my-jarvis-wal                                            # your durable memory (any dir you own)
+node products/arves-assistant/ui/server.mjs --wal-dir $JW     # then open http://localhost:7777
+#   …or:  npm --prefix products/arves-assistant run ui        # (uses ./jarvis-wal)
+#   …or a different port:  node products/arves-assistant/ui/server.mjs --wal-dir $JW --port 8080
+```
+
+Open **http://localhost:7777** and you have the whole assistant in one place:
+
+- **Console** — ask JARVIS a goal and watch the trace unfold *warm thought → gate
+  (pass/block) → cool committed truth*, every commit a clickable ContentId.
+- **Memory** — the deduplicated truths, each with its evidence sources. Click **Observe**
+  to pull a connector (`calendar`, `ical`, `email`, …) into truth.
+- **Guardrails** — your policies as committed truths, and any action **awaiting approval**;
+  click *Approve as \<role\>* to commit the separate approval truth that clears the gate.
+- **Skills & Agents** — the certified capabilities and the deterministic sub-agents.
+- **Why** — reconstruct any decision's path from committed truth.
+- **Settings** — the reasoner pill tells the truth: it shows **Stub (deterministic)** until
+  you attach a model. The console can never claim intelligence it doesn't have.
+
+Everything you see is a **read projection of committed truth** in your WAL — stop the
+server, start it again over the same `--wal-dir`, and every truth, decision, policy and
+block comes back (RCR-033 recovery). The browser is only a window; the truth is in the Kernel.
+
+**Plug a real model — the fastest path is OpenAI, already shipped.** Set your key in the
+environment (never in the repo) and the server auto-attaches the built-in OpenAI reasoner:
+
+```sh
+OPENAI_API_KEY=sk-...  node products/arves-assistant/ui/server.mjs --wal-dir $JW
+#   choose the model:   OPENAI_API_KEY=sk-...  OPENAI_MODEL=gpt-4o  node .../ui/server.mjs --wal-dir $JW
+```
+
+The Settings pill flips to `openai:<model>` (isStub=false) and every proposal it makes is
+committed as attributed, governed, replayable truth. Or point the server at **any** reasoner
+module (same slot as §4) — its default export must implement the `Reasoner` interface:
+
+```sh
+JARVIS_REASONER=./my-llm-reasoner.mjs node products/arves-assistant/ui/server.mjs --wal-dir $JW
+```
+
+Governance, memory and audit are unchanged — only the intelligence became yours. And it is
+honestly governed BOTH ways: if the model proposes an unregistered skill it is refused; if it
+supplies input a skill can't run on, that failure is committed as truth and shown plainly —
+never a crash.
+
+> **Honesty (same as everywhere):** single host, `localhost` only, no authN/TLS on the
+> commit path (v1.0 scope — a personal assistant on your own machine, not a deployed
+> service). This is the **G1 preview**; the four-condition GA gate (IDR-006) is unmet and
+> the UI says so.
+
 ## 2b. Drive it from the CLI (interactive REPL or scripted)
 
 The fastest way to *use* JARVIS is the CLI. It runs every command over a real
@@ -236,6 +292,25 @@ export class LlmReasoner {
 import { LlmReasoner } from './my-llm-reasoner.mjs';
 assistant.useReasoner(new LlmReasoner());
 ```
+
+**Don't want to write the adapter? OpenAI is shipped.** `src/openai-reasoner.mjs` is a
+complete, **zero-dependency** (global `fetch`, no SDK) OpenAI-backed reasoner that reads the
+key from `process.env.OPENAI_API_KEY` — the key never touches the repo. It reuses the same
+governed `parseProposal` (hallucinated skills refused), so nothing about governance changes:
+
+```js
+import OpenAiReasoner from './products/arves-assistant/src/openai-reasoner.mjs';
+assistant.useReasoner(new OpenAiReasoner());   // model from OPENAI_MODEL (default gpt-4o-mini)
+```
+
+```sh
+# run it (the CLI and the UI both auto-attach it when OPENAI_API_KEY is present):
+OPENAI_API_KEY=sk-...  node products/arves-assistant/bin/jarvis.mjs --wal-dir $JW ask summarize my day
+OPENAI_API_KEY=sk-...  node products/arves-assistant/openai-reasoner.test.mjs   # a live governed-pipeline proof
+```
+
+The live test **self-skips with no key**, so CI stays offline-hermetic; it makes a real call
+only when you provide a key. (Your OpenAI key is billed by OpenAI, not ARVES.)
 
 **What stays true with a real LLM attached — this is the product's claim:**
 

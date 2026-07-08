@@ -9,6 +9,25 @@ memory · A2 multi-source one-truth); stage 2 ships the **governed think→act p
 the **maintainer run path** (A8, `docs/JARVIS_QUICKSTART.md`) — all on the **frozen
 ARVES Runtime v1.0**, honestly and offline.
 
+## See it — the browser console (no CLI)
+
+Prefer to look at JARVIS rather than type at it? One command, zero extra deps (Node's
+built-in `http`), the same real bridge and the same governed pipeline — just visual:
+
+```
+cargo build -p arves-bridge --bin arves-bridge --manifest-path runtime/Cargo.toml  # once
+node products/arves-assistant/ui/server.mjs --wal-dir ./my-jarvis-wal              # open http://localhost:7777
+```
+
+The **Cognitive Console** (`ui/`) is a single self-contained page: ask a goal and watch
+*warm thought → guardrail gate → cool committed truth*; browse deduplicated memory with its
+evidence sources; clear an approval to unblock a spend; see any decision's `why()` path. Every
+panel is a **read projection of committed truth** — restart over the same `--wal-dir` and it
+all comes back. The reasoner pill shows **Stub (deterministic)** until you attach your own
+model (`JARVIS_REASONER=./my-llm.mjs`), so the UI can never claim intelligence it lacks. Full
+walkthrough + LLM plug: `docs/JARVIS_QUICKSTART.md` §2a. (`ui/server.test.mjs` drives the whole
+`/api/*` contract against the real bridge — `npm --prefix products/arves-assistant run ui:test`.)
+
 ## What stages 1–3 prove (run it yourself)
 
 ```

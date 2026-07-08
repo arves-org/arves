@@ -45,6 +45,7 @@ const orderSkill = defineCapability({
   name: 'spend.order',
   version: '1.0.0',
   produces: ['uci.assistant.order'],
+  actionClass: 'spend', // risk class bound to the SKILL — the gate keys on this, not the proposal
   execute: (input) => [{
     target: 'uci.assistant.order',
     value: { type: 'uci.assistant.order', request: input.request, state: 'placed' },

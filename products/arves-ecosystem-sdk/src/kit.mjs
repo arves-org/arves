@@ -25,13 +25,20 @@ export { float } from '../../arves-sdk-ts/src/codec.mjs';
 /** Author a capability. `execute(input)` returns an array of effects
  *  `{ target, value }`, where `target` is a declared produce and `value` is any ARVES
  *  value. The runtime commits these effects as truth; the capability is pure product code. */
-export function defineCapability({ name, version, produces, execute, determinism = 'deterministic' }) {
+export function defineCapability({ name, version, produces, execute, determinism = 'deterministic', actionClass = 'normal' }) {
   if (typeof name !== 'string' || !name) throw new Error('capability: name required');
   if (typeof version !== 'string' || !version) throw new Error('capability: version required');
   if (!Array.isArray(produces) || produces.length === 0) throw new Error('capability: produces[] required');
   if (typeof execute !== 'function') throw new Error('capability: execute(input) required');
+  if (typeof actionClass !== 'string' || !actionClass) throw new Error('capability: actionClass must be a non-empty string');
   return {
     manifest: { type: 'uci.capability-manifest', name, version, produces: [...produces].sort(), determinism },
+    // The RISK CLASS is bound to the skill here, deliberately OUTSIDE the manifest and the
+    // codeHash body (codeHash covers only execute.toString()), so declaring it does NOT
+    // change the capability artifact id or its certification. It is the AUTHORITATIVE class
+    // the guardrail gate keys on — a governed action's risk is decided by the skill it runs,
+    // never by the (possibly untrusted, LLM-authored) proposal that asked to run it.
+    actionClass,
     execute,
   };
 }

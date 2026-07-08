@@ -1,0 +1,10 @@
+# meetings-file fixture — the user's meetings, one touchpoint per line.
+# Format: <ISO-8601 UTC instant> | <entity> | <event>
+# Meetings are a first-class entity (meeting:*). The same meeting also touches the people
+# and projects involved, so it links to them in the graph via the shared 'meetings-file' source.
+2026-07-06T14:00:00Z | meeting:q3-review | q3 review with the team
+2026-07-06T14:00:00Z | proj:arves | discussed in q3-review
+2026-07-07T10:00:00Z | meeting:vendor-x-sync | vendor-x renewal sync
+2026-07-07T10:00:00Z | vendor-x | renewal discussed in sync
+2026-07-08T09:30:00Z | meeting:1-1-alice | weekly 1:1 with alice
+2026-07-08T09:30:00Z | alice@dental.example | weekly 1:1

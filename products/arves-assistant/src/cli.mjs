@@ -205,6 +205,24 @@ async function askCmd(a, rest, say) {
     say(`  to unlock:  approve ${role} ${r.proposal.subject}`);
     return;
   }
+  if (r.failed === true && r.stage === 'proposal-rejected') {
+    // The proposal was rejected BEFORE the gate ran and before any skill executed (typically
+    // a real LLM reasoner supplied non-canonical input). Do NOT claim a gate or a skill ran.
+    say(`REJECTED  '${goal}'`);
+    say(`  reasoner '${r.proposal.reasoner ?? '?'}' proposed skill '${r.proposal.skill}' but its input was invalid: ${r.error}`);
+    say(`  rejected before the guardrail; no skill executed`);
+    say(`  rejection committed as compliance truth ${short(r.complianceId)}`);
+    return;
+  }
+  if (r.failed === true) {
+    // stage 'skill-execution': the gate PASSED and the certified skill RAN, but its execute()
+    // threw. Governed, not a crash: committed as truth, no effect committed.
+    say(`FAILED  '${goal}'`);
+    say(`  proposal ${short(r.proposalId)} -> skill '${r.proposal.skill}'  subject '${r.proposal.subject}'  (guardrail passed)`);
+    say(`  skill execution failed: ${r.error}`);
+    say(`  failure committed as compliance truth ${short(r.complianceId)}  (explain:  why ${r.proposal.subject})`);
+    return;
+  }
   // no-action-proposed: the stub reasoner has no rule for this goal (honest, not a guess)
   say(`NO ACTION  '${goal}'`);
   say(`  ${r.proposal.because}`);

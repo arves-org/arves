@@ -1,0 +1,1199 @@
+<title>JARVIS · Cognitive Console</title>
+<style>
+  /* ============================ tokens ============================ */
+  /* ARVES "Glass Brain" — calm intelligence, Calm register.
+     cool = committed TRUTH (the substrate) · warm = THOUGHT (reasoning, not-yet-truth) */
+  /* JARVIS Design Language v1 — Calm Intelligence.
+     One font (Inter). Soft-neutral surfaces. A single cool-blue accent.
+     Minimal shadows (lifted, not floating). Light & dark both first-class.
+     Semantic meaning: cool=Truth · warm=Thought · crit=Governed · good=Success. */
+  :root{
+    --bg:#0b0d12; --bg-deep:#0d1017; --bg-void:#090b0f;
+    --surface:#14171e; --surface-2:#191d25; --raise:#1f2530;
+    --line:rgba(255,255,255,.075); --line-2:rgba(255,255,255,.14);
+    --ink:#e9edf4; --muted:#a1abbb; --faint:#6c7787;
+    --cool:#4c9dff; --cool-soft:rgba(76,157,255,.13); --cool-dim:#3b7fd6;   /* single accent = Truth */
+    --warm:#f2b34a; --warm-soft:rgba(242,179,74,.13);                        /* Thought */
+    --good:#37d39a; --warn:#f2b34a; --crit:#f4707f; --crit-soft:rgba(244,112,127,.13);
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    /* One font, per v1. Inter if present; else the OS's modern variable sans (Segoe UI
+       Variable / SF Pro / Roboto) — spec-sanctioned "System UI" fallback. Not bundled as a
+       data-URI: a woff2 subset would ~double this single-file app for a marginal gain over
+       Segoe UI Variable; the fallback is intentional, offline-safe, and CSP-safe. */
+    --sans:"Inter","Inter var","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --body:"Inter","Inter var","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --shadow:0 1px 2px rgba(0,0,0,.30),0 6px 16px -6px rgba(0,0,0,.35);
+    --glow:0 0 0 1px var(--cool-soft);
+    --r-sm:8px; --r-md:12px; --r-lg:16px;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#f6f7f9; --bg-deep:#fbfbfc; --bg-void:#eef0f3;
+      --surface:#ffffff; --surface-2:#f2f4f7; --raise:#ffffff;
+      --line:rgba(18,28,48,.10); --line-2:rgba(18,28,48,.17);
+      --ink:#131722; --muted:#525e70; --faint:#8792a3;
+      --cool:#2f7ff0; --cool-soft:rgba(47,127,240,.10); --cool-dim:#2666c9;
+      --warm:#b8791a; --warm-soft:rgba(184,121,26,.11);
+      --good:#12996a; --warn:#b8791a; --crit:#d8536a; --crit-soft:rgba(216,83,106,.09);
+      --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 16px -8px rgba(20,30,50,.12);
+      --glow:0 0 0 1px var(--cool-soft);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --bg-deep:#fbfbfc; --bg-void:#eef0f3;
+    --surface:#ffffff; --surface-2:#f2f4f7; --raise:#ffffff;
+    --line:rgba(18,28,48,.10); --line-2:rgba(18,28,48,.17); --ink:#131722; --muted:#525e70; --faint:#8792a3;
+    --cool:#2f7ff0; --cool-soft:rgba(47,127,240,.10); --cool-dim:#2666c9; --warm:#b8791a; --warm-soft:rgba(184,121,26,.11);
+    --good:#12996a; --warn:#b8791a; --crit:#d8536a; --crit-soft:rgba(216,83,106,.09);
+    --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 16px -8px rgba(20,30,50,.12);
+    --glow:0 0 0 1px var(--cool-soft);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b0d12; --bg-deep:#0d1017; --bg-void:#090b0f;
+    --surface:#14171e; --surface-2:#191d25; --raise:#1f2530;
+    --line:rgba(255,255,255,.075); --line-2:rgba(255,255,255,.14);
+    --ink:#e9edf4; --muted:#a1abbb; --faint:#6c7787;
+    --cool:#4c9dff; --cool-soft:rgba(76,157,255,.13); --cool-dim:#3b7fd6;
+    --warm:#f2b34a; --warm-soft:rgba(242,179,74,.13); --good:#37d39a; --warn:#f2b34a; --crit:#f4707f; --crit-soft:rgba(244,112,127,.13);
+    --shadow:0 1px 2px rgba(0,0,0,.30),0 6px 16px -6px rgba(0,0,0,.35);
+    --glow:0 0 0 1px var(--cool-soft);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;color:var(--ink);font-family:var(--body);position:relative;
+    font-variant-numeric:tabular-nums;font-optical-sizing:auto;text-rendering:optimizeLegibility;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;overflow:hidden;
+    background:
+      radial-gradient(1100px 620px at 8% -12%, var(--cool-soft), transparent 62%),
+      linear-gradient(180deg, var(--bg-deep) 0%, var(--bg) 42%)}
+  h1,h2,h3,h4,.brand b,.phead h1{font-family:var(--sans);letter-spacing:-.011em}
+
+  /* v1: no atmosphere/glass — a calm neutral ground, not a floating light show. */
+  .atmosphere,.grain{display:none}
+  .brand,.top,.rail{background:var(--surface)}
+  .card{border-radius:var(--r-md);border-color:var(--line);box-shadow:none}
+  .card:hover{border-color:var(--line-2)}
+  .trace{border-radius:var(--r-md)}
+  /* v1: never edge-to-edge — cap + centre content on wide screens */
+  .phead{padding-inline:max(24px, calc((100% - 1160px) / 2))}
+  .scroll{padding-inline:max(0px, calc((100% - 1160px) / 2))}
+  /* v1: one primary per section — toggles/selection use an outlined accent, not the filled CTA */
+  .btn.on{border-color:var(--cool);color:var(--cool);background:var(--cool-soft)}
+  .btn.on:hover{border-color:var(--cool);color:var(--cool)}
+  ::selection{background:var(--cool-soft)}
+  button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
+  :focus-visible{outline:2px solid var(--cool);outline-offset:2px;border-radius:6px}
+  input,textarea{font:inherit;color:inherit}
+
+  .app{display:grid;grid-template-columns:236px 1fr;grid-template-rows:52px 1fr;height:100vh;
+    grid-template-areas:"brand top" "rail main"}
+
+  /* ---------------- top bar ---------------- */
+  .top{grid-area:top;display:flex;align-items:center;gap:14px;padding:0 18px;
+    border-bottom:1px solid var(--line);background:linear-gradient(var(--surface),var(--bg))}
+  .top .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.04em;
+    padding:5px 10px;border:1px solid var(--line);border-radius:99px;color:var(--muted);white-space:nowrap}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .pill.live{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 45%,var(--line))}
+  .pill.live .dot{background:var(--cool);box-shadow:0 0 8px var(--cool);animation:breathe 3s ease-in-out infinite}
+  .pill.preview{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 45%,var(--line))}
+  .pill.preview .dot{background:var(--warm)}
+  .pill.reasoner .k{color:var(--faint)}
+  .pill.reasoner.stub{color:var(--warm)} .pill.reasoner.stub .dot{background:var(--warm)}
+  .pill.reasoner.real{color:var(--good)} .pill.reasoner.real .dot{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .iconbtn{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line);
+    border-radius:9px;color:var(--muted)}
+  .iconbtn:hover{color:var(--ink);border-color:var(--line-2)}
+
+  /* ---------------- brand ---------------- */
+  .brand{grid-area:brand;display:flex;align-items:center;gap:11px;padding:0 18px;
+    border-bottom:1px solid var(--line);border-right:1px solid var(--line);background:var(--surface)}
+  .orb{width:22px;height:22px;position:relative;flex:none}
+  .orb i{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--cool);opacity:.9}
+  .orb i:nth-child(2){inset:4px;border-color:var(--cool-dim);animation:spin 7s linear infinite}
+  .orb i:nth-child(3){inset:8px;background:var(--cool);border:0;box-shadow:0 0 10px var(--cool)}
+  .brand b{font-size:15px;letter-spacing:.28em;font-weight:700}
+  .brand .v{font-size:9px;color:var(--faint);letter-spacing:.14em;margin-top:2px}
+
+  /* ---------------- left rail ---------------- */
+  .rail{grid-area:rail;border-right:1px solid var(--line);background:var(--surface);
+    display:flex;flex-direction:column;overflow-y:auto}
+  .idcard{padding:16px 18px 14px;border-bottom:1px solid var(--line);display:grid;gap:9px}
+  .idrow{display:flex;justify-content:space-between;gap:10px;font-size:11.5px}
+  .idrow .k{color:var(--faint);letter-spacing:.05em}
+  .idrow .val{color:var(--ink);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .truthcount{margin-top:2px;display:flex;align-items:baseline;gap:8px}
+  .truthcount b{font-size:26px;color:var(--cool);letter-spacing:-.02em}
+  .truthcount span{font-size:10px;color:var(--faint);letter-spacing:.12em;text-transform:uppercase}
+  nav{padding:10px 10px;display:grid;gap:2px}
+  .navi{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;color:var(--muted);
+    font-size:13px;letter-spacing:.01em;text-align:left;width:100%}
+  .navi svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.6}
+  .navi .badge{margin-left:auto;font-size:10px;min-width:18px;height:18px;padding:0 5px;border-radius:99px;
+    display:grid;place-items:center;background:var(--surface-2);color:var(--muted)}
+  .navi:hover{color:var(--ink);background:var(--surface-2)}
+  .navi.on{color:var(--cool);background:var(--cool-soft);box-shadow:inset 2px 0 0 var(--cool)}
+  .navi.on .badge{background:var(--cool-soft);color:var(--cool)}
+  .navi.alert .badge{background:var(--crit-soft);color:var(--crit)}
+  .rail .foot{margin-top:auto;padding:12px 18px;border-top:1px solid var(--line);font-size:10.5px;color:var(--faint);line-height:1.5}
+
+  /* ---------------- main ---------------- */
+  .main{grid-area:main;overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .panel{display:none;flex:1;min-height:0;flex-direction:column}
+  .panel.on{display:flex}
+  .phead{padding:16px 24px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-end;gap:14px}
+  .phead h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.02em}
+  .phead .sub{font-family:var(--sans);font-size:12.5px;color:var(--muted);flex:1;line-height:1.5}
+  .scroll{overflow-y:auto;flex:1;min-height:0}
+
+  /* ---- console (the hero) ---- */
+  .stream{padding:22px 24px 8px;display:flex;flex-direction:column;gap:20px;max-width:920px}
+  .ask{align-self:flex-end;max-width:76%;background:var(--surface-2);border:1px solid var(--line-2);
+    border-radius:13px 13px 4px 13px;padding:11px 15px;font-family:var(--sans);font-size:14px;line-height:1.5}
+  .ask .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  .resp{align-self:flex-start;max-width:88%;width:100%;display:grid;gap:0}
+  .resp .say{font-family:var(--sans);font-size:14.5px;line-height:1.6;color:var(--ink);margin-bottom:12px}
+  .resp .say .lead{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cool);margin-bottom:5px}
+  /* the trace — the thesis: thought(warm) -> gate -> commit(cool truth) */
+  .trace{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+  .tstep{display:grid;grid-template-columns:132px 1fr;gap:0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .tstep:last-child{border-bottom:0}
+  .tstep .lbl{padding:11px 14px;background:var(--surface-2);color:var(--muted);border-right:1px solid var(--line);
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+  .tstep .lbl .m{width:8px;height:8px;border-radius:2px;flex:none}
+  .tstep .body{padding:11px 15px;font-family:var(--sans);line-height:1.5;color:var(--ink);display:flex;flex-direction:column;gap:4px}
+  .tstep.thought .lbl .m{background:var(--warm)} .tstep.thought .lbl{color:var(--warm)}
+  .tstep.thought .body{background:var(--warm-soft)}
+  .tstep.gate.pass .lbl .m{background:var(--good)} .tstep.gate.pass .lbl{color:var(--good)}
+  .tstep.gate.block .lbl .m{background:var(--crit)} .tstep.gate.block .lbl{color:var(--crit)}
+  .tstep.gate.block .body{background:var(--crit-soft)}
+  .tstep.commit .lbl .m{background:var(--cool)} .tstep.commit .lbl{color:var(--cool)}
+  .cid{font-family:var(--mono);font-size:11px;color:var(--cool);background:var(--cool-soft);
+    padding:2px 7px;border-radius:6px;letter-spacing:.02em;cursor:pointer;align-self:flex-start;
+    border:1px solid color-mix(in srgb,var(--cool) 30%,transparent)}
+  .cid:hover{border-color:var(--cool)}
+  .inlinebtn{align-self:flex-start;margin-top:5px;font-family:var(--mono);font-size:11px;letter-spacing:.03em;
+    padding:6px 12px;border:1px solid var(--crit);color:var(--crit);border-radius:8px}
+  .inlinebtn:hover{background:var(--crit-soft)}
+  .meta-src{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+
+  /* ---- composer ---- */
+  .composer{border-top:1px solid var(--line);padding:14px 24px 18px;background:linear-gradient(var(--bg),var(--surface))}
+  .cbox{max-width:920px;display:flex;gap:10px;align-items:flex-end;background:var(--surface);border:1px solid var(--line-2);
+    border-radius:14px;padding:10px 10px 10px 16px;box-shadow:var(--glow)}
+  .cbox textarea{flex:1;resize:none;border:0;background:none;font-family:var(--sans);font-size:14.5px;
+    line-height:1.5;max-height:140px;min-height:24px;outline:none}
+  .cbox textarea::placeholder{color:var(--faint)}
+  .send{width:38px;height:38px;flex:none;border-radius:10px;background:var(--cool);color:#fff;
+    display:grid;place-items:center;box-shadow:var(--shadow)}
+  .send:hover{filter:brightness(1.08)} .send:disabled{opacity:.4;box-shadow:none;cursor:not-allowed}
+  .send svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2}
+  .quickrow{max-width:920px;display:flex;gap:8px;margin:9px 2px 0;flex-wrap:wrap;align-items:center}
+  .chip{font-size:11px;letter-spacing:.03em;padding:5px 11px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+  .chip:hover{color:var(--ink);border-color:var(--line-2)}
+  .chip.warm{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 35%,var(--line))}
+  .hint{font-family:var(--body);font-size:11.5px;color:var(--faint);margin-left:auto}
+
+  /* ---- generic cards / grids for other panels ---- */
+  .grid{padding:20px 24px;display:grid;gap:12px;max-width:1000px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+  .card .top-line{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;letter-spacing:.01em}
+  .card .body-line{font-family:var(--sans);font-size:13px;color:var(--muted);line-height:1.55}
+  .tag{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:99px;
+    border:1px solid var(--line);color:var(--muted)}
+  .tag.cool{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 40%,var(--line));background:var(--cool-soft)}
+  .tag.good{color:var(--good);border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
+  .tag.warm{color:var(--warm);border-color:color-mix(in srgb,var(--warm) 40%,var(--line))}
+  .tag.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line))}
+  .srcs{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+  .src{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .btn{font-family:var(--body);font-size:12.5px;font-weight:500;letter-spacing:0;padding:8px 14px;border-radius:9px;
+    border:1px solid var(--line-2);color:var(--ink)}
+  .btn:hover{border-color:var(--cool);color:var(--cool)}
+  .btn.warm{border-color:color-mix(in srgb,var(--warm) 50%,var(--line));color:var(--warm)}
+  .btn.warm:hover{background:var(--warm-soft)}
+  .btn.primary{background:var(--cool);color:#fff;border-color:var(--cool)}
+  .btn.primary:hover{filter:brightness(1.08)}
+
+  /* why timeline */
+  .timeline{padding:20px 24px;max-width:820px;position:relative}
+  .tl{position:relative;padding-left:30px}
+  .tl:before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:1.5px;background:var(--line-2)}
+  .tlnode{position:relative;margin-bottom:16px}
+  .tlnode:before{content:"";position:absolute;left:-25px;top:4px;width:11px;height:11px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--cool-dim)}
+  .tlnode.warm:before{border-color:var(--warm)} .tlnode.crit:before{border-color:var(--crit)}
+  .tlnode.commit:before{background:var(--cool);border-color:var(--cool);box-shadow:0 0 8px var(--cool)}
+  .tlnode .h{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .tlnode .c{font-family:var(--sans);font-size:13.5px;line-height:1.5;color:var(--ink)}
+
+  /* settings */
+  .field{display:grid;gap:6px;margin-bottom:16px;max-width:520px}
+  .field label{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .field input,.field select{background:var(--surface-2);border:1px solid var(--line);border-radius:9px;
+    padding:10px 13px;font-family:var(--body);font-size:13.5px;outline:none}
+  .field input:focus,.field select:focus{border-color:var(--cool);box-shadow:0 0 0 3px var(--cool-soft)}
+  .field .help{font-family:var(--sans);font-size:12px;color:var(--faint);line-height:1.5}
+  .callout{border:1px solid var(--line);border-left:3px solid var(--warm);border-radius:10px;
+    padding:13px 16px;background:var(--warm-soft);max-width:640px;margin-bottom:18px}
+  .callout b{color:var(--warm)}
+  .callout p{margin:0;font-family:var(--sans);font-size:13px;line-height:1.6}
+  .callout code{font-family:var(--mono);font-size:12px;background:var(--surface);padding:1px 5px;border-radius:4px;color:var(--ink)}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--raise);border:1px solid var(--line-2);color:var(--ink);padding:11px 18px;border-radius:11px;
+    font-size:12.5px;box-shadow:var(--shadow);transition:.25s;pointer-events:none;z-index:50;max-width:80vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .cid{margin-left:8px}
+
+  .empty{padding:60px 24px;text-align:center;color:var(--faint);font-family:var(--sans);font-size:13px}
+
+  /* Command palette (⌘K) — the v1 flagship: search + run from anywhere */
+  .cmdk{position:fixed;inset:0;z-index:100;background:rgba(4,6,12,.55);display:flex;align-items:flex-start;justify-content:center;padding-top:13vh;animation:cmdkfade .12s ease}
+  .cmdk[hidden]{display:none}
+  .cmdk-panel{width:min(580px,92vw);background:var(--raise);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:0 24px 64px -16px rgba(0,0,0,.6);overflow:hidden;display:flex;flex-direction:column;animation:cmdkrise .14s ease}
+  .cmdk-input{border:0;background:none;padding:16px 18px;font-family:var(--body);font-size:15.5px;color:var(--ink);outline:none;border-bottom:1px solid var(--line)}
+  .cmdk-input::placeholder{color:var(--faint)}
+  .cmdk-list{max-height:54vh;overflow-y:auto;padding:6px}
+  .cmdk-item{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--ink);font-size:13.5px}
+  .cmdk-item .i{width:20px;text-align:center;color:var(--muted);flex:none;font-size:13px}
+  .cmdk-item .h{margin-left:auto;font-size:11px;color:var(--faint);white-space:nowrap}
+  .cmdk-item.sel,.cmdk-item:hover{background:var(--cool-soft)}
+  .cmdk-item.sel{box-shadow:inset 2px 0 0 var(--cool)}
+  .cmdk-empty{padding:24px;text-align:center;color:var(--faint);font-size:13px}
+  .cmdk-foot{display:flex;gap:16px;padding:9px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--faint)}
+  .cmdk-foot kbd{font-family:var(--mono);font-size:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .khint{font-family:var(--mono);font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  @keyframes cmdkfade{from{opacity:0}to{opacity:1}}
+  @keyframes cmdkrise{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+  /* Tooltip — styled, calm (v1) */
+  [data-tip]{position:relative}
+  [data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+    background:var(--raise);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:5px 9px;font-size:11.5px;
+    white-space:nowrap;box-shadow:var(--shadow);z-index:60;pointer-events:none;font-family:var(--body)}
+  @media (prefers-reduced-motion:no-preference){[data-tip]:hover::after{animation:cmdkfade .12s ease}}
+
+  /* Segmented control (List / Graph) */
+  .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .segbtn{padding:6px 14px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--muted)}
+  .segbtn:hover{color:var(--ink)}
+  .segbtn.on{background:var(--cool);color:#fff}
+  /* Entity relationship graph */
+  .graphwrap{position:relative;height:calc(100vh - 214px);min-height:400px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+  .graphwrap canvas{display:block;width:100%;height:100%}
+  .graphlegend{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);pointer-events:none;background:color-mix(in srgb,var(--surface) 80%,transparent);border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+  .graphlegend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+  .graphhint{position:absolute;right:12px;top:12px;font-size:11px;color:var(--faint);pointer-events:none}
+
+  /* Search field — reusable (Memory/Goals/Knowledge/Timeline) */
+  .searchbox{display:flex;align-items:center;gap:9px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-bottom:4px}
+  .searchbox svg{width:15px;height:15px;color:var(--faint);flex:none}
+  .searchbox input{flex:1;border:0;background:none;color:var(--ink);font-family:var(--body);font-size:14px;outline:none}
+  .searchbox input::placeholder{color:var(--faint)}
+
+  /* Skeleton — never a blank wait (v1) */
+  .skel{display:flex;flex-direction:column;gap:8px}
+  .skel-line{height:10px;border-radius:6px;background:var(--cool-soft);max-width:100%}
+  .skel-line.s2{width:72%} .skel-line.s3{width:48%}
+  .skeleton .skel-line,.breathe-el{animation:breathe 1.6s ease-in-out infinite}
+
+  /* Principle 3 — ARVES is invisible by default. The technical layer (ContentIds, shard,
+     WAL, runtime) only appears in Developer mode (html.dev). Nothing is deleted — the
+     evidence is one toggle away (progressive disclosure), it just isn't the headline. */
+  html:not(.dev) .cid{display:none}
+  html:not(.dev) .idcard .idrow{display:none}
+  html:not(.dev) #runtimebadge{display:none}
+  html:not(.dev) #wormark{display:none}
+  html:not(.dev) .devonly{display:none}
+  html.dev .devtoggle{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 45%,var(--line))}
+  /* Calm register: a touch more air, quieter borders */
+  .card{border-color:color-mix(in srgb,var(--line) 78%,transparent)}
+  .grid{gap:13px}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .stream>*{animation:rise .35s ease both}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
+  @media (max-width:820px){
+    .app{grid-template-columns:1fr;grid-template-rows:52px 1fr;grid-template-areas:"top top" "main main"}
+    .brand,.rail{display:none}
+  }
+</style>
+
+<div class="atmosphere a" aria-hidden="true"></div>
+<div class="atmosphere b" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="app">
+  <div class="brand">
+    <div class="orb" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div><b>JARVIS</b><div class="v">your cognitive workspace</div></div>
+  </div>
+
+  <header class="top">
+    <span id="connpill" class="pill preview"><span class="dot"></span><span id="conntext">Preview · sample data</span></span>
+    <span id="reasonerpill" class="pill reasoner stub"><span class="dot"></span><span class="k">reasoner</span>&nbsp;<span id="reasonername">Stub (deterministic)</span></span>
+    <button id="cmdkbtn" class="pill" style="cursor:pointer;gap:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span><span class="khint">⌘K</span></button>
+    <span class="spacer"></span>
+    <span id="wormark" class="pill"><span class="dot" style="background:var(--cool)"></span><span id="shardlabel">hakan / personal</span></span>
+    <button class="iconbtn devtoggle" id="devbtn" data-tip="Developer mode" title="Developer mode — show the technical layer" aria-label="Developer mode">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 9l-4 3 4 3M16 9l4 3-4 3M13 5l-2 14"/></svg>
+    </button>
+    <button class="iconbtn" id="themebtn" data-tip="Light / dark" title="Toggle theme" aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+    </button>
+  </header>
+
+  <aside class="rail">
+    <div class="idcard">
+      <div class="idrow"><span class="k">tenant</span><span class="val" id="id-tenant">hakan</span></div>
+      <div class="idrow"><span class="k">workspace</span><span class="val" id="id-ws">personal</span></div>
+      <div class="idrow"><span class="k">wal</span><span class="val" id="id-wal">~/.jarvis/wal</span></div>
+      <div class="truthcount"><b id="truthnum">0</b><span>in memory</span></div>
+    </div>
+    <nav id="nav"></nav>
+    <div id="runtimebadge" style="margin-top:auto;padding:11px 13px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted)">
+      <span id="rtdot" style="width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none"></span>
+      <span style="font-family:var(--mono);letter-spacing:.02em"><b id="rttext" style="color:var(--ink);font-weight:600">Runtime</b> · <span id="rtconn">offline</span> · ARVES G1</span>
+    </div>
+    <div class="foot">Everything stays on your machine — private, yours, and always here.</div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="cmdk" id="cmdk" hidden>
+  <div class="cmdk-panel">
+    <input id="cmdk-input" class="cmdk-input" aria-label="Search or run a command" placeholder="Search or run a command…  (views, observe, add goal, a person…)" autocomplete="off" spellcheck="false">
+    <div class="cmdk-list" id="cmdk-list"></div>
+    <div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span></div>
+  </div>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  JARVIS Cognitive Console — front end.
+ *  Talks to its own local server at /api/* (served by ui/server.mjs).
+ *  If the server is unreachable (e.g. opened as a static preview), it
+ *  falls back to SAMPLE data and marks itself "Preview" — the design is
+ *  identical; only the data is canned. Nothing here fakes intelligence:
+ *  the reasoner shown is whatever the server reports (a deterministic
+ *  Stub until you plug an LLM in Settings).
+ * ------------------------------------------------------------------ */
+
+const SAMPLE = {
+  connected:false,
+  identity:{ tenant:"hakan", workspace:"personal", walDir:"~/.jarvis/wal" },
+  reasoner:{ name:"Stub (deterministic)", isStub:true },
+  truths:[
+    { id:"1220a3f28c… q3-review", kind:"observation", summary:"Meeting “q3-review” today 14:00", sources:["calendar","email","slack"], tag:"3 systems" },
+    { id:"1220b91e07… vendor-x", kind:"observation", summary:"Invoice from vendor-x — $2,400 renewal", sources:["erp","email"], tag:"2 systems" },
+    { id:"1220ce4471… sleep", kind:"observation", summary:"Low sleep last night (5h10m)", sources:["health"], tag:"1 system" },
+    { id:"12207fa2d9… invest", kind:"decision", summary:"Declined invest:acme-fund — “risk”", sources:["you"], tag:"decision" },
+    { id:"1220e9d3a4… vendor-x", kind:"compliance", summary:"BLOCKED renew spend:vendor-x — needs legal approval", sources:["policy"], tag:"compliance" }
+  ],
+  policies:[ { rule:"spend > $1,000 requires a separate legal approval", domain:"spend" } ],
+  approvals:[ { subject:"spend:vendor-x", asked:"renew $2,400", by:"legal" } ],
+  skills:[
+    { name:"notes.digest", certified:true }, { name:"schedule.block", certified:true },
+    { name:"reply.draft", certified:true }
+  ],
+  agents:[ { id:"researcher", role:"gathers facts into truth" }, { id:"scheduler", role:"proposes plan items" } ],
+  counts:{ truths:3, observations:3, decisions:1, blocks:1, conflicts:1, goals:2, policies:1, skills:3 },
+  sources:["calendar","csv","email","ical","journal","jsonl","notes","tasks"],
+  goals:[
+    { subject:"goal:ship-jarvis", title:"Ship the JARVIS console", id:"1220ab34cd…", status:"active", related:2 },
+    { subject:"goal:earn-g2", title:"Earn a real G2 certification", id:"1220ef9012…", status:"blocked", related:0 }
+  ],
+  entities:[
+    { name:"urn:you", type:"You", truths:1, sources:["health"] },
+    { name:"proj:arves", type:"Projects", truths:1, sources:["github"] },
+    { name:"vendor-x", type:"Things", truths:1, sources:["erp","email"] }
+  ],
+  timeline:[
+    { seq:1, id:"1220a3f28c…", kind:"observe", label:"Observed", detail:"urn:you · q3-review" },
+    { seq:2, id:"1220b91e07…", kind:"observe", label:"Observed", detail:"vendor-x · invoice" },
+    { seq:3, id:"1220f01a22…", kind:"agent",   label:"researcher researched", detail:"vendor-x renewal" },
+    { seq:4, id:"1220aa77b1…", kind:"conflict",label:"Conflict resolved", detail:"first-committed-wins" },
+    { seq:5, id:"12203cd9e0…", kind:"think",   label:"Reasoned · stub-reasoner", detail:"proposed spend.order" },
+    { seq:6, id:"1220e9d3a4…", kind:"gate",    label:"Blocked by policy", detail:"spend:vendor-x" },
+    { seq:7, id:"122077aa10…", kind:"decide",  label:"Decision recorded", detail:"invest:acme-fund: declined" }
+  ],
+  conversation:[
+    { role:"you", text:"Should I renew the vendor-x server for $2,400?" },
+    { role:"jarvis",
+      say:"I checked it against your governance and your memory. It’s blocked — here’s exactly why.",
+      trace:[
+        { kind:"thought", label:"reasoner · stub", lines:[
+          "Renew: the invoice is attested by 2 independent systems (erp, email) — high confidence it’s real.",
+          "But the amount ($2,400) crosses your spend guardrail." ] },
+        { kind:"gate", state:"block", label:"guardrail", lines:[
+          "Policy: spend > $1,000 requires a separate legal approval.",
+          "No legal-approval truth exists for spend:vendor-x." ], action:"Request legal approval" },
+        { kind:"commit", label:"committed truth", lines:[
+          "Recorded the refusal as a compliance event — auditable, replayable." ], cid:"1220e9d3a4…" }
+      ] }
+  ]
+};
+
+const ICONS = {
+  home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  assistant:'<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8"/><path d="M8 12h5"/>',
+  inbox:'<path d="M4 13h4l2 3h4l2-3h4"/><path d="M4 13l2-8h12l2 8v6H4z"/>',
+  goals:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>',
+  knowledge:'<path d="M5 4a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h14V4z"/><path d="M9 8h6"/><path d="M9 11h4"/>',
+  insights:'<path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 17v-5"/><path d="M13 17V8"/><path d="M18 17v-9"/>',
+  timeline:'<circle cx="6" cy="6" r="1.6"/><circle cx="6" cy="18" r="1.6"/><path d="M6 8v8"/><path d="M11 6h9"/><path d="M11 12h6"/><path d="M11 18h9"/>',
+  console:'<path d="M4 5h16v14H4z"/><path d="M8 10l3 2-3 2"/><path d="M13 14h4"/>',
+  memory:'<path d="M12 3a4 4 0 0 0-4 4v1a3 3 0 0 0 0 6 4 4 0 0 0 8 0 3 3 0 0 0 0-6V7a4 4 0 0 0-4-4z"/>',
+  why:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 .9-1 1.7"/><path d="M12 16.5h.01"/>',
+  guardrails:'<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
+  skills:'<path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 16l-5 2.9 1-5.5-4-3.9 5.5-.8z"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.3l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2.2-1.3L14 2h-4l-.3 2.4A7 7 0 0 0 7.5 5.7l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .9.1 1.3l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2.2 1.3L10 22h4l.3-2.4a7 7 0 0 0 2.2-1.3l2.4 1 2-3.4-2-1.6c.1-.4.1-.9.1-1.3z"/>'
+};
+const NAV = [
+  { id:"home", name:"Home" },
+  { id:"assistant", name:"Assistant" },
+  { id:"inbox", name:"Inbox", badge:s=>s.truths.filter(isObs).length },
+  { id:"goals", name:"Goals", badge:s=>(s.goals||[]).length },
+  { id:"memory", name:"Memory", badge:s=>(s.entities||[]).length||undefined },
+  { id:"knowledge", name:"Knowledge" },
+  { id:"insights", name:"Insights" },
+  { id:"timeline", name:"Timeline" },
+  { id:"why", name:"Why" },
+  { id:"guardrails", name:"Guardrails", badge:s=>s.approvals.length, alert:s=>s.approvals.length>0 },
+  { id:"skills", name:"Skills", badge:s=>s.skills.length },
+  { id:"console", name:"Console", dev:true },
+  { id:"settings", name:"Settings" }
+];
+
+let STATE = structuredClone(SAMPLE);
+let TAB = "home";
+const $ = s => document.querySelector(s);
+// Attribute-safe: escapes quotes too, so `attr="${esc(x)}"` can't be broken out of by
+// connector-/reasoner-derived truth text (stored-XSS defense). Safe in text context as well.
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* Principle 2/3 — people see meaningful names, not truth keys. urn:you → You,
+   proj:arves → ARVES, alice@dental.example → Alice, spend:vendor-x → Vendor X. */
+const ACRONYMS = {arves:'ARVES',jarvis:'JARVIS',pr:'PR',g2:'G2',ai:'AI',os:'OS',hitl:'HITL',wal:'WAL'};
+function humanize(s){
+  if(s==null) return '';
+  let x=String(s).replace(/^(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order|meeting|meet|call|event|doc|document|file|place|loc|location):/i,'');
+  const em=x.match(/^([a-z0-9._+-]+)@/i); if(em) x=em[1];               // email → local part
+  x=x.replace(/[._\-]+/g,' ').replace(/\s+/g,' ').trim();
+  if(!x) return 'You';
+  return x.split(' ').map(w=>ACRONYMS[w.toLowerCase()] || (w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
+}
+/* strip kernel-key prefixes from a free-form line (timeline details etc.) for the default view */
+function humText(s){ return String(s==null?'':s).replace(/\b(urn|proj|project|repo|person|user|contact|spend|goal|schedule|draft|digest|brief|invest|order|meeting|meet|call|event|doc|document|file|place|loc|location):/gi,''); }
+
+async function boot(){
+  try{
+    const r = await fetch('/api/state', { headers:{accept:'application/json'} });
+    if(r.ok){ const d = await r.json(); STATE = Object.assign(structuredClone(SAMPLE), d, {connected:true}); }
+  }catch(e){ /* preview mode */ }
+  paintChrome(); renderNav(); render();
+}
+
+function paintChrome(){
+  const live = STATE.connected;
+  const cp = $('#connpill'); cp.className = 'pill ' + (live?'live':'preview');
+  $('#conntext').textContent = live ? 'Connected' : 'Preview · sample data';
+  const rp = $('#reasonerpill'), stub = STATE.reasoner.isStub;
+  rp.className = 'pill reasoner ' + (stub?'stub':'real');
+  $('#reasonername').textContent = STATE.reasoner.name;
+  $('#id-tenant').textContent = STATE.identity.tenant;
+  $('#id-ws').textContent = STATE.identity.workspace;
+  $('#id-wal').textContent = STATE.identity.walDir;
+  $('#shardlabel').textContent = STATE.identity.tenant + ' / ' + STATE.identity.workspace;
+  $('#truthnum').textContent = STATE.truths.length;
+  const rd=$('#rtdot'), rc=$('#rtconn');
+  if(rd&&rc){ rd.style.background = live?'var(--good)':'var(--faint)'; rc.textContent = live?'Connected':'preview'; }
+}
+
+function renderNav(){
+  $('#nav').innerHTML = NAV.map(n=>{
+    const b = n.badge ? n.badge(STATE) : null;
+    const alert = n.alert && n.alert(STATE);
+    const sep = n.dev ? `<div style="font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:15px 13px 6px;opacity:.65">developer</div>` : '';
+    return sep + `<button class="navi ${n.id===TAB?'on':''} ${alert?'alert':''}" data-tab="${n.id}" style="${n.dev?'opacity:.72':''}">
+      <svg viewBox="0 0 24 24">${ICONS[n.id]}</svg><span>${n.name}</span>
+      ${b?`<span class="badge">${b}</span>`:''}</button>`;
+  }).join('');
+  document.querySelectorAll('.navi').forEach(b=>b.onclick=()=>{TAB=b.dataset.tab;renderNav();render();});
+}
+
+/* transient UI state (not truth) */
+let UI = { entity:null, entitySearch:'', memMode:'list', goalSearch:'', tlSearch:'', knowSearch:'', whyq:null, whyTrace:null, openSkill:null };
+const SEARCH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>';
+function searchBox(id,ph,val){ return `<div class="searchbox">${SEARCH_SVG}<input id="${id}" aria-label="${esc(ph)}" placeholder="${esc(ph)}" value="${esc(val||'')}" autocomplete="off" spellcheck="false"></div>`; }
+function wireSearch(id,setter){ const el=$('#'+id); if(!el) return; el.oninput=()=>{ setter(el.value); const pos=el.selectionStart; render(); const n=$('#'+id); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} } }; }
+
+function render(){
+  if(typeof stopGraph==='function') stopGraph();
+  const m = $('#main');
+  m.innerHTML = ({
+    home:viewHome, assistant:viewAssistant, inbox:viewInbox, goals:viewGoals, timeline:viewTimeline,
+    console:viewConsole, memory:viewMemory, knowledge:viewKnowledge, insights:viewInsights, why:viewWhy,
+    guardrails:viewGuardrails, skills:viewSkills, settings:viewSettings
+  })[TAB]();
+  wire();
+}
+
+/* kind -> accent for cognition events (shared by Home + Timeline) */
+const KIND = {
+  observe:'cool', act:'cool', decide:'cool', approve:'good',
+  think:'warm', agent:'warm', conflict:'warm',
+  gate:'crit', policy:'faint', admit:'faint', commit:'faint'
+};
+const KINDLABEL = { observe:'observed', think:'reasoned', gate:'governed', act:'acted', approve:'approved', policy:'policy', admit:'certified', decide:'decided', agent:'agent', conflict:'conflict', commit:'truth' };
+const isObs = t => t.kind==='memory' || t.kind==='observation';  // live server uses 'memory'; sample uses 'observation'
+
+/* ---------- Home (the daily driver) ---------- */
+function viewHome(){
+  const goals=STATE.goals||[]; const pend=STATE.approvals||[]; const ents=entityList();
+  const obs=STATE.truths.filter(isObs);
+  const recentObs=obs.slice(-4).reverse();
+  const recentCog=(STATE.timeline||[]).slice(-6).reverse();
+  const active=goals.filter(g=>g.status==='active');
+  const h=new Date().getHours(); const greet=h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  const name=(STATE.identity&&STATE.identity.tenant&&STATE.identity.tenant!=='you')?(', '+esc(STATE.identity.tenant)):'';
+  let dateStr=''; try{ dateStr=new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}); }catch(e){}
+  const card=(title,inner,accent)=>`<div class="card"${accent?` style="border-left:3px solid ${accent}"`:''}><div style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-bottom:9px">${title}</div>${inner}</div>`;
+  const focus=active.length? active.slice(0,4).map(g=>`<div style="display:flex;gap:9px;align-items:baseline;padding:5px 0"><span style="width:6px;height:6px;border-radius:50%;background:var(--cool);flex:none;transform:translateY(3px)"></span><span style="flex:1;font-size:14px">${esc(g.title)}</span><button class="btn" data-why="${esc(g.subject)}" style="padding:2px 9px;font-size:11px">why</button></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">No active goals. <button class="btn" data-goto="goals" style="padding:2px 9px;font-size:12px">Set one →</button></div>`;
+  const pendInner=pend.length? pend.map(a=>`<div style="display:flex;gap:9px;align-items:center;padding:5px 0"><span class="tag crit">${esc(a.by)}</span><span style="flex:1;font-size:13.5px;min-width:0">${esc(humanize(a.subject))}</span><button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}" style="padding:3px 11px;font-size:12px">Approve</button></div>`).join('') : `<div style="color:var(--good);font-size:13.5px">Nothing waiting on you. ✓</div>`;
+  const memInner=recentObs.length? recentObs.map(t=>`<div style="padding:5px 0;font-size:13.5px"><b>${esc(humanize(t.entity||''))}</b> <span style="color:var(--muted)">${esc(t.event||t.summary)}</span></div>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Nothing yet — <button class="btn" data-goto="inbox" style="padding:2px 9px;font-size:12px">observe →</button></div>`;
+  const worldInner=ents.length? ents.slice(0,7).map(e=>`<button class="btn" data-goto-entity="${esc(e.name)}" style="padding:5px 10px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))} <span style="color:var(--faint)">${e.truths}</span></button>`).join('') : `<div style="color:var(--muted);font-size:13.5px">Your people &amp; projects appear here as you observe.</div>`;
+  const cogInner=recentCog.length? recentCog.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:9px;align-items:baseline;padding:4px 0"><span style="font-family:var(--mono);font-size:9.5px;text-transform:uppercase;color:${col};width:58px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:12.5px;min-width:0">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(humText(e.detail))}</span>`:''}</span></div>`;}).join('') : `<div style="color:var(--muted);font-size:13px">Ask JARVIS something to see it think.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>${greet}${name}</h1><div class="sub">${esc(dateStr)}${dateStr?' · ':''}here's what matters today.</div></div>
+    <div class="scroll">
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+        ${card('Today’s focus', focus, active.length?'var(--cool)':'')}
+        ${card('Needs you', pendInner, pend.length?'var(--crit)':'var(--good)')}
+        ${card('Recent memory', memInner)}
+        ${card('In your world', worldInner)}
+      </div>
+      <div style="margin-top:12px">${card('Recent cognition', cogInner)}</div>
+      <div style="margin-top:16px;display:flex;gap:9px">
+        <input id="home-ask" aria-label="Ask JARVIS" placeholder="Ask JARVIS anything…" style="flex:1;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+        <button class="btn primary" id="home-send">Ask</button>
+      </div>
+    </div></section>`;
+}
+
+/* ---------- Inbox (everything observed) ---------- */
+function viewInbox(){
+  const mem = STATE.truths.filter(isObs).slice().reverse();
+  const srcBtns = (STATE.sources||['calendar','email','tasks']).map(s=>`<button class="btn" data-obs="${esc(s)}" style="margin:0 7px 7px 0">+ ${esc(s)}</button>`).join('');
+  const feed = mem.length? mem.map(t=>`<div class="card" style="margin-bottom:9px">
+      <div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div>
+      <div class="body-line" style="color:var(--ink)">${t.entity?`<b>${esc(humanize(t.entity))}</b> — ${esc(t.event||'')}`:esc(t.summary)}</div>
+      <div style="margin-top:7px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div>
+    </div>`).join(''):`<div class="empty">Inbox is empty. Pull a source above — JARVIS observes it into truth (the same event from two sources becomes one).</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Inbox</h1><div class="sub">Everything JARVIS has observed — each item one truth, with the sources that attest it. Source is evidence, never identity.</div></div>
+    <div class="scroll"><div style="margin-bottom:15px">${srcBtns}</div>${feed}</div>
+  </section>`;
+}
+
+/* ---------- Timeline (the replay) ---------- */
+function viewTimeline(){
+  const all = (STATE.timeline||[]);
+  const tq=(UI.tlSearch||'').toLowerCase().trim();
+  const tl = tq? all.filter(e=>String(e.label+' '+(e.detail||'')+' '+(KINDLABEL[e.kind]||e.kind)).toLowerCase().includes(tq)):all;
+  const body = !tl.length ? `<div class="empty">${all.length?`No events match “${esc(UI.tlSearch)}”.`:'No activity yet — observe a source, then ask JARVIS. Everything it does will show up here.'}</div>` :
+    tl.map((e,i)=>{
+      const col='var(--'+(KIND[e.kind]||'faint')+')'; const last=i===tl.length-1;
+      return `<div style="display:grid;grid-template-columns:16px 1fr;gap:13px">
+        <div style="display:flex;flex-direction:column;align-items:center">
+          <span style="width:11px;height:11px;border-radius:50%;background:${col};box-shadow:0 0 0 3px var(--bg),0 0 0 4px ${col};flex:none;margin-top:5px"></span>
+          ${last?'':'<span style="flex:1;width:2px;background:var(--line);margin:3px 0"></span>'}</div>
+        <div style="padding-bottom:17px;min-width:0">
+          <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:${col}">${KINDLABEL[e.kind]||e.kind}</div>
+          <div style="font-size:14.5px;font-weight:600;margin-top:1px">${esc(e.label)}</div>
+          ${e.detail?`<div style="font-size:13px;color:var(--muted);margin-top:1px;word-break:break-word">${esc(humText(e.detail))}</div>`:''}
+          ${e.id?`<span class="cid" data-cid="${esc(e.id)}" style="margin-top:5px;display:inline-block">${esc(e.id.slice(0,14))}…</span>`:''}
+        </div></div>`;
+    }).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Timeline</h1><div class="sub">A replay of everything JARVIS did, in order${all.length?` — ${all.length} events`:''}.</div></div>
+    <div class="scroll">${all.length>6?searchBox('tl-search','Search activity…',UI.tlSearch):''}${body}</div>
+  </section>`;
+}
+
+/* ---------- Goals (goal-driven) ---------- */
+function viewGoals(){
+  const allGoals = STATE.goals||[];
+  const gq=(UI.goalSearch||'').toLowerCase().trim();
+  const goals = gq? allGoals.filter(g=>String(g.title).toLowerCase().includes(gq)):allGoals;
+  const pill=(s)=>{ const c=s==='done'?'good':s==='blocked'?'crit':'cool'; return `<span class="tag ${c}">${esc(s)}</span>`; };
+  const cards = goals.length? goals.map(g=>`<div class="card" style="margin-bottom:10px">
+      <div class="top-line">${pill(g.status)}<span style="flex:1"></span><span class="cid" data-cid="${esc(g.id)}">${esc(g.id.slice(0,10))}…</span></div>
+      <div class="body-line" style="color:var(--ink);font-size:15px;font-weight:600">${esc(g.title)}</div>
+      <div style="margin-top:6px;font-size:12.5px;color:var(--muted)">${g.related} related ${g.related===1?'memory':'memories'} · <span class="devonly" style="font-family:var(--mono);color:var(--faint)">${esc(g.subject)}</span></div>
+      <div style="margin-top:11px;display:flex;gap:7px;flex-wrap:wrap">
+        ${['active','blocked','done'].map(s=>`<button class="btn ${g.status===s?'on':''}" data-goal-status="${esc(g.subject)}" data-goal-to="${s}" style="padding:6px 12px;font-size:12.5px">${s}</button>`).join('')}
+        <button class="btn" data-why="${esc(g.subject)}" style="padding:6px 12px;font-size:12.5px">explain</button>
+      </div>
+    </div>`).join(''):(gq?`<div class="empty">No goals match “${esc(UI.goalSearch)}”.</div>`:`<div class="empty">No goals yet. What are you working toward? Add one and JARVIS will help you make progress.</div>`);
+  return `<section class="panel on">
+    <div class="phead"><h1>Goals</h1><div class="sub">What you’re working toward. A goal is a committed truth; each status change is a <em>later</em> truth, so it’s auditable. “Related” counts observations that mention it — an honest association, not an invented percentage.</div></div>
+    <div class="scroll">
+      <div class="card" style="margin-bottom:16px"><div style="display:flex;gap:9px">
+        <input id="goal-title" aria-label="New goal" placeholder="What are you working toward? e.g. Finish Chapter 5" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">
+        <button class="btn primary" id="goal-add">Add goal</button></div></div>
+      ${allGoals.length>3?searchBox('goal-search','Search goals…',UI.goalSearch):''}
+      ${cards}
+    </div>
+  </section>`;
+}
+
+/* shared conversation rendering (Assistant + Console) */
+function conversationHTML(){
+  return STATE.conversation.map(m=>{
+    if(m.role==='you') return `<div class="ask"><div class="who">you</div>${esc(m.text)}</div>`;
+    if(m.pending) return `<div class="resp"><div class="say"><span class="lead">jarvis</span></div>
+      <div class="skeleton skel" style="max-width:320px"><div class="skel-line"></div><div class="skel-line s2"></div><div class="skel-line s3"></div></div></div>`;
+    return `<div class="resp">
+      <div class="say"><span class="lead">jarvis</span>${esc(m.say)}</div>
+      <div class="trace">${(m.trace||[]).map(traceStep).join('')}</div></div>`;
+  }).join('');
+}
+
+/* ---------- Assistant (the daily conversational surface) ---------- */
+function viewAssistant(){
+  const empty = !STATE.conversation.length;
+  const h=new Date().getHours(); const greet=h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  const name=(STATE.identity&&STATE.identity.tenant&&STATE.identity.tenant!=='you')?(', '+esc(STATE.identity.tenant)):'';
+  const sugg=['Summarize my day','What should I focus on','Review my goals','Explain my last decision','Draft a reply'];
+  const hero = empty
+    ? `<div style="max-width:560px;margin:auto;text-align:center;padding:46px 12px 20px">
+        <div style="font-size:27px;font-weight:750;letter-spacing:-.02em">${greet}${name}.</div>
+        <div style="color:var(--muted);font-size:16px;margin-top:7px">What would you like to accomplish today?</div>
+        <div style="margin-top:24px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+          ${sugg.map(s=>`<button class="btn" data-assist="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+        <div style="margin-top:14px;font-size:12px;color:var(--faint)">${STATE.reasoner.isStub?'Reasoner is the free stub — it answers a fixed set of goals. Attach your model in Settings for open conversation.':'Your model is attached — ask it anything.'}</div>
+      </div>`
+    : conversationHTML();
+  return `<section class="panel on">
+    <div class="scroll"><div class="stream" id="stream">${hero}</div></div>
+    <div class="composer"><div class="cbox">
+      <textarea id="ask" rows="1" placeholder="Ask JARVIS anything…"></textarea>
+      <button class="send" id="sendbtn" title="Ask"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </div>
+    <div class="quickrow"><span class="hint">${STATE.connected?'⏎ to ask · shift+⏎ newline':'preview — run the local server for a live reasoner'}</span></div>
+    </div></section>`;
+}
+
+/* ---------- Console (developer view — raw trace) ---------- */
+function viewConsole(){
+  const preview = !STATE.connected;
+  return `<section class="panel on">
+    <div class="scroll"><div class="stream" id="stream">${conversationHTML()}</div></div>
+    <div class="composer">
+      <div class="cbox">
+        <textarea id="ask" rows="1" placeholder="Ask JARVIS — it will reason, check your guardrails, and remember…"></textarea>
+        <button class="send" id="sendbtn" title="Ask"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="quickrow">
+        <button class="chip warm" data-obs="calendar">+ observe calendar</button>
+        <button class="chip warm" data-obs="email">+ observe email</button>
+        <button class="chip warm" data-obs="tasks">+ observe tasks</button>
+        <span class="hint">${preview?'preview — connect the local server for a live reasoner':'⏎ to ask · shift+⏎ newline'}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ---------- Insights (honest signals only — nothing invented) ---------- */
+function viewInsights(){
+  const obs=STATE.truths.filter(isObs); const ents=entityList(); const tl=STATE.timeline||[]; const goals=STATE.goals||[];
+  const used=new Set(); obs.forEach(t=>(t.sources||[]).forEach(s=>used.add(s)));
+  const top=ents.slice().sort((a,b)=>b.truths-a.truths)[0];
+  const kinds={}; tl.forEach(e=>kinds[e.kind]=(kinds[e.kind]||0)+1);
+  const kindRow=Object.entries(kinds).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span class="tag ${KIND[k]==='crit'?'crit':KIND[k]==='warm'?'warm':'cool'}" style="margin:0 6px 6px 0;display:inline-block">${KINDLABEL[k]||k} · ${n}</span>`).join('')||'—';
+  const gA=goals.filter(g=>g.status==='active').length, gB=goals.filter(g=>g.status==='blocked').length, gD=goals.filter(g=>g.status==='done').length;
+  const card=(title,body)=>`<div class="card" style="margin-bottom:11px"><div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:8px">${title}</div>${body}</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Insights</h1><div class="sub">What JARVIS notices about your world — <b>derived only from what it has actually observed</b>. No fabrication: richer life-insights (sleep, focus hours, code velocity) appear when you connect the matching source.</div></div>
+    <div class="scroll">
+      ${card('Most present in your world', top?`<div style="font-size:18px;font-weight:650">${esc(humanize(top.name))}</div><div style="color:var(--muted);font-size:13px;margin-top:3px"><span class="tag warm">${esc(top.type)}</span> ${top.truths} mention${top.truths===1?'':'s'} — more than anything else. <button class="btn" data-goto-entity="${esc(top.name)}" style="padding:3px 10px;font-size:11px;margin-left:6px">open</button></div>`:'<div class="empty" style="border:none;padding:6px 0">Observe a source to build a picture.</div>')}
+      ${card('Source coverage', `<div style="font-size:18px;font-weight:650">${used.size} / ${(STATE.sources||[]).length} connectors active</div><div style="color:var(--muted);font-size:13px;margin-top:3px">${[...used].map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'none yet'} — the more you connect, the more JARVIS can notice.</div>`)}
+      ${card('Cognition this session', `<div style="font-size:18px;font-weight:650">${tl.length} events</div><div style="margin-top:8px">${kindRow}</div><div style="color:var(--faint);font-size:12px;margin-top:6px">Resets on restart — this counts what happened since the server started (the WAL keeps the truths).</div>`)}
+      ${card('Where your goals stand', `<div style="display:flex;gap:20px"><div><b style="font-size:20px;color:var(--cool)">${gA}</b> <span style="color:var(--muted);font-size:13px">active</span></div><div><b style="font-size:20px;color:var(--crit)">${gB}</b> <span style="color:var(--muted);font-size:13px">blocked</span></div><div><b style="font-size:20px;color:var(--good)">${gD}</b> <span style="color:var(--muted);font-size:13px">done</span></div><div style="flex:1"></div><div><b style="font-size:20px">${STATE.approvals.length}</b> <span style="color:var(--muted);font-size:13px">awaiting you</span></div></div>`)}
+      <div class="callout" style="border-left:3px solid var(--warm);background:var(--warm-soft);border-radius:0 11px 11px 0;padding:13px 16px;font-size:13px;color:var(--muted)">This is the honest floor. <b style="color:var(--ink)">JARVIS knows you</b> in proportion to what you let it observe — connect Gmail, your calendar, GitHub or a health source and these insights get richer, always from real evidence, never guessed.</div>
+    </div></section>`;
+}
+
+/* ---------- Knowledge (synthesis organized from real truth; AI prose = attach a model) ---------- */
+function viewKnowledge(){
+  const ents=entityList();
+  const projects=ents.filter(e=>e.type==='Projects');
+  const focus=projects.length?projects:ents;
+  const goals=STATE.goals||[];
+  const obs=STATE.truths.filter(isObs);
+  const areaCard=(e)=>{
+    const terms=String(e.name).toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2);
+    const g=goals.filter(x=>terms.some(t=>String(x.title).toLowerCase().includes(t)));
+    const changes=(STATE.timeline||[]).filter(x=>String(x.detail||'').includes(e.name)).slice(-4).reverse();
+    const open=g.filter(x=>x.status==='blocked');
+    const related=ents.filter(x=>x.name!==e.name && (x.sources||[]).some(s=>(e.sources||[]).includes(s))).slice(0,6);
+    return `<div class="card" style="margin-bottom:12px">
+      <div class="top-line"><span class="tag warm">${esc(e.type)}</span><span style="flex:1"></span><button class="btn" data-goto-entity="${esc(e.name)}" style="padding:3px 10px;font-size:11px">profile →</button></div>
+      <div style="font-size:17px;font-weight:700;margin:4px 0 2px">${esc(humanize(e.name))}</div>
+      <div style="color:var(--muted);font-size:13px">${e.truths} truth(s) · ${g.length} goal(s) · seen via ${(e.sources||[]).map(s=>esc(s)).join(', ')||'—'}</div>
+      <div style="margin-top:11px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Recent changes</div>
+      ${changes.length?changes.map(x=>`<div style="font-size:13px;padding:3px 0;color:var(--ink)">· ${esc(x.label)}${x.detail?` <span style="color:var(--muted)">— ${esc(x.detail)}</span>`:''}</div>`).join(''):'<div style="font-size:13px;color:var(--faint);padding:3px 0">none recorded this session</div>'}
+      <div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Open questions</div>
+      ${open.length?open.map(x=>`<div style="font-size:13px;padding:3px 0"><span class="tag crit">blocked</span> ${esc(x.title)}</div>`).join(''):'<div style="font-size:13px;color:var(--faint);padding:3px 0">nothing blocked</div>'}
+      ${related.length?`<div style="margin-top:9px;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)">Related</div><div style="margin-top:4px">${related.map(r=>`<button class="btn" data-goto-entity="${esc(r.name)}" style="padding:4px 9px;font-size:11px;margin:0 5px 5px 0">${esc(humanize(r.name))}</button>`).join('')}</div>`:''}
+    </div>`;
+  };
+  const kq=(UI.knowSearch||'').toLowerCase().trim();
+  const shown = kq? focus.filter(e=>humanize(e.name).toLowerCase().includes(kq)||String(e.name).toLowerCase().includes(kq)):focus;
+  const body = shown.length? shown.map(areaCard).join('') : (kq?`<div class="empty">Nothing matches “${esc(UI.knowSearch)}”.</div>`:`<div class="empty">Nothing to synthesize yet — observe some sources and set a goal or two, and JARVIS will organize them here.</div>`);
+  return `<section class="panel on">
+    <div class="phead"><h1>Knowledge</h1><div class="sub">Where Memory is the raw record, Knowledge is <b>synthesis</b> — each project and person organized into what it is, what changed, and what's open.</div></div>
+    <div class="scroll">
+      <div class="callout" style="border-left:3px solid var(--cool);background:var(--cool-soft);border-radius:0 11px 11px 0;padding:12px 15px;font-size:13px;margin-bottom:14px">${STATE.reasoner.isStub?`A written, prose <b>AI summary</b> ("current direction / what to do next") comes from an attached model — <b>plug your OpenAI key in Settings</b>. What's below is organized from your real truth, no model needed.`:`Your model is attached. This view organizes real truth; a one-click AI prose summary is the next dedicated step.`}</div>
+      ${focus.length>4?searchBox('know-search','Search projects & people…',UI.knowSearch):''}
+      ${body}
+    </div></section>`;
+}
+function traceStep(t){
+  if(t.kind==='thought') return `<div class="tstep thought"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+    <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}</div></div>`;
+  if(t.kind==='gate'){ const pass=t.state==='pass';
+    return `<div class="tstep gate ${pass?'pass':'block'}"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+      <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}
+      ${t.action?`<button class="inlinebtn" data-approve="${esc(t.action)}">${esc(t.action)}</button>`:''}</div></div>`; }
+  return `<div class="tstep commit"><div class="lbl"><span class="m"></span>${esc(t.label)}</div>
+    <div class="body">${t.lines.map(l=>`<div>${esc(l)}</div>`).join('')}
+    ${t.cid?`<span class="cid" data-cid="${esc(t.cid)}">${esc(t.cid)}</span>`:''}</div></div>`;
+}
+
+/* ---------- Memory = Entity-centric (People / Projects / Things) ---------- */
+const LAB = t=>`<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">${t}</div>`;
+function entityList(){
+  if((STATE.entities||[]).length) return STATE.entities;
+  // fallback (preview / older server): derive from truths
+  const m={};
+  STATE.truths.filter(isObs).forEach(t=>{ const e=t.entity||String(t.summary).split(' — ')[0]||'—';
+    const type = e==='urn:you'?'You':/^(meeting|meet|call|event)[:\/]/i.test(e)?'Meetings':/^(doc|document|file)[:\/]/i.test(e)?'Documents':/^(place|loc|location)[:\/]/i.test(e)?'Places':/^(proj|project|repo)[:\/]/i.test(e)?'Projects':/@/.test(e)?'People':'Things';
+    (m[e]=m[e]||{name:e,type,truths:0,sources:new Set()}); m[e].truths++; (t.sources||[]).forEach(s=>m[e].sources.add(s)); });
+  return Object.values(m).map(x=>({...x,sources:[...x.sources]})).sort((a,b)=>b.truths-a.truths);
+}
+function viewMemory(){
+  const ents = entityList();
+  const obs = STATE.truths.filter(isObs);
+  const sel = UI.entity && ents.find(e=>e.name===UI.entity) ? UI.entity : null;
+
+  if(sel){ /* ---- Entity Profile ---- */
+    const ent = ents.find(e=>e.name===sel) || {type:'Thing',sources:[]};
+    const mine = obs.filter(t=>(t.entity||String(t.summary).split(' — ')[0])===sel);
+    const terms = String(sel).toLowerCase().split(/[^a-z0-9]+/).filter(w=>w.length>2);
+    const relGoals = (STATE.goals||[]).filter(g=>terms.some(t=>String(g.title).toLowerCase().includes(t)));
+    const tl = (STATE.timeline||[]).filter(e=>String(e.detail||'').includes(sel));
+    const alsoVia = ents.filter(e=>e.name!==sel && (e.sources||[]).some(s=>(ent.sources||[]).includes(s))).slice(0,10);
+    const stat=(v,l,col)=>`<div style="flex:1;min-width:88px"><div style="font-size:22px;font-weight:700;line-height:1;color:${col}">${v}</div><div style="font-size:11px;color:var(--muted);margin-top:5px">${l}</div></div>`;
+    const goalsHtml = relGoals.length? relGoals.map(g=>`<div style="display:flex;gap:9px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span class="tag ${g.status==='done'?'good':g.status==='blocked'?'crit':'cool'}">${esc(g.status)}</span><span style="flex:1;font-size:13.5px">${esc(g.title)}</span><button class="btn" data-why="${esc(g.subject)}" style="padding:3px 9px;font-size:11px">why</button></div>`).join('') : `<div class="empty" style="border:none;padding:8px 0">No goals mention this yet.</div>`;
+    const truthsHtml = mine.map(t=>`<div class="card" style="margin-bottom:8px"><div class="top-line"><span class="tag cool">observed</span><span style="flex:1"></span><span class="cid" data-cid="${esc(t.id)}">${esc(t.id.slice(0,12))}…</span></div><div class="body-line" style="color:var(--ink)">${esc(t.event||t.summary)}</div><div style="margin-top:6px;font-size:12px;color:var(--muted)">seen by ${(t.sources||[]).map(s=>`<b style="color:var(--cool)">${esc(s)}</b>`).join(' · ')||'—'}</div></div>`).join('');
+    const tlHtml = tl.length? tl.map(e=>{const col='var(--'+(KIND[e.kind]||'faint')+')';return `<div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)"><span style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${col};width:66px;flex:none">${KINDLABEL[e.kind]||e.kind}</span><span style="flex:1;font-size:13px">${esc(e.label)}${e.detail?` <span style="color:var(--muted)">— ${esc(humText(e.detail))}</span>`:''}</span></div>`;}).join('') : `<div class="empty" style="border:none;padding:8px 0">No cognition has touched this yet.</div>`;
+    const alsoHtml = alsoVia.map(e=>`<button class="btn" data-entity="${esc(e.name)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(e.name))}</button>`).join('');
+    return `<section class="panel on">
+      <div class="phead"><h1 style="word-break:break-word">${esc(humanize(sel))}</h1><div class="sub"><button class="btn" data-entity="" style="padding:4px 10px;font-size:12px">← all</button> &nbsp; <span class="tag warm">${esc(ent.type||'Thing')}</span> &nbsp; What JARVIS knows about this ${esc((ent.type||'thing').toLowerCase())}. <span class="devonly" style="color:var(--faint)">${esc(sel)}</span></div></div>
+      <div class="scroll">
+        <div class="card" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+          ${stat(mine.length,'truths','var(--cool)')}${stat(relGoals.length,'related goals','var(--ink)')}${stat((ent.sources||[]).length,'sources','var(--ink)')}${stat(tl.length,'cognition events','var(--warm)')}
+        </div>
+        ${LAB('Goals')}<div class="card" style="padding:6px 16px;margin-bottom:16px">${goalsHtml}</div>
+        ${LAB('Evidence · truths')}${truthsHtml}
+        ${LAB('Timeline · cognition touching this')}<div class="card" style="padding:5px 16px;margin:0 0 16px">${tlHtml}</div>
+        ${alsoHtml?LAB('Also observed via the same sources')+`<div>${alsoHtml}</div>`:''}
+      </div></section>`;
+  }
+
+  /* ---- Entity browser (grouped by type + search) ---- */
+  if(!ents.length) return `<section class="panel on"><div class="phead"><h1>Memory</h1><div class="sub">Your world, as JARVIS knows it — browse by person, project or thing.</div></div><div class="scroll"><div class="empty">Nothing yet — pull a source in Inbox.</div></div></section>`;
+  const q=(UI.entitySearch||'').toLowerCase();
+  const filtered = q? ents.filter(e=>e.name.toLowerCase().includes(q)) : ents;
+  const groups={}; filtered.forEach(e=>{ (groups[e.type]=groups[e.type]||[]).push(e); });
+  const card=e=>`<button class="card" data-entity="${esc(e.name)}" style="text-align:left;cursor:pointer;background:var(--surface);width:100%;font-family:inherit">
+      <div style="font-weight:650;color:var(--ink);word-break:break-word">${esc(humanize(e.name))}</div>
+      <div style="margin-top:5px;font-size:12px;color:var(--muted)">${e.truths} truth${e.truths===1?'':'s'} · ${(e.sources||[]).length} source${(e.sources||[]).length===1?'':'s'}</div>
+    </button>`;
+  const sections = ['You','People','Projects','Meetings','Documents','Places','Things'].filter(t=>groups[t]&&groups[t].length).map(t=>
+    `<div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 2px 8px">${t} · ${groups[t].length}</div>
+     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:11px">${groups[t].map(card).join('')}</div>`).join('') || `<div class="empty">No match for “${esc(UI.entitySearch||'')}”.</div>`;
+  const graph = UI.memMode==='graph';
+  const seg = `<div class="seg">${[['list','List'],['graph','Graph']].map(([m,l])=>`<button class="segbtn ${graph===(m==='graph')?'on':''}" data-memmode="${m}">${l}</button>`).join('')}</div>`;
+  const toprow = `<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px">${seg}${graph
+    ? '<span style="font-size:12.5px;color:var(--muted)">Lines link people, projects &amp; things seen by the same source.</span>'
+    : `<input id="ent-search" aria-label="Search people, projects, things" placeholder="Search people, projects, things…" value="${esc(UI.entitySearch||'')}" style="flex:1;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:var(--sans);font-size:14px;outline:none">`}</div>`;
+  const legend = [['You','--cool'],['People','--warm'],['Projects','--good'],['Things','--faint'],['Meetings','--reflective'],['Documents','--trust']]
+    .filter(([n])=>ents.some(e=>e.type===n)).map(([n,c])=>`<span><i style="background:var(${c})"></i>${n}</span>`).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Memory</h1><div class="sub">Your world, as JARVIS knows it — the <b>people, projects and things</b> in your life. Switch to <b>Graph</b> to see how they connect.</div></div>
+    <div class="scroll">
+      ${toprow}
+      ${graph
+        ? `<div class="graphwrap"><canvas id="entgraph"></canvas><div class="graphhint">click a node to open it</div><div class="graphlegend">${legend}</div></div>`
+        : sections}
+    </div></section>`;
+}
+
+/* ---------- Why = flowchart ---------- */
+function viewWhy(){
+  const chips = [...new Set([...(STATE.goals||[]).map(g=>g.subject), ...(STATE.approvals||[]).map(a=>a.subject)])].slice(0,12);
+  const chipHtml = chips.map(s=>`<button class="btn" data-why="${esc(s)}" style="padding:5px 11px;font-size:12px;margin:0 6px 6px 0">${esc(humanize(s))}</button>`).join('');
+  const tr = UI.whyTrace;
+  const node=(kind,label,items)=>{ if(!items||!items.length) return ''; const col='var(--'+(KIND[kind]||'cool')+')';
+    return `<div style="border:1px solid var(--line);border-left:3px solid ${col};border-radius:11px;padding:12px 15px;background:var(--surface)">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:${col};margin-bottom:7px">${label}</div>
+      ${items.map(it=>`<div style="font-size:13.5px;padding:3px 0;display:flex;justify-content:space-between;gap:10px;align-items:baseline"><span style="min-width:0">${it.text}</span>${it.id?`<span class="cid" data-cid="${esc(it.id)}" style="flex:none">${esc(String(it.id).slice(0,10))}…</span>`:''}</div>`).join('')}
+    </div>`; };
+  let flow;
+  if(UI.whyq && !tr) flow = `<div class="empty">Reconstructing from your memory…</div>`;
+  else if(tr && tr.error) flow = `<div class="empty">${esc(tr.error)}</div>`;
+  else if(tr){
+    const parts = [
+      node('observe','Observed', (tr.observed||[]).slice(0,8).map(o=>({text:`<b>${esc(o.entity)}</b> · ${esc(o.event)} <span style="color:var(--faint)">(${esc((o.sources||[]).join(', '))})</span>`, id:o.id}))),
+      node('agent','Agent findings', (tr.findings||[]).map(f=>({text:`${esc(f.agent)} — ${esc(f.topic)}`, id:f.id}))),
+      node('think','Proposals', (tr.proposals||[]).map(p=>({text:`${esc(p.by||'reasoner')} → <b>${esc(p.skill||p.action||'?')}</b> <span style="color:var(--faint)">${esc(p.because||'')}</span>`, id:p.id}))),
+      node('policy','Policies checked', (tr.policies||[]).map(pl=>({text:`${esc(pl.name)} <span style="color:var(--faint)">(${esc((pl.appliesTo||[]).join('/'))} → ${esc(pl.approverRole||'')})</span>`, id:pl.id}))),
+      node('gate','Compliance', (tr.compliance||[]).map(c=>({text:`<b>${esc(c.outcome)}</b>${c.skill?` · ${esc(c.skill)}`:''}`, id:c.id}))),
+      node('approve','Approvals', (tr.approvals||[]).map(a=>({text:`${esc(a.role)} approval granted`, id:a.id}))),
+      node('act','Committed effects', (tr.committed||[]).map(cm=>({text:`<b>${esc(cm.skill)}</b> → ${esc(cm.target||'')}`, id:cm.id}))),
+      node('decide','Decisions', (tr.decisions||[]).map(d=>({text:`${esc(d.action)} <span style="color:var(--faint)">${esc(d.because||'')}</span>`, id:d.id}))),
+    ].filter(Boolean);
+    flow = `<div style="font-size:13px;color:var(--muted);margin-bottom:14px">How JARVIS decided about <b style="color:var(--ink)">${esc(humanize(tr.subject||UI.whyq))}</b> — each step is something it knows, reconstructed from your record.</div>`
+      + (parts.length? parts.join('<div style="text-align:center;color:var(--faint);font-size:15px;margin:2px 0">↓</div>') : `<div class="empty">Nothing recorded for “${esc(tr.subject||UI.whyq)}”.</div>`);
+  } else flow = `<div class="empty">Pick a subject above (or type one) and JARVIS reconstructs its whole decision path — observed → reasoned → policy → approval → effect.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Why</h1><div class="sub">Any decision, reconstructed from committed truth. The audit trail no chatbot can give you — because here it <em>is</em> the truth, not a log.</div></div>
+    <div class="scroll">
+      <div style="display:flex;gap:9px;margin-bottom:10px"><input id="why-input" aria-label="A decision, goal or person to explain" placeholder="a decision, a goal or a person…" value="${esc(UI.whyq||'')}" style="flex:1;padding:10px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13.5px;outline:none"><button class="btn primary" id="why-go">Explain</button></div>
+      ${chipHtml?`<div style="margin-bottom:16px">${chipHtml}</div>`:''}
+      ${flow}
+    </div></section>`;
+}
+
+/* ---------- Guardrails = notifications + policy ledger ---------- */
+function viewGuardrails(){
+  const app = STATE.approvals.length ? STATE.approvals.map(a=>`
+    <div class="card" style="border-left:3px solid var(--crit);margin-bottom:9px">
+      <div class="top-line"><span class="tag crit">⏳ needs ${esc(a.by)}</span><span style="flex:1"></span></div>
+      <div class="body-line" style="color:var(--ink)"><b>${esc(humanize(a.subject))}</b> — ${esc(a.asked)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--muted)">Needs a separate <b>${esc(a.by)}</b> sign-off — an action can’t approve itself.</div>
+      <div style="margin-top:11px;display:flex;gap:8px">
+        <button class="btn primary" data-do-approve="${esc(a.subject)}" data-approve-role="${esc(a.by)}">Approve as ${esc(a.by)}</button>
+        <button class="btn" data-why="${esc(a.subject)}">Why blocked?</button></div>
+    </div>`).join('') : `<div class="empty">Nothing awaiting you. Governed actions cleared straight through.</div>`;
+  const pol = STATE.policies.map(p=>`<div class="card" style="margin-bottom:9px"><div class="top-line"><span class="tag cool">policy · truth</span><span style="flex:1"></span></div>
+    <div class="body-line" style="color:var(--ink)">${esc(p.rule)}</div><div style="margin-top:4px;font-size:12px;color:var(--muted)">${esc(p.domain||'')}</div></div>`).join('') || `<div class="empty">No rules yet. JARVIS will suggest one the first time an action needs your sign-off.</div>`;
+  return `<section class="panel on">
+    <div class="phead"><h1>Guardrails</h1><div class="sub">Your rules are committed truths, not code. An approval is a <em>separate</em> truth from a different actor — so nothing can wave itself through.</div></div>
+    <div class="scroll">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">Notifications — needs you</div>${app}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:18px 2px 8px">Policy ledger</div>${pol}
+    </div></section>`;
+}
+
+/* ---------- Skills = App Store ---------- */
+function viewSkills(){
+  const sk = (STATE.skills||[]).map(s=>{
+    const open = UI.openSkill===s.name;
+    const risk = s.actionClass && s.actionClass!=='normal';
+    const detail = open? `<div style="margin-top:12px;border-top:1px solid var(--line-2);padding-top:12px">
+        <div style="display:flex;gap:22px;flex-wrap:wrap">
+          ${[['version',esc(s.version||'—'),'var(--ink)'],['risk class',(esc(s.actionClass||'normal')+(risk?' · gated':'')),risk?'var(--crit)':'var(--good)'],['runs · this session',String(s.runs||0),'var(--ink)']].map(([k,v,c])=>`<div><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em">${k}</div><div style="color:${c};font-weight:600;margin-top:2px">${v}</div></div>`).join('')}
+        </div>
+        <div style="margin-top:12px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">Produces</div>${(s.produces||[]).map(p=>`<span class="tag cool" style="margin:0 6px 5px 0;display:inline-block">${esc(humanize(p.replace(/^uci\.assistant\./,'')))}</span>`).join('')||'—'}</div>
+        <div class="devonly" style="margin-top:11px"><div style="color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px">Admission truth (which code was certified)</div><span class="cid" data-cid="${esc(s.registrationId||'')}">${esc(String(s.registrationId||'').slice(0,18))}…</span></div>
+      </div>`:'';
+    return `<div class="card" data-skill="${esc(s.name)}" style="margin-bottom:9px;cursor:pointer">
+      <div class="top-line"><span class="tag good">✓ certified</span>${risk?'<span class="tag crit">approval-gated</span>':''}<span style="flex:1"></span><span style="font-family:var(--mono);font-weight:600;color:var(--ink)">${esc(s.name)}</span></div>
+      <div class="body-line" style="color:var(--muted)">v${esc(s.version||'?')} · ${(s.produces||[]).length} output type(s) · ${s.runs||0} run(s) this session — ${open?'click to collapse ▲':'click for outputs, risk &amp; admission ▾'}</div>
+      ${detail}</div>`;
+  }).join('');
+  const ag = (STATE.agents||[]).map(a=>`<div class="card"><div class="top-line"><span class="tag warm">sub-agent</span><span style="flex:1"></span><span style="font-family:var(--mono);color:var(--ink)">${esc(a.id)}</span></div>
+    <div class="body-line">${esc(a.role)}</div></div>`).join('');
+  return `<section class="panel on">
+    <div class="phead"><h1>Skills</h1><div class="sub">Certified capabilities JARVIS may run — an app store where every listing PROVED it passed certification (a forged flag can’t get in). Click one for its outputs, risk class and admission truth.</div></div>
+    <div class="scroll">
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:2px 2px 8px">Certified skills</div>${sk}
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 2px 8px">Sub-agents</div>${ag}
+    </div></section>`;
+}
+
+/* ---------- Settings ---------- */
+function viewSettings(){
+  const stub = STATE.reasoner.isStub;
+  const curModel = (!stub && /^openai:/.test(STATE.reasoner.name)) ? STATE.reasoner.name.replace(/^openai:/,'') : '';
+  return `<section class="panel on">
+    <div class="phead"><h1>Settings</h1><div class="sub">Where JARVIS becomes yours — switch the intelligence right here, no terminal, no restart. Your key never leaves this machine except as your own OpenAI call.</div></div>
+    <div class="scroll"><div class="grid" style="display:block;max-width:660px">
+      <div class="callout"><p><b>Reasoner: ${stub?'Stub (deterministic) — free, not AI':esc(STATE.reasoner.name)+' — real model, live'}.</b>
+        ${stub?`The stub is a keyword table: reproducible and honest (it says “I don’t know” instead of guessing), but it can’t hold a conversation. Attach a real model below and it reasons over open-ended goals — under the <b>same</b> governance (spend still needs approval, hallucinated skills are refused).`:`A real model is answering. Every proposal it makes is committed as attributed, governed, replayable truth — exactly like everything else.`}</p></div>
+
+      <div class="field"><label>Intelligence</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ${stub?'on':''}" data-reasoner="stub">Free stub (deterministic)</button>
+          <button class="btn ${stub?'':'on'}" data-reasoner="openai">Real model — OpenAI</button>
+        </div>
+        <div class="help">Switch live. The stub is free and reproducible; a real model reasons over anything, billed by your provider.</div></div>
+
+      <div class="card" id="oa-form" style="${stub?'':'border-left:3px solid var(--good)'}">
+        <div class="top-line"><span class="tag warm">OpenAI</span><span style="flex:1"></span>${stub?'':'<span class="tag good">attached</span>'}</div>
+        <div class="field"><label>API key</label><input id="oa-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label>Model</label><input id="oa-model" placeholder="gpt-4o-mini" value="${esc(curModel)}"></div>
+        <button class="btn primary" id="oa-attach">${stub?'Attach OpenAI':'Re-attach with this key'}</button>
+        <div class="help" style="margin-top:9px;line-height:1.5">🔒 <b>Your key stays in this server’s memory for this session only.</b> It is never written to disk, never logged, never committed, and never becomes truth — it leaves this machine solely as the Authorization header of <em>your own</em> OpenAI request (billed by OpenAI, not ARVES). For a key that survives a restart, start the server with <code>OPENAI_API_KEY=…</code> instead. Rotate any key you’ve shared anywhere.</div>
+      </div>
+
+      <div style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:14px 2px 2px">Identity &amp; storage</div>
+      <div class="field"><label>Workspace</label><input value="${esc(STATE.identity.workspace)}" readonly></div>
+      <div class="field"><label>Where your memory is stored</label><input value="${esc(STATE.identity.walDir)}" readonly>
+        <div class="help">Everything JARVIS remembers lives in this folder and survives restarts — it never leaves your machine.</div>
+        <div class="help devonly">Developer: the shard (<code>--tenant</code> / <code>--workspace</code>) and folder (<code>--wal-dir</code>) are set at server start — changing them rebinds the Kernel, so they aren’t live-editable. Tenant: <code>${esc(STATE.identity.tenant)}</code>.</div></div>
+    </div></div></section>`;
+}
+
+/* ---------- wiring ---------- */
+function toast(msg, cid){
+  const t=$('#toast'); t.innerHTML = esc(msg) + (cid?`<span class="cid">${esc(cid)}</span>`:'');
+  t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600);
+}
+function wire(){
+  const ask=$('#ask'), send=$('#sendbtn');
+  if(ask){
+    ask.oninput=()=>{ask.style.height='auto';ask.style.height=Math.min(ask.scrollHeight,140)+'px';};
+    ask.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doAsk();} };
+    send.onclick=doAsk;
+  }
+  document.querySelectorAll('[data-obs]').forEach(b=>b.onclick=()=>doObserve(b.dataset.obs));
+  document.querySelectorAll('[data-cid]').forEach(b=>b.onclick=(e)=>{e.stopPropagation();navigator.clipboard&&navigator.clipboard.writeText(b.dataset.cid);toast('ContentId copied',b.dataset.cid);});
+  document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>{TAB='guardrails';renderNav();render();});
+  document.querySelectorAll('[data-do-approve]').forEach(b=>b.onclick=()=>doApprove(b.dataset.doApprove, b.dataset.approveRole||'user'));
+  document.querySelectorAll('[data-reasoner]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.reasoner==='stub') doAttachReasoner('stub');
+    else { const k=$('#oa-key'); if(k) k.focus(); toast('Paste your OpenAI key below, then Attach'); }
+  });
+  const oaAttach=$('#oa-attach'); if(oaAttach) oaAttach.onclick=()=>doAttachReasoner('openai');
+  document.querySelectorAll('[data-entity]').forEach(b=>b.onclick=()=>{ UI.entity=b.dataset.entity||null; UI.entitySearch=''; render(); });
+  const es=$('#ent-search'); if(es){ es.oninput=()=>{ UI.entitySearch=es.value; const pos=es.selectionStart; render(); const n=$('#ent-search'); if(n){ n.focus(); try{n.setSelectionRange(pos,pos);}catch(e){} } }; }
+  wireSearch('goal-search', v=>UI.goalSearch=v);
+  wireSearch('tl-search', v=>UI.tlSearch=v);
+  wireSearch('know-search', v=>UI.knowSearch=v);
+  document.querySelectorAll('[data-memmode]').forEach(b=>b.onclick=()=>{ UI.memMode=b.dataset.memmode; render(); });
+  if($('#entgraph')) startGraph();
+  document.querySelectorAll('[data-skill]').forEach(b=>b.onclick=()=>{ UI.openSkill = UI.openSkill===b.dataset.skill?null:b.dataset.skill; render(); });
+  document.querySelectorAll('[data-why]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doWhy(b.dataset.why); });
+  document.querySelectorAll('[data-goal-status]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); doGoalStatus(b.dataset.goalStatus,b.dataset.goalTo); });
+  const ga=$('#goal-add'), gt=$('#goal-title'); if(ga&&gt){ ga.onclick=doAddGoal; gt.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();doAddGoal();}} }
+  const wgo=$('#why-go'), wi=$('#why-input'); if(wgo&&wi){ const go=()=>{const q=wi.value.trim(); if(q) doWhy(q);}; wgo.onclick=go; wi.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go();}} }
+  const hs=$('#home-send'), ha=$('#home-ask');
+  if(hs&&ha){ const go=()=>{ const q=ha.value.trim(); if(!q) return; TAB='assistant'; renderNav(); render(); const a=$('#ask'); if(a) a.value=q; doAsk(); };
+    hs.onclick=go; ha.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();go();} }; }
+  document.querySelectorAll('[data-assist]').forEach(b=>b.onclick=()=>{ const a=$('#ask'); if(a){ a.value=b.dataset.assist; } doAsk(); });
+  document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{ TAB=b.dataset.goto; renderNav(); render(); });
+  document.querySelectorAll('[data-goto-entity]').forEach(b=>b.onclick=()=>{ TAB='memory'; UI.entity=b.dataset.gotoEntity; renderNav(); render(); });
+  const addsk=document.querySelector('[data-add-skill]'); if(addsk) addsk.onclick=()=>toast('Add a skill from a certified capability file');
+}
+
+async function doAttachReasoner(provider){
+  if(!STATE.connected){ toast('Preview mode — run the local server to attach a model'); return; }
+  let body;
+  if(provider==='stub'){ body={provider:'stub'}; }
+  else{
+    const keyEl=$('#oa-key'); let key=keyEl?keyEl.value.trim():'';
+    // Tolerate a paste that carries surrounding text (e.g. "OPENAI_API_KEY=sk-… — the key…"):
+    // extract just the sk- token so a stray dash/space in the prose can't corrupt the header.
+    const m=key.match(/sk-[A-Za-z0-9_\-]+/); if(m) key=m[0];
+    const modelEl=$('#oa-model'); const model=modelEl?modelEl.value.trim():'';
+    if(!key){ toast('Paste your OpenAI API key first'); if(keyEl) keyEl.focus(); return; }
+    if(!/^[\x21-\x7e]+$/.test(key)){ toast('That doesn’t look like a key — paste only the sk-… token'); if(keyEl) keyEl.focus(); return; }
+    body={provider:'openai', apiKey:key, model:model||undefined};
+  }
+  try{
+    const r=await fetch('/api/reasoner',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!r.ok){ toast(d.error||'Could not attach the reasoner'); return; }
+    STATE.reasoner=d.reasoner;
+    const keyEl=$('#oa-key'); if(keyEl) keyEl.value='';   // wipe the key from the DOM after use
+    paintChrome(); render();
+    toast(d.reasoner.isStub?'Switched to the free stub':'Attached '+d.reasoner.name);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+
+async function doAsk(){
+  const ask=$('#ask'); const q=ask.value.trim(); if(!q) return;
+  STATE.conversation.push({role:'you',text:q}); ask.value=''; ask.style.height='auto';
+  if(!STATE.connected){
+    STATE.conversation.push({role:'jarvis', say:'Preview mode — I can’t reason without a model. Run the local server and plug your LLM in Settings, then ask me for real.',
+      trace:[{kind:'thought',label:'reasoner · stub (offline)',lines:['This is a static preview. The live console reasons, checks your guardrails, and commits truth.']}]});
+    render(); scrollStream(); return;
+  }
+  STATE.conversation.push({role:'jarvis',pending:true}); render(); scrollStream();
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({goal:q})});
+    const d=await r.json();
+    STATE.conversation.pop(); // remove the pending skeleton
+    if(!r.ok||!d.turn){ STATE.conversation.push({role:'jarvis', say:'Something went wrong: '+((d&&d.error)||'the assistant returned no turn')+'.', trace:[]}); render(); scrollStream(); toast(d&&d.error?d.error:'Ask failed'); return; }
+    STATE.conversation.push(d.turn); STATE.truths=d.truths||STATE.truths;
+    paintChrome(); renderNav(); render(); scrollStream();
+    if(d.turn&&d.turn.trace){const c=d.turn.trace.find(x=>x.cid);if(c)toast('Saved to memory',c.cid);}
+  }catch(e){ STATE.conversation.pop(); render(); toast('Could not reach the local Kernel'); }
+}
+function scrollStream(){const s=$('#stream');if(s)s.parentElement.scrollTop=s.parentElement.scrollHeight;}
+async function doObserve(src){
+  if(!STATE.connected){ toast('Preview — observing '+src+' (sample)'); return; }
+  try{ const r=await fetch('/api/observe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({source:src})});
+    const d=await r.json(); STATE.truths=d.truths||STATE.truths; paintChrome(); renderNav();
+    toast(d.deduped?'Already known (deduped)':'Observed '+src, d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doApprove(subject, role){
+  role = role || 'user';
+  if(!STATE.connected){ STATE.approvals=STATE.approvals.filter(a=>a.subject!==subject); renderNav(); render(); toast('Preview — approval truth (sample)'); return; }
+  try{ const r=await fetch('/api/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject,role})});
+    const d=await r.json(); STATE.approvals=d.approvals||[]; STATE.truths=d.truths||STATE.truths;
+    paintChrome(); renderNav(); render(); toast(role.charAt(0).toUpperCase()+role.slice(1)+' approval committed', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+
+async function doAddGoal(){
+  const el=$('#goal-title'); const title=el?el.value.trim():''; if(!title) return;
+  if(!STATE.connected){ toast('Preview — run the local server to add goals'); return; }
+  try{ const r=await fetch('/api/goals',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title})});
+    const d=await r.json(); if(!r.ok){ toast(d.error||'Could not add goal'); return; }
+    STATE.goals=d.goals||[]; STATE.counts=d.counts||STATE.counts; renderNav(); render(); toast('Goal committed as truth', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doGoalStatus(subject,to){
+  if(!STATE.connected){ toast('Preview only'); return; }
+  try{ const r=await fetch('/api/goals/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subject,status:to})});
+    const d=await r.json(); if(!r.ok){ toast(d.error||'Could not update'); return; }
+    STATE.goals=d.goals||[]; render(); toast('Status → '+to+' (committed truth)', d.id);
+  }catch(e){ toast('Could not reach the local Kernel'); }
+}
+async function doWhy(subject){
+  TAB='why'; UI.whyq=subject; UI.whyTrace=null; renderNav(); render();
+  if(!STATE.connected){ UI.whyTrace={error:'Preview — run the local server to reconstruct from truth'}; render(); return; }
+  try{ const r=await fetch('/api/why?q='+encodeURIComponent(subject));
+    const d=await r.json(); UI.whyTrace = r.ok ? d.trace : { error:d.error||'nothing found for that subject' }; render();
+  }catch(e){ UI.whyTrace={error:'Could not reach the local Kernel'}; render(); }
+}
+
+/* theme */
+(function(){
+  const root=document.documentElement, btn=$('#themebtn');
+  btn.onclick=()=>{ const cur=root.getAttribute('data-theme')|| (matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');
+    root.setAttribute('data-theme', cur==='dark'?'light':'dark'); };
+})();
+
+/* developer mode — html.dev reveals the technical layer (ContentIds, shard, WAL, runtime).
+   Off by default so ARVES stays invisible; the evidence is one toggle away. */
+(function(){
+  const root=document.documentElement, db=$('#devbtn');
+  let dev=false; try{ dev=localStorage.getItem('jarvis-dev')==='1'; }catch(e){}
+  root.classList.toggle('dev',dev);
+  if(db) db.onclick=()=>{ dev=!dev; try{localStorage.setItem('jarvis-dev',dev?'1':'0');}catch(e){}
+    root.classList.toggle('dev',dev); toast(dev?'Developer mode on — showing the technical layer':'Developer mode off — the human view'); };
+})();
+
+/* ---------- Entity relationship graph (Canvas, force-directed) ---------- */
+const GRAPH={raf:null};
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()||'#7f8896';
+const GTYPE={You:'--cool',People:'--warm',Projects:'--good',Things:'--faint',Meetings:'--reflective',Documents:'--trust',Places:'--cool-dim'};
+function stopGraph(){ if(GRAPH.raf){ cancelAnimationFrame(GRAPH.raf); GRAPH.raf=null; } }
+function startGraph(){
+  const canvas=$('#entgraph'); if(!canvas||!canvas.getContext) return; stopGraph();
+  const wrap=canvas.parentElement, rect=wrap.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1, W=Math.max(320,rect.width), H=Math.max(360,rect.height);
+  canvas.width=W*dpr; canvas.height=H*dpr; const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  const ents=entityList();
+  const nodes=ents.map(e=>({id:e.name,label:humanize(e.name),type:e.type,sources:e.sources||[],
+    r:9+Math.sqrt(Math.max(1,e.truths))*4.5, col:cssv(GTYPE[e.type]||'--faint'), x:0,y:0,vx:0,vy:0}));
+  nodes.forEach((n,i)=>{ const a=i/Math.max(1,nodes.length)*6.2832; n.x=W/2+Math.cos(a)*Math.min(W,H)*0.30; n.y=H/2+Math.sin(a)*Math.min(W,H)*0.30; });
+  const edges=[]; for(let a=0;a<nodes.length;a++)for(let b=a+1;b<nodes.length;b++){ if(nodes[a].sources.some(s=>nodes[b].sources.includes(s))) edges.push({a,b}); }
+  const adj=nodes.map(()=>new Set()); edges.forEach(e=>{adj[e.a].add(e.b);adj[e.b].add(e.a);});
+  Object.assign(GRAPH,{canvas,ctx,nodes,edges,adj,w:W,h:H,frames:0,hover:-1,edgeCol:cssv('--line-2'),textCol:cssv('--muted')});
+  const pick=(mx,my)=>{ let best=-1,bd=1e9; nodes.forEach((n,i)=>{const d=Math.hypot(n.x-mx,n.y-my); if(d<n.r+7&&d<bd){bd=d;best=i;}}); return best; };
+  canvas.onmousemove=ev=>{ const r=canvas.getBoundingClientRect(); GRAPH.hover=pick(ev.clientX-r.left,ev.clientY-r.top); canvas.style.cursor=GRAPH.hover>=0?'pointer':'default'; if(GRAPH.frames>=560) graphDraw(); };
+  canvas.onmouseleave=()=>{ GRAPH.hover=-1; if(GRAPH.frames>=560) graphDraw(); };
+  canvas.onclick=ev=>{ const r=canvas.getBoundingClientRect(); const i=pick(ev.clientX-r.left,ev.clientY-r.top); if(i>=0){ UI.entity=nodes[i].id; UI.memMode='list'; render(); } };
+  GRAPH.raf=requestAnimationFrame(graphLoop);
+}
+function graphTick(){
+  const {nodes,edges,w:W,h:H}=GRAPH, cx=W/2, cy=H/2;
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){ const a=nodes[i],b=nodes[j];
+    let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy||0.01,d=Math.sqrt(d2),f=2600/d2,fx=dx/d*f,fy=dy/d*f; a.vx-=fx;a.vy-=fy;b.vx+=fx;b.vy+=fy; }
+  for(const e of edges){ const a=nodes[e.a],b=nodes[e.b]; let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||0.01,f=(d-96)*0.009,fx=dx/d*f,fy=dy/d*f; a.vx+=fx;a.vy+=fy;b.vx-=fx;b.vy-=fy; }
+  for(const n of nodes){ n.vx+=(cx-n.x)*0.009; n.vy+=(cy-n.y)*0.009; n.vx*=0.85; n.vy*=0.85; n.x+=n.vx; n.y+=n.vy;
+    n.x=Math.max(n.r+8,Math.min(W-n.r-8,n.x)); n.y=Math.max(n.r+8,Math.min(H-n.r-22,n.y)); }
+}
+function graphDraw(){
+  const {ctx,nodes,edges,adj,hover,w:W,h:H}=GRAPH; ctx.clearRect(0,0,W,H);
+  ctx.lineWidth=1; ctx.strokeStyle=GRAPH.edgeCol;
+  for(const e of edges){ const on=hover<0||hover===e.a||hover===e.b; ctx.globalAlpha=on?0.55:0.12; ctx.beginPath(); ctx.moveTo(nodes[e.a].x,nodes[e.a].y); ctx.lineTo(nodes[e.b].x,nodes[e.b].y); ctx.stroke(); }
+  ctx.globalAlpha=1; ctx.textAlign='center'; ctx.font='600 12px Inter, "Segoe UI", system-ui, sans-serif';
+  nodes.forEach((n,i)=>{ const lit=hover<0||hover===i||(adj[hover]&&adj[hover].has(i));
+    ctx.globalAlpha=lit?1:0.28; ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,6.2832); ctx.fillStyle=n.col; ctx.fill();
+    if(i===hover){ ctx.globalAlpha=1; ctx.lineWidth=2.5; ctx.strokeStyle=n.col; ctx.stroke(); }
+    ctx.globalAlpha=hover<0||hover===i?1:0.4; ctx.fillStyle=GRAPH.textCol; ctx.fillText(n.label.length>18?n.label.slice(0,17)+'…':n.label, n.x, n.y+n.r+14); });
+  ctx.globalAlpha=1;
+}
+function graphLoop(){ graphTick(); graphDraw(); GRAPH.frames++; if(GRAPH.frames<560) GRAPH.raf=requestAnimationFrame(graphLoop); else GRAPH.raf=null; }
+
+/* ---------- Command palette (⌘K) ---------- */
+const CMDK={open:false,q:'',sel:0,list:[]};
+function cmdkCommands(){
+  const go=id=>()=>{ TAB=id; renderNav(); render(); };
+  const focusAfter=(id,sel)=>()=>{ TAB=id; renderNav(); render(); const el=$(sel); if(el) el.focus(); };
+  const c=[];
+  NAV.forEach(n=>c.push({i:'→',label:'Go to '+n.name,hint:'View',run:go(n.id)}));
+  c.push({i:'✦',label:'Ask JARVIS',hint:'Action',run:focusAfter('assistant','#ask')});
+  c.push({i:'◎',label:'Add a goal',hint:'Action',run:focusAfter('goals','#goal-title')});
+  c.push({i:'⚙',label:'Attach a model · Settings',hint:'Action',run:go('settings')});
+  (STATE.sources||[]).forEach(s=>c.push({i:'↓',label:'Observe '+s,hint:'Bring into memory',run:()=>{TAB='inbox';renderNav();render();doObserve(s);}}));
+  c.push({i:'◐',label:'Toggle light / dark',hint:'Appearance',run:()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark');}});
+  c.push({i:'⟨⟩',label:'Toggle developer mode',hint:'Appearance',run:()=>{const db=$('#devbtn');if(db)db.click();}});
+  (STATE.entities||[]).forEach(e=>c.push({i:'●',label:humanize(e.name),hint:e.type,run:()=>{TAB='memory';UI.entity=e.name;renderNav();render();}}));
+  (STATE.goals||[]).forEach(g=>c.push({i:'◎',label:'Explain: '+g.title,hint:'Why',run:()=>doWhy(g.subject)}));
+  return c;
+}
+function cmdkRender(){
+  const all=cmdkCommands(); const q=CMDK.q.toLowerCase().trim();
+  CMDK.list = q? all.filter(x=>x.label.toLowerCase().includes(q)||(x.hint||'').toLowerCase().includes(q)) : all;
+  if(CMDK.sel>=CMDK.list.length) CMDK.sel=Math.max(0,CMDK.list.length-1);
+  const el=$('#cmdk-list');
+  el.innerHTML = CMDK.list.length? CMDK.list.map((x,idx)=>`<div class="cmdk-item ${idx===CMDK.sel?'sel':''}" data-ci="${idx}"><span class="i">${x.i||''}</span><span>${esc(x.label)}</span><span class="h">${esc(x.hint||'')}</span></div>`).join('')
+    : `<div class="cmdk-empty">No matches — try a view name, “observe”, “add goal”, or a person.</div>`;
+  el.querySelectorAll('[data-ci]').forEach(b=>{ b.onclick=()=>cmdkRun(+b.dataset.ci); b.onmousemove=()=>{ CMDK.sel=+b.dataset.ci; el.querySelectorAll('.cmdk-item').forEach(z=>z.classList.remove('sel')); b.classList.add('sel'); }; });
+  const s=el.querySelector('.cmdk-item.sel'); if(s) s.scrollIntoView({block:'nearest'});
+}
+function cmdkOpen(){ CMDK.open=true; CMDK.q=''; CMDK.sel=0; const o=$('#cmdk'); if(!o) return; o.hidden=false; const inp=$('#cmdk-input'); inp.value=''; cmdkRender(); setTimeout(()=>inp.focus(),0); }
+function cmdkClose(){ CMDK.open=false; const o=$('#cmdk'); if(o) o.hidden=true; }
+function cmdkRun(i){ const x=CMDK.list[i]; cmdkClose(); if(x){ try{ x.run(); }catch(e){ toast('Could not run that'); } } }
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&(e.key==='k'||e.key==='K')){ e.preventDefault(); CMDK.open?cmdkClose():cmdkOpen(); return; }
+  if(!CMDK.open) return;
+  if(e.key==='Escape'){ e.preventDefault(); cmdkClose(); }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); CMDK.sel=Math.min(CMDK.list.length-1,CMDK.sel+1); cmdkRender(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); CMDK.sel=Math.max(0,CMDK.sel-1); cmdkRender(); }
+  else if(e.key==='Enter'){ e.preventDefault(); cmdkRun(CMDK.sel); }
+});
+document.addEventListener('input',e=>{ if(e.target&&e.target.id==='cmdk-input'){ CMDK.q=e.target.value; CMDK.sel=0; cmdkRender(); } });
+(function(){ const o=$('#cmdk'); if(o) o.onclick=e=>{ if(e.target===o) cmdkClose(); }; const b=$('#cmdkbtn'); if(b) b.onclick=cmdkOpen; })();
+
+boot();
+</script>
