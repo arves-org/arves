@@ -138,22 +138,23 @@ This is the table to tape to your wall. When you’re unsure whether to build so
 it here first.
 
 ```
-🟦  YOUR PRODUCT OWNS                     ⬛  ARVES OWNS
-────────────────────────────────────     ─────────────────────────────────────
-Product experience (UI / CLI)            Truth (content-addressed, immutable)
-Business logic & domain rules            Memory (durable, restart-surviving)
-Skills (what actions exist)              Governance (the policy gate)
-Reasoners (how to decide / an LLM)       Policies & approvals (as truth)
-Connectors (how your data gets in)       Audit trail (every decision recorded)
-Integrations (calendars, email, …)       Replay & determinism
-Copy, design, personality                Content addressing & identity
-                                         Capability registry & binding
-                                         Certification (proving a tool conforms)
-                                         Explainability substrate (why())
+🟦  YOUR PRODUCT OWNS                      ⬛  ARVES PROVIDES
+─────────────────────────────────────     ─────────────────────────────────────
+Product experience (UI / CLI)             Truth (content-addressed, immutable)
+Business logic & domain rules             Memory (durable, restart-surviving)
+Skills (what actions exist)               Policy-as-truth primitives — durable
+Reasoners (how to decide / an LLM)          policies, approvals & compliance events
+Connectors (how your data gets in)        Capability admission (certify + bind)
+The governance gate — you compose it      Audit trail (every decision is truth)
+  from ARVES primitives (see Stage 5)     Replay & determinism
+Integrations, copy, design, voice         Content addressing & identity
+                                          The truth substrate that why() reads
 ```
 
 Read the divide as a rule: **if the thing on the right shows up in your product’s code, you
-are rebuilding the runtime.** Stop. It’s already there.
+are rebuilding the runtime.** Stop. It’s already there. (The one nuance — the governance
+*gate* on the left — you don’t rebuild either: you *compose* it from ARVES primitives, as
+Stage 5 shows.)
 
 The line is not arbitrary. It follows one principle:
 
@@ -390,11 +391,14 @@ will key on, and the effect shape (`{target, value}`) is checked to be canonical
 an action is verified, gated, and recorded* is infrastructure — that’s ARVES. You describe the
 action; ARVES guarantees the guardrails around it.
 
-> Why is `actionClass` outside the manifest? Because the manifest’s identity is hashed from
-> your `execute` code only. Declaring or changing a risk class must **not** change the tool’s
-> identity or invalidate its certification. And critically: **risk is decided by the skill,
-> never by whoever asked to run it** — so an untrusted reasoner (or a jailbroken LLM) cannot
-> relabel its own `spend` action as `normal` to slip past the gate.
+> Why is `actionClass` outside the manifest? Because a capability’s content-addressed id is
+> hashed from its manifest (name / version / produces) **plus** a `codeHash` of your `execute`
+> source **plus** the test-inputs hash — and `actionClass` is deliberately kept out of all
+> three (it sits *beside* the manifest, not inside it; `codeHash` covers only `execute`). So
+> declaring or changing a risk class changes neither the tool’s id nor its certification, while
+> a real code, name, `produces`, or version change correctly mints a new id. And critically:
+> **risk is decided by the skill, never by whoever asked to run it** — so an untrusted reasoner
+> (or a jailbroken LLM) cannot relabel its own `spend` action as `normal` to slip past the gate.
 
 ## Stage 4 — Register skills (certify + bind)
 
@@ -445,33 +449,43 @@ await ava.guardrails.setPolicy({ name: 'spending', appliesTo: ['spend'], approve
 await ava.guardrails.approve('user', subject);
 ```
 
-**⬛ What ARVES provides.** The gate, and its integrity:
+**⬛ What ARVES provides.** The *primitives* that make governance impossible to fake — policies,
+approvals, and compliance events committed as durable, content-addressed, replayable **truth** —
+plus the capability-admission gate (only a certified + bound skill can be invoked at all).
+
+**🟦 What you build.** The enforcement gate itself: one central `enforce()` call before every
+skill invocation, exactly as the reference `guardrails.mjs` does. It’s small, and you write it
+once — built *on* the ARVES primitives, not from scratch:
 
 ```
-Approval Flow
+Approval Flow  (your gate, built on ARVES primitives)
 
   think("pay acme $1200")
         │
-        ▼  ⬛ resolve risk from the REGISTERED skill  → 'spend'
-        ▼  ⬛ gate: is 'spend' governed, and is there an approval truth?
+        ▼  🟦 resolve risk from the REGISTERED skill  → 'spend'   (never from the request)
+        ▼  🟦 ask the gate: is 'spend' governed, and is there an approval truth?
         │
         ├── no approval ──►  ⬛ BLOCK  →  commit a compliance truth  →  "needs approval"
         │                                (the block itself is recorded — never a silent drop)
         │
-        └── approval exists ──►  ⬛ PASS  →  the skill may run
+        └── approval exists ──►  🟦 PASS  →  invoke the skill
 ```
 
 Policies and approvals are themselves *truth* — content-addressed, durable, replayable. After
 a restart, your policies still gate, because they were never config in your product; they were
-facts in the runtime.
+facts in the runtime, and you rebuild the gate’s view from them.
 
-**Why the split.** Governance that lives in product code is governance you can bypass with a
-code change. ARVES makes the gate structural: it runs *before* any skill, it derives risk from
-the skill (not the request), and it records every block. You declare the rules; ARVES enforces
-them the same way for every product, forever.
+**Why the split.** ARVES gives you governance you *can’t fake*: every policy, approval, and
+block is permanent truth, so the record can never lie about what was allowed. What ARVES v1.0
+does **not** do is structurally stop an un-gated invoke — the runtime enforces capability
+binding and identity, not your policies. So composing the gate, and always routing actions
+through it, is the product’s job. Do it in **one** place (as `guardrails.mjs` does), never as
+scattered `if (approved)` checks, and derive risk from the skill, not the caller.
 
-> This is why you must never “just add an `if (approved)` check” in your skill. The gate is not
-> your job, and re-implementing it means you can get it wrong. Set a policy; trust the gate.
+> **Honest residual (v1.0):** a committed approval’s `role` is structural, not cryptographically
+> authenticated — there is no authN on commit yet (a recorded v2.0 item). The gate’s strength is
+> that everything it does is permanent truth; its limit is that *you* must route every action
+> through it. Stated, not hidden.
 
 ## Stage 6 — Attach a reasoner (the intelligence)
 
@@ -523,8 +537,12 @@ Everything is wired. Now Ava thinks and acts:
 const r = await ava.think('pay the acme invoice');
 ```
 
-**⬛ What ARVES provides.** The entire governed pipeline from Stage-6 proposal to committed
-effect, and an honest, typed result telling you exactly what happened:
+**🟦 What you build.** The loop that drives it — call `ava.think(intent)` for each incoming
+goal, branch on the typed result, and call `why()` when someone asks for an explanation. That’s
+your harness; the governed pipeline underneath is ARVES (with your Stage-5 gate).
+
+**⬛ What ARVES provides.** The governed pipeline from a Stage-6 proposal to a committed effect,
+and an honest, typed result telling you exactly what happened:
 
 ```
 r.acted   === true                       ✅ ran; r.invocation.truths[] are the effects
@@ -534,18 +552,25 @@ r.failed, stage:'skill-execution'        ⚠️ gate passed, but the skill threw
 r.reason  === 'no-action-proposed'       💬 nothing to do (e.g. "hi" maps to no skill)
 ```
 
-And then, at any time, the question every AI product must answer:
+And then, at any time, the question every AI product must answer. Here `why()` is *your* code —
+a thin projection (like the reference `why.mjs`) reading an ARVES truth substrate:
 
 ```
-why(ava, subject)   →   ⬛ the full decision path, reconstructed from truth:
+why(ava, subject)   →   the decision path, reconstructed from committed truth:
 
     observed  →  reasoned  →  proposed  →  gated  →  approved  →  acted
        │            │            │           │          │          │
-       └── every station is a committed truth, in order, replayable ──┘
+       └──  ⬛ each station is a committed truth  ·  🟦 why() walks them in order  ──┘
 ```
 
-You didn’t build an audit system, a trace format, or a “why” feature. You called `why()`.
-Explainability is a property of a truth-based runtime, not a feature you ship.
+You didn’t build the *audit substrate* — every station was already truth, and ARVES gives you a
+read-only WAL scan to enumerate it. You wrote the thin projection that walks it. Explainability
+falls out of a truth-based runtime; you just render it.
+
+> **Honest residual:** reconstructed purely from a cold WAL scan, the path recovers every
+> station **except** the final effect→skill causal edge — that link is process metadata, not yet
+> in the committed body (a recorded RCR candidate). The live same-process record has it; a
+> from-scratch replay re-derives it. Stated, not hidden.
 
 **Why the split.** “Why did the AI do that?” is the question that ends AI products in
 regulated domains. In ARVES it has a real answer because *every step was already truth*. Your
